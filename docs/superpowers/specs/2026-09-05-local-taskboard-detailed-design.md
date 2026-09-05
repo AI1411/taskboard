@@ -4,9 +4,9 @@ Companion to `docs/superpowers/specs/2026-09-05-local-taskboard-design.md`. That
 
 Implementation is split into three independently shippable plans:
 
-1. Core domain, SQLite, and CLI (`tb` / `taskboard`)
-2. Local HTTP API and web UI (`tb serve`)
-3. Tauri desktop shell using the shared UI
+1. Core domain, SQLite, and CLI (`tb` / `taskboard`) — `docs/superpowers/plans/2026-09-05-taskboard-core-cli.md`
+2. Local HTTP API and web UI (`tb serve`) — `docs/superpowers/plans/2026-09-05-taskboard-api-web.md`
+3. Tauri desktop shell using the shared UI — `docs/superpowers/plans/2026-09-05-taskboard-desktop.md`
 
 Each plan must produce working, testable software on its own. Plan 1 is the source of truth for domain behavior. Plans 2 and 3 must call the same application use cases.
 
