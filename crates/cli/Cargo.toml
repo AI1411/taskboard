@@ -1,0 +1,11 @@
+[package]
+name = "taskboard-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+taskboard-application = { path = "../application" }
+taskboard-store-sqlite = { path = "../store-sqlite" }
+clap.workspace = true
+serde_json.workspace = true
