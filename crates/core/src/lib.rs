@@ -7,6 +7,7 @@ mod display_status;
 mod error;
 mod ids;
 mod models;
+mod order;
 mod run_status;
 mod slug;
 mod validation;
@@ -17,6 +18,9 @@ pub use error::{FieldError, ValidationError};
 pub use ids::{DisplayKind, ParseDisplayIdError, display_id, parse_display_id};
 pub use models::{
     Activity, ActorKind, EntityType, Link, LinkKind, Project, Run, Task, TaskDetail, TaskSummary,
+};
+pub use order::{
+    OrderError, OrderKey, place_before, place_urgent, rewrite_positions, sort_column,
 };
 pub use run_status::{ParseRunStatusError, RunStatus};
 pub use slug::{SlugError, next_unique_slug, slugify};
