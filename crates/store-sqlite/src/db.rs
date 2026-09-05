@@ -40,10 +40,7 @@ pub async fn open_db(data_dir: &Path) -> Result<SqlitePool, AppError> {
         if db_existed {
             backup_pre_migration(data_dir, &pool).await?;
         }
-        sqlx::raw_sql(INIT_SQL)
-            .execute(&pool)
-            .await
-            .map_err(map_sqlx)?;
+        apply_init_migration(&pool).await?;
         write_log(
             &log_path,
             &cfg.log_level,
@@ -53,6 +50,16 @@ pub async fn open_db(data_dir: &Path) -> Result<SqlitePool, AppError> {
     }
 
     Ok(pool)
+}
+
+async fn apply_init_migration(pool: &SqlitePool) -> Result<(), AppError> {
+    let mut tx = pool.begin().await.map_err(map_sqlx)?;
+    sqlx::raw_sql(INIT_SQL)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+    tx.commit().await.map_err(map_sqlx)?;
+    Ok(())
 }
 
 async fn projects_table_exists(pool: &SqlitePool) -> Result<bool, AppError> {
@@ -90,7 +97,10 @@ fn create_log_file(logs_dir: &Path) -> Result<PathBuf, AppError> {
 
 fn write_log(path: &Path, configured_level: &str, message_level: &str, message: &str) {
     // Diagnostic logs must never include note bodies, run summaries, or repository paths.
-    if message.contains("note_markdown") || message.contains("repo_path") {
+    if message.contains("note_markdown")
+        || message.contains("repo_path")
+        || message.contains("summary")
+    {
         return;
     }
     if !log_enabled(configured_level, message_level) {
@@ -234,5 +244,75 @@ mod tests {
     #[test]
     fn init_sql_matches_migrations_file() {
         assert_eq!(INIT_SQL, include_str!("../migrations/0001_init.sql"));
+    }
+
+    #[tokio::test]
+    async fn open_db_applies_full_schema() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pool = open_db(tmp.path()).await.unwrap();
+        let tables: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            tables,
+            [
+                "activities",
+                "counters",
+                "links",
+                "projects",
+                "runs",
+                "tasks",
+            ]
+        );
+        pool.close().await;
+    }
+
+    /// `apply_init_migration` runs `INIT_SQL` inside a sqlx transaction so a failed
+    /// statement rolls back the entire script instead of leaving partial schema.
+    #[tokio::test]
+    async fn failed_statement_inside_transaction_does_not_commit_partial_schema() {
+        let tmp = tempfile::tempdir().unwrap();
+        let db = tmp.path().join("test.sqlite3");
+        let pool = SqlitePool::connect_with(
+            SqliteConnectOptions::new()
+                .filename(&db)
+                .create_if_missing(true),
+        )
+        .await
+        .unwrap();
+
+        let mut tx = pool.begin().await.unwrap();
+        let broken = "CREATE TABLE counters (name TEXT PRIMARY KEY);\nNOT VALID SQL;";
+        let result = sqlx::raw_sql(broken).execute(&mut *tx).await;
+        assert!(result.is_err());
+        tx.rollback().await.unwrap();
+
+        let counters: Option<String> = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'counters'",
+        )
+        .fetch_optional(&pool)
+        .await
+        .unwrap();
+        assert!(counters.is_none());
+        pool.close().await;
+    }
+
+    #[test]
+    fn write_log_skips_forbidden_substrings() {
+        let tmp = tempfile::tempdir().unwrap();
+        let log_path = tmp.path().join("taskboard.log");
+        write_log(&log_path, "info", "info", "safe message");
+        write_log(&log_path, "info", "info", "contains note_markdown field");
+        write_log(&log_path, "info", "info", "contains repo_path field");
+        write_log(&log_path, "info", "info", "contains summary field");
+
+        let contents = fs::read_to_string(&log_path).unwrap();
+        assert!(contents.contains("safe message"));
+        assert!(!contents.contains("note_markdown"));
+        assert!(!contents.contains("repo_path"));
+        assert!(!contents.contains("summary field"));
     }
 }
