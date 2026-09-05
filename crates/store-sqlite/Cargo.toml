@@ -5,13 +5,16 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+async-trait.workspace = true
 taskboard-application = { path = "../application" }
 taskboard-core = { path = "../core" }
 chrono.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
 toml = "=0.8.23"
+uuid.workspace = true
 
 [dev-dependencies]
 tempfile = "=3.19.1"

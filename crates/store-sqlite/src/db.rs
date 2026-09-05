@@ -131,7 +131,7 @@ fn map_io(err: std::io::Error) -> AppError {
     AppError::Io(err.to_string())
 }
 
-fn map_sqlx(err: sqlx::Error) -> AppError {
+pub(crate) fn map_sqlx(err: sqlx::Error) -> AppError {
     if let sqlx::Error::Database(db_err) = &err {
         let code = db_err.code();
         if matches!(code.as_deref(), Some("5" | "6")) {

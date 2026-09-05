@@ -7,7 +7,13 @@ license.workspace = true
 [dependencies]
 async-trait.workspace = true
 chrono.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 taskboard-core = { path = "../core" }
 thiserror.workspace = true
+tokio.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+tempfile = "=3.19.1"
+taskboard-store-sqlite = { path = "../store-sqlite" }
