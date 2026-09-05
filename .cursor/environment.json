@@ -1,0 +1,4 @@
+{
+  "name": "taskboard",
+  "install": "rustup component add rustfmt clippy\n[ ! -f Cargo.toml ] || cargo fetch\n[ ! -f pnpm-lock.yaml ] || pnpm install --frozen-lockfile\n[ -f pnpm-lock.yaml ] || [ ! -f package.json ] || pnpm install"
+}
