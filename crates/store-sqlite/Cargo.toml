@@ -7,5 +7,11 @@ license.workspace = true
 [dependencies]
 taskboard-application = { path = "../application" }
 taskboard-core = { path = "../core" }
+chrono.workspace = true
+serde.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
+toml = "=0.8.23"
+
+[dev-dependencies]
+tempfile = "=3.19.1"
