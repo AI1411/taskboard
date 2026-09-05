@@ -1,12 +1,22 @@
 use std::ops::Deref;
 
-use taskboard_application::{Actor, App, ProjectAdd, ProjectUpdate, SystemClock};
+use std::collections::HashSet;
+
+use taskboard_application::{Actor, App, ProjectAdd, ProjectUpdate, Store, SystemClock};
 use taskboard_core::ActorKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
 
 struct TestApp {
     app: App,
     _tmp: tempfile::TempDir,
+}
+
+impl TestApp {
+    async fn activity_head(&self) -> i64 {
+        let pool = open_db(self._tmp.path()).await.unwrap();
+        let mut store = SqliteStore::new(pool);
+        store.activity_head().await.unwrap()
+    }
 }
 
 impl Deref for TestApp {
@@ -314,6 +324,62 @@ async fn restore_fails_when_live_project_owns_slug() {
         .await
         .unwrap_err();
     assert_eq!(err.code(), "duplicate_slug");
+}
+
+#[tokio::test]
+async fn project_add_advances_activity_head() {
+    let app = test_app().await;
+    assert_eq!(app.activity_head().await, 0);
+    app.project_add(
+        &cli_actor(),
+        ProjectAdd {
+            name: "A".into(),
+            repo_path: None,
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(app.activity_head().await, 1);
+}
+
+#[tokio::test]
+async fn restore_assigns_unique_sort_order_after_live_max() {
+    let app = test_app().await;
+    let a = app
+        .project_add(
+            &cli_actor(),
+            ProjectAdd {
+                name: "A".into(),
+                repo_path: None,
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(a.sort_order, 0);
+    app.project_delete(&cli_actor(), &a.slug, None)
+        .await
+        .unwrap();
+    let b = app
+        .project_add(
+            &cli_actor(),
+            ProjectAdd {
+                name: "B".into(),
+                repo_path: None,
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(b.sort_order, 0);
+    let restored = app.project_restore(&cli_actor(), &a.slug).await.unwrap();
+    let live = app.project_list(false).await.unwrap();
+    let sort_orders: HashSet<i64> = live.iter().map(|p| p.sort_order).collect();
+    assert_eq!(sort_orders.len(), live.len());
+    let max_live = live.iter().map(|p| p.sort_order).max().unwrap();
+    assert_eq!(restored.sort_order, max_live);
+    assert_eq!(restored.sort_order, 1);
 }
 
 #[tokio::test]

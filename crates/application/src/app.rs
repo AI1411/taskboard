@@ -411,6 +411,13 @@ async fn project_restore_inner(
     matches.sort_by_key(|project| project.deleted_at);
     let mut project = matches.pop().ok_or_else(|| project_not_found(slug))?;
     let before = project.clone();
+    let live = store.list_projects(true).await?;
+    project.sort_order = live
+        .iter()
+        .map(|live_project| live_project.sort_order)
+        .max()
+        .map(|max| max + 1)
+        .unwrap_or(0);
     project.deleted_at = None;
     project.revision += 1;
     project.updated_at = now;
