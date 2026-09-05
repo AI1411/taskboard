@@ -54,6 +54,19 @@ mod tests {
     }
 
     #[test]
+    fn slugify_empty_or_punctuation_only_returns_empty_error() {
+        assert_eq!(slugify(""), Err(SlugError::Empty));
+        assert_eq!(slugify("   "), Err(SlugError::Empty));
+        assert_eq!(slugify("!!!"), Err(SlugError::Empty));
+        assert_eq!(slugify("---"), Err(SlugError::Empty));
+    }
+
+    #[test]
+    fn next_unique_slug_returns_base_when_unused() {
+        assert_eq!(next_unique_slug("renai-sim", &[]).unwrap(), "renai-sim");
+    }
+
+    #[test]
     fn slug_collision_appends_number() {
         let live = ["renai-sim"];
         assert_eq!(next_unique_slug("renai-sim", &live).unwrap(), "renai-sim-2");
