@@ -1,0 +1,11 @@
+[package]
+name = "taskboard-store-sqlite"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+taskboard-application = { path = "../application" }
+taskboard-core = { path = "../core" }
+sqlx.workspace = true
+tokio.workspace = true
