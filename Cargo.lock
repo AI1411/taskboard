@@ -1444,9 +1444,13 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "serde",
  "serde_json",
  "taskboard-core",
+ "taskboard-store-sqlite",
+ "tempfile",
  "thiserror 2.0.20",
+ "tokio",
  "uuid",
 ]
 
@@ -1476,14 +1480,17 @@ dependencies = [
 name = "taskboard-store-sqlite"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "chrono",
  "serde",
+ "serde_json",
  "sqlx",
  "taskboard-application",
  "taskboard-core",
  "tempfile",
  "tokio",
  "toml",
+ "uuid",
 ]
 
 [[package]]
