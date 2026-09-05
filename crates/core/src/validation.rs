@@ -1,4 +1,5 @@
 use crate::error::{FieldError, ValidationError};
+use url::Url;
 
 const TITLE_FIELD: &str = "title";
 const NAME_FIELD: &str = "name";
@@ -13,7 +14,7 @@ pub fn trim_title(raw: &str) -> Result<String, ValidationError> {
     if trimmed.is_empty() {
         return Err(ValidationError::new(TITLE_FIELD, FieldError::Empty));
     }
-    if trimmed.len() > 200 {
+    if trimmed.chars().count() > 200 {
         return Err(ValidationError::new(
             TITLE_FIELD,
             FieldError::TooLong { max: 200 },
@@ -27,7 +28,7 @@ pub fn trim_project_name(raw: &str) -> Result<String, ValidationError> {
     if trimmed.is_empty() {
         return Err(ValidationError::new(NAME_FIELD, FieldError::Empty));
     }
-    if trimmed.len() > 120 {
+    if trimmed.chars().count() > 120 {
         return Err(ValidationError::new(
             NAME_FIELD,
             FieldError::TooLong { max: 120 },
@@ -71,28 +72,38 @@ pub fn parse_agent(raw: &str) -> Result<String, ValidationError> {
 }
 
 pub fn parse_url(raw: &str) -> Result<String, ValidationError> {
-    let scheme = raw
-        .split("://")
-        .next()
-        .filter(|_| raw.contains("://"))
-        .ok_or_else(|| {
-            ValidationError::new(
-                VALUE_FIELD,
-                FieldError::Invalid {
-                    allowed: URL_SCHEMES_ALLOWED,
-                },
-            )
-        })?;
-
-    match scheme {
-        "http" | "https" | "file" => Ok(raw.to_string()),
-        _ => Err(ValidationError::new(
+    let url = Url::parse(raw).map_err(|_| {
+        ValidationError::new(
             VALUE_FIELD,
             FieldError::Invalid {
                 allowed: URL_SCHEMES_ALLOWED,
             },
-        )),
+        )
+    })?;
+
+    match url.scheme() {
+        "http" | "https" => {
+            if url.host().is_none() {
+                return Err(ValidationError::new(
+                    VALUE_FIELD,
+                    FieldError::Invalid {
+                        allowed: URL_SCHEMES_ALLOWED,
+                    },
+                ));
+            }
+        }
+        "file" => {}
+        _ => {
+            return Err(ValidationError::new(
+                VALUE_FIELD,
+                FieldError::Invalid {
+                    allowed: URL_SCHEMES_ALLOWED,
+                },
+            ));
+        }
     }
+
+    Ok(raw.to_string())
 }
 
 pub fn parse_path_link(raw: &str) -> Result<String, ValidationError> {
@@ -104,7 +115,7 @@ pub fn parse_path_link(raw: &str) -> Result<String, ValidationError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_agent, parse_url, trim_title};
+    use super::{parse_agent, parse_url, trim_project_name, trim_title};
 
     #[test]
     fn title_must_not_be_blank() {
@@ -119,6 +130,18 @@ mod tests {
     }
 
     #[test]
+    fn title_max_200_unicode_chars() {
+        assert!(trim_title(&"あ".repeat(200)).is_ok());
+        assert!(trim_title(&"あ".repeat(201)).is_err());
+    }
+
+    #[test]
+    fn project_name_max_120_unicode_chars() {
+        assert!(trim_project_name(&"あ".repeat(120)).is_ok());
+        assert!(trim_project_name(&"あ".repeat(121)).is_err());
+    }
+
+    #[test]
     fn agent_pattern() {
         assert!(parse_agent("codex").is_ok());
         assert!(parse_agent("Claude").is_err());
@@ -129,5 +152,7 @@ mod tests {
     fn url_schemes() {
         assert!(parse_url("https://example.com").is_ok());
         assert!(parse_url("ftp://x").is_err());
+        assert!(parse_url("not a url").is_err());
+        assert!(parse_url("http://").is_err());
     }
 }
