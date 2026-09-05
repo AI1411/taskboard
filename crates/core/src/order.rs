@@ -58,18 +58,23 @@ pub fn place_before(
         .ok_or_else(|| OrderError::NotInColumn {
             display_id: display_id.to_string(),
         })?;
-    let key = keys.remove(index);
 
     let insert_at = match before {
         None => keys.len(),
-        Some(before_id) => keys
-            .iter()
-            .position(|k| k.display_id == before_id)
-            .ok_or_else(|| OrderError::NotInColumn {
-                display_id: before_id.to_string(),
-            })?,
+        Some(before_id) => {
+            if before_id == display_id {
+                return Ok(());
+            }
+            keys.iter()
+                .position(|k| k.display_id == before_id)
+                .ok_or_else(|| OrderError::NotInColumn {
+                    display_id: before_id.to_string(),
+                })?
+        }
     };
 
+    let key = keys.remove(index);
+    let insert_at = if index < insert_at { insert_at - 1 } else { insert_at };
     keys.insert(insert_at, key);
     rewrite_positions(keys);
     Ok(())
@@ -122,6 +127,62 @@ mod tests {
         assert_eq!(keys[1].display_id, "TASK-2");
         assert_eq!(keys[0].position, 0);
         assert_eq!(keys[1].position, 1);
+    }
+
+    #[test]
+    fn toggling_urgent_off_moves_to_start_of_non_urgent_group() {
+        let mut keys = vec![
+            OrderKey {
+                display_id: "TASK-1".into(),
+                urgent: true,
+                position: 0,
+            },
+            OrderKey {
+                display_id: "TASK-2".into(),
+                urgent: true,
+                position: 1,
+            },
+            OrderKey {
+                display_id: "TASK-3".into(),
+                urgent: false,
+                position: 2,
+            },
+            OrderKey {
+                display_id: "TASK-4".into(),
+                urgent: false,
+                position: 3,
+            },
+        ];
+        place_urgent(&mut keys, "TASK-1", false);
+        assert_eq!(keys[0].display_id, "TASK-2");
+        assert!(keys[0].urgent);
+        assert_eq!(keys[1].display_id, "TASK-1");
+        assert!(!keys[1].urgent);
+        assert_eq!(keys[2].display_id, "TASK-3");
+        assert!(!keys[2].urgent);
+        assert_eq!(keys[0].position, 0);
+        assert_eq!(keys[1].position, 1);
+        assert_eq!(keys[2].position, 2);
+        assert_eq!(keys[3].position, 3);
+    }
+
+    #[test]
+    fn place_before_self_before_is_no_op() {
+        let mut keys = vec![
+            OrderKey {
+                display_id: "TASK-1".into(),
+                urgent: false,
+                position: 0,
+            },
+            OrderKey {
+                display_id: "TASK-2".into(),
+                urgent: false,
+                position: 1,
+            },
+        ];
+        let before = snapshot_keys(&keys);
+        place_before(&mut keys, "TASK-1", Some("TASK-1")).unwrap();
+        assert_eq!(snapshot_keys(&keys), before);
     }
 
     #[test]
@@ -208,6 +269,37 @@ mod tests {
         );
     }
 
+    fn snapshot_keys(keys: &[OrderKey]) -> Vec<(String, i64)> {
+        keys.iter()
+            .map(|k| (k.display_id.clone(), k.position))
+            .collect()
+    }
+
+    #[test]
+    fn place_before_leaves_slice_unchanged_on_missing_before_id() {
+        let mut keys = vec![
+            OrderKey {
+                display_id: "TASK-1".into(),
+                urgent: false,
+                position: 0,
+            },
+            OrderKey {
+                display_id: "TASK-2".into(),
+                urgent: false,
+                position: 1,
+            },
+        ];
+        let before = snapshot_keys(&keys);
+        let err = place_before(&mut keys, "TASK-1", Some("TASK-99")).unwrap_err();
+        assert_eq!(
+            err,
+            OrderError::NotInColumn {
+                display_id: "TASK-99".into()
+            }
+        );
+        assert_eq!(snapshot_keys(&keys), before);
+    }
+
     fn make_eight_keys(urgent_flags: [bool; 8]) -> Vec<OrderKey> {
         urgent_flags
             .into_iter()
@@ -253,13 +345,12 @@ mod tests {
         for perm in permutations {
             let mut keys: Vec<OrderKey> = perm
                 .iter()
-                .enumerate()
-                .map(|(new_pos, &old_idx)| {
+                .map(|&old_idx| {
                     let source = &base[old_idx];
                     OrderKey {
                         display_id: source.display_id.clone(),
                         urgent: source.urgent,
-                        position: new_pos as i64,
+                        position: source.position,
                     }
                 })
                 .collect();
