@@ -300,3 +300,7 @@ The first release excludes automatic agent discovery, external issue trackers, n
 - Any soft-deleted item can be restored during the retention period.
 - Desktop, web, and CLI pass the same domain-rule contract suite.
 - The application remains fully functional with network access disabled.
+
+## 16. Detailed design
+
+Field-level entities, SQLite schema, HTTP routes, screens, config, and user stories are in `docs/superpowers/specs/2026-09-05-local-taskboard-detailed-design.md`. That companion wins when this document is silent or ambiguous.
