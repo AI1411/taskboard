@@ -229,6 +229,7 @@ async fn patch_task_chains_if_match_across_fields() {
     let body = ok.json::<serde_json::Value>().await.unwrap();
     assert_eq!(body["entity"]["title"], "Updated title");
     assert_eq!(body["entity"]["urgent"], true);
+    assert_eq!(body["revision"], revision + 2);
 
     let conflict = client
         .patch(format!("{}/api/v1/tasks/TASK-1", s.base))

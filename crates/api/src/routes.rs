@@ -95,6 +95,10 @@ fn if_match(headers: &HeaderMap) -> Result<Option<i64>, Response> {
     raw.parse().map(Some).map_err(|_| invalid_if_match())
 }
 
+fn advance_if_match(updated_revision: i64) -> Option<i64> {
+    Some(updated_revision)
+}
+
 fn invalid_if_match() -> Response {
     app_error(AppError::Validation {
         field: "If-Match".into(),
@@ -249,7 +253,7 @@ async fn patch_project(
             .await
             .map_err(app_error)?;
         slug = updated.slug.clone();
-        revision = Some(updated.revision);
+        revision = advance_if_match(updated.revision);
         project = Some(updated);
     }
     if let Some(archived) = body.archived {
@@ -258,7 +262,7 @@ async fn patch_project(
             .project_archive(&actor, &slug, archived, revision)
             .await
             .map_err(app_error)?;
-        revision = Some(updated.revision);
+        revision = advance_if_match(updated.revision);
         project = Some(updated);
     }
     if let Some(note_markdown) = body.note_markdown {
@@ -405,7 +409,7 @@ async fn patch_task(
             )
             .await
             .map_err(app_error)?;
-        revision = Some(updated.revision);
+        revision = advance_if_match(updated.revision);
         task = Some(updated);
     }
     if let Some(note_markdown) = body.note_markdown {
@@ -414,7 +418,7 @@ async fn patch_task(
             .task_note_set(&actor, &display_id, note_markdown, revision)
             .await
             .map_err(app_error)?;
-        revision = Some(updated.revision);
+        revision = advance_if_match(updated.revision);
         task = Some(updated);
     }
     if let Some(urgent) = body.urgent {
@@ -423,7 +427,7 @@ async fn patch_task(
             .task_urgent(&actor, &display_id, urgent, revision)
             .await
             .map_err(app_error)?;
-        revision = Some(updated.revision);
+        revision = advance_if_match(updated.revision);
         task = Some(updated);
     }
     if let Some(column) = body.column {
@@ -432,17 +436,20 @@ async fn patch_task(
             .task_move(&actor, &display_id, column, revision)
             .await
             .map_err(app_error)?;
-        revision = Some(updated.revision);
+        revision = advance_if_match(updated.revision);
         task = Some(updated);
     }
     if let Some(before_display_id) = body.before_display_id {
-        task = Some(
-            state
-                .app
-                .task_reorder(&actor, &display_id, before_display_id.as_deref(), revision)
-                .await
-                .map_err(app_error)?,
-        );
+        let updated = state
+            .app
+            .task_reorder(&actor, &display_id, before_display_id.as_deref(), revision)
+            .await
+            .map_err(app_error)?;
+        #[allow(unused_assignments)]
+        {
+            revision = advance_if_match(updated.revision);
+        }
+        task = Some(updated);
     }
     let task = match task {
         Some(task) => task,
@@ -669,4 +676,48 @@ async fn backup_import(
         .await
         .map_err(app_error)?;
     Ok(ok())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::advance_if_match;
+
+    fn chain_revisions<E>(
+        mut revision: Option<i64>,
+        first: impl FnOnce(Option<i64>) -> Result<i64, E>,
+        second: impl FnOnce(Option<i64>) -> Result<i64, E>,
+    ) -> Result<Option<i64>, E> {
+        revision = advance_if_match(first(revision)?);
+        revision = advance_if_match(second(revision)?);
+        Ok(revision)
+    }
+
+    #[test]
+    fn advance_if_match_keeps_revision_not_none() {
+        let n = 2_i64;
+        assert_eq!(advance_if_match(n), Some(n));
+        assert_ne!(advance_if_match(n), None);
+    }
+
+    #[test]
+    fn chain_revisions_second_op_sees_advanced_if_match() {
+        let mut first_seen = None;
+        let mut second_seen = None;
+        let result = chain_revisions(
+            Some(1),
+            |rev| {
+                first_seen = rev;
+                Ok::<_, ()>(2)
+            },
+            |rev| {
+                second_seen = rev;
+                Ok::<_, ()>(3)
+            },
+        );
+        assert_eq!(result, Ok(Some(3)));
+        assert_eq!(first_seen, Some(1));
+        assert_eq!(second_seen, Some(2));
+        assert_ne!(second_seen, None);
+        assert_ne!(second_seen, Some(1));
+    }
 }
