@@ -5,6 +5,7 @@
   border-radius: 10px;
   background: var(--card-bg);
   color: var(--board-fg);
-  padding: 0.45rem 0.75rem;
+  padding: 0.55rem 0.75rem;
+  min-height: 44px;
   font: inherit;
 }
