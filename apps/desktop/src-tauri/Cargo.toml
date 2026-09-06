@@ -1,0 +1,29 @@
+[package]
+name = "taskboard-desktop"
+version = "0.1.0"
+description = "Taskboard desktop shell"
+edition = "2021"
+license = "MIT"
+rust-version = "1.83"
+
+# Excluded from the workspace: Linux CI has no webkit2gtk-4.1, and Tauri 2.6's
+# crate graph currently pulls edition2024 packages that need rustc > 1.83.
+# Wrappers live here; command logic is tested via taskboard-desktop-commands.
+
+[lib]
+name = "taskboard_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.6.2", features = [] }
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "=2.6.2", features = [] }
+taskboard-application = { path = "../../../crates/application" }
+taskboard-core = { path = "../../../crates/core" }
+taskboard-desktop-commands = { path = "../../../crates/desktop-commands" }
+taskboard-store-sqlite = { path = "../../../crates/store-sqlite" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }

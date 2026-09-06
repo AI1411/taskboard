@@ -2114,6 +2114,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "taskboard-desktop-commands"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "taskboard-application",
+ "taskboard-core",
+ "taskboard-store-sqlite",
+ "tempfile",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "taskboard-store-sqlite"
 version = "0.1.0"
 dependencies = [

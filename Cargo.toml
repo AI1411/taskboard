@@ -6,7 +6,11 @@ members = [
     "crates/store-sqlite",
     "crates/cli",
     "crates/api",
+    "crates/desktop-commands",
 ]
+# apps/desktop/src-tauri (taskboard-desktop) is excluded: this Linux
+# environment has no webkit2gtk-4.1, and root `cargo test` must stay green.
+exclude = ["apps/desktop/src-tauri"]
 
 [workspace.package]
 edition = "2021"
