@@ -1,0 +1,19 @@
+.app {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) minmax(320px, 420px);
+  min-height: 100vh;
+  font-family: "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  background: var(--board-bg);
+}
+
+.collapsed {
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.9rem 1rem 1.25rem;
+  overflow: auto;
+}
