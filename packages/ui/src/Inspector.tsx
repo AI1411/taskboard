@@ -5,6 +5,22 @@ import { COLUMNS } from "./columns";
 import { EmptyState } from "./EmptyState";
 import styles from "./Inspector.module.css";
 
+const ACTIVITY_LABELS: Record<string, string> = {
+  "task.create": "Created",
+  "task.update": "Updated",
+  "task.move": "Moved",
+  "task.reorder": "Reordered",
+  "task.delete": "Deleted",
+  "task.urgent": "Urgent changed",
+  "run.start": "Run started",
+  "run.finish": "Run finished",
+  "run.fail": "Run failed",
+};
+
+function activityLabel(operation: string): string {
+  return ACTIVITY_LABELS[operation] ?? operation;
+}
+
 export function Inspector(props: {
   task: TaskDetail | null;
   open: boolean;
@@ -124,7 +140,7 @@ export function Inspector(props: {
         <ul className={styles.list}>
           {activities.map((item) => (
             <li key={item.id}>
-              {item.operation} · {item.actorLabel}
+              {activityLabel(item.operation)} · {item.actorLabel}
             </li>
           ))}
         </ul>
