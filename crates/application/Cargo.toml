@@ -15,5 +15,6 @@ tokio.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+chrono.workspace = true
 tempfile = "=3.19.1"
 taskboard-store-sqlite = { path = "../store-sqlite" }

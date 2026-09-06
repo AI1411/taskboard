@@ -1,4 +1,5 @@
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -23,24 +24,124 @@ macro_rules! run {
         if let Some(conn) = $self.conn.as_mut() {
             $query.$method(&mut **conn).await
         } else {
-            $query.$method(&$self.pool).await
+            $query
+                .$method($self.pool.as_ref().expect("sqlite pool is closed"))
+                .await
         }
     };
 }
 
 pub struct SqliteStore {
-    pool: SqlitePool,
+    pool: Option<SqlitePool>,
     conn: Option<sqlx::pool::PoolConnection<sqlx::Sqlite>>,
+    data_dir: PathBuf,
 }
 
 impl SqliteStore {
     pub fn new(pool: SqlitePool) -> Self {
-        Self { pool, conn: None }
+        Self {
+            pool: Some(pool),
+            conn: None,
+            data_dir: PathBuf::new(),
+        }
     }
-}
 
-fn not_impl(what: &str) -> AppError {
-    AppError::Io(format!("{what} is not implemented"))
+    pub fn with_data_dir(pool: SqlitePool, data_dir: impl Into<PathBuf>) -> Self {
+        Self {
+            pool: Some(pool),
+            conn: None,
+            data_dir: data_dir.into(),
+        }
+    }
+
+    async fn purge_task_row(&mut self, task_id: Uuid) -> Result<(), AppError> {
+        let bytes = uuid_bytes(task_id);
+        let null_links = sqlx::query(
+            "UPDATE activities SET before_json = NULL, after_json = NULL WHERE entity_id IN (SELECT id FROM links WHERE task_id = ?)",
+        )
+        .bind(&bytes);
+        run!(self, null_links, execute).map_err(map_sqlx)?;
+        let null_runs = sqlx::query(
+            "UPDATE activities SET before_json = NULL, after_json = NULL WHERE entity_id IN (SELECT id FROM runs WHERE task_id = ?)",
+        )
+        .bind(&bytes);
+        run!(self, null_runs, execute).map_err(map_sqlx)?;
+        let null_task = sqlx::query(
+            "UPDATE activities SET before_json = NULL, after_json = NULL WHERE entity_id = ?",
+        )
+        .bind(&bytes);
+        run!(self, null_task, execute).map_err(map_sqlx)?;
+        let delete_links = sqlx::query("DELETE FROM links WHERE task_id = ?").bind(&bytes);
+        run!(self, delete_links, execute).map_err(map_sqlx)?;
+        let delete_runs = sqlx::query("DELETE FROM runs WHERE task_id = ?").bind(&bytes);
+        run!(self, delete_runs, execute).map_err(map_sqlx)?;
+        let delete_task = sqlx::query("DELETE FROM tasks WHERE id = ?").bind(&bytes);
+        run!(self, delete_task, execute).map_err(map_sqlx)?;
+        Ok(())
+    }
+
+    async fn purge_project_row(&mut self, project_id: Uuid) -> Result<(), AppError> {
+        let bytes = uuid_bytes(project_id);
+        let null_project = sqlx::query(
+            "UPDATE activities SET before_json = NULL, after_json = NULL WHERE entity_id = ?",
+        )
+        .bind(&bytes);
+        run!(self, null_project, execute).map_err(map_sqlx)?;
+        let delete_project = sqlx::query("DELETE FROM projects WHERE id = ?").bind(&bytes);
+        run!(self, delete_project, execute).map_err(map_sqlx)?;
+        Ok(())
+    }
+
+    async fn import_attached(&mut self, src: &Path) -> Result<(), AppError> {
+        let src_sql = src.to_string_lossy().replace('\'', "''");
+        let attach_sql = format!("ATTACH DATABASE '{src_sql}' AS incoming");
+        let attach = sqlx::query(&attach_sql);
+        run!(self, attach, execute).map_err(map_sqlx)?;
+        let check = sqlx::query_scalar(
+            "SELECT name FROM incoming.sqlite_master WHERE type = 'table' AND name = 'projects'",
+        );
+        let incoming_projects: Result<Option<String>, AppError> =
+            run!(self, check, fetch_optional).map_err(map_sqlx);
+        let name = match incoming_projects {
+            Ok(name) => name,
+            Err(err) => {
+                let detach = sqlx::query("DETACH DATABASE incoming");
+                let _ = run!(self, detach, execute);
+                return Err(err);
+            }
+        };
+        if name.is_none() {
+            let detach = sqlx::query("DETACH DATABASE incoming");
+            let _ = run!(self, detach, execute);
+            return Err(AppError::Io("file is not a Taskboard database".into()));
+        }
+        for sql in [
+            "PRAGMA foreign_keys = OFF",
+            "DELETE FROM links",
+            "DELETE FROM runs",
+            "DELETE FROM activities",
+            "DELETE FROM tasks",
+            "DELETE FROM projects",
+            "DELETE FROM counters",
+            "INSERT INTO counters SELECT * FROM incoming.counters",
+            "INSERT INTO projects SELECT * FROM incoming.projects",
+            "INSERT INTO tasks SELECT * FROM incoming.tasks",
+            "INSERT INTO links SELECT * FROM incoming.links",
+            "INSERT INTO runs SELECT * FROM incoming.runs",
+            "INSERT INTO activities SELECT * FROM incoming.activities",
+            "PRAGMA foreign_keys = ON",
+        ] {
+            let query = sqlx::query(sql);
+            if let Err(err) = run!(self, query, execute).map_err(map_sqlx) {
+                let detach = sqlx::query("DETACH DATABASE incoming");
+                let _ = run!(self, detach, execute);
+                return Err(err);
+            }
+        }
+        let detach = sqlx::query("DETACH DATABASE incoming");
+        run!(self, detach, execute).map_err(map_sqlx)?;
+        Ok(())
+    }
 }
 
 fn fmt_dt(dt: DateTime<Utc>) -> String {
@@ -630,25 +731,123 @@ impl Store for SqliteStore {
 
     async fn purge_expired(
         &mut self,
-        _now: DateTime<Utc>,
-        _retention_days: i64,
+        now: DateTime<Utc>,
+        retention_days: i64,
     ) -> Result<u64, AppError> {
-        Err(not_impl("purge_expired"))
+        let cutoff = now - chrono::Duration::days(retention_days);
+        let cutoff_s = fmt_dt(cutoff);
+        let mut task_ids = Vec::new();
+        let task_query =
+            sqlx::query("SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at <= ?")
+                .bind(&cutoff_s);
+        let task_rows = run!(self, task_query, fetch_all).map_err(map_sqlx)?;
+        for row in &task_rows {
+            let id: Vec<u8> = row.try_get("id").map_err(map_sqlx)?;
+            task_ids.push(uuid_from_blob(&id)?);
+        }
+
+        let project_query =
+            sqlx::query("SELECT id FROM projects WHERE deleted_at IS NOT NULL AND deleted_at <= ?")
+                .bind(&cutoff_s);
+        let project_rows = run!(self, project_query, fetch_all).map_err(map_sqlx)?;
+        let mut project_ids = Vec::new();
+        for row in &project_rows {
+            let id: Vec<u8> = row.try_get("id").map_err(map_sqlx)?;
+            project_ids.push(uuid_from_blob(&id)?);
+        }
+
+        for project_id in &project_ids {
+            let child_query = sqlx::query("SELECT id FROM tasks WHERE project_id = ?")
+                .bind(uuid_bytes(*project_id));
+            let child_rows = run!(self, child_query, fetch_all).map_err(map_sqlx)?;
+            for row in &child_rows {
+                let id: Vec<u8> = row.try_get("id").map_err(map_sqlx)?;
+                let task_id = uuid_from_blob(&id)?;
+                if !task_ids.contains(&task_id) {
+                    task_ids.push(task_id);
+                }
+            }
+        }
+
+        let mut purged = 0u64;
+        for task_id in task_ids {
+            self.purge_task_row(task_id).await?;
+            purged += 1;
+        }
+        for project_id in project_ids {
+            self.purge_project_row(project_id).await?;
+            purged += 1;
+        }
+        Ok(purged)
     }
 
-    async fn backup_to(&mut self, _dest: &Path) -> Result<(), AppError> {
-        Err(not_impl("backup_to"))
+    async fn backup_to(&mut self, dest: &Path) -> Result<(), AppError> {
+        let dest = dest.to_path_buf();
+        if let Some(parent) = dest.parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent).map_err(|err| AppError::Io(err.to_string()))?;
+            }
+        }
+        if dest.exists() {
+            fs::remove_file(&dest).map_err(|err| AppError::Io(err.to_string()))?;
+        }
+        let checkpoint = sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)");
+        run!(self, checkpoint, execute).map_err(map_sqlx)?;
+        let dest_sql = dest.to_string_lossy().replace('\'', "''");
+        let sql = format!("VACUUM INTO '{dest_sql}'");
+        let vacuum = sqlx::query(&sql);
+        run!(self, vacuum, execute).map_err(map_sqlx)?;
+        Ok(())
     }
 
-    async fn replace_from(&mut self, _src: &Path) -> Result<(), AppError> {
-        Err(not_impl("replace_from"))
+    async fn replace_from(&mut self, src: &Path) -> Result<(), AppError> {
+        let src = src.to_path_buf();
+        if self.conn.is_some() {
+            return Err(AppError::Io("cannot import during a transaction".into()));
+        }
+        if self.data_dir.as_os_str().is_empty() {
+            return Err(AppError::Io(
+                "data directory is unknown; cannot import".into(),
+            ));
+        }
+        let backups = self.data_dir.join("backups");
+        fs::create_dir_all(&backups).map_err(|err| AppError::Io(err.to_string()))?;
+        let stamp = Utc::now().format("%Y%m%dT%H%M%SZ");
+        let pre = backups.join(format!("pre-import-{stamp}.sqlite3"));
+        if pre.exists() {
+            fs::remove_file(&pre).map_err(|err| AppError::Io(err.to_string()))?;
+        }
+        let checkpoint = sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)");
+        run!(self, checkpoint, execute).map_err(map_sqlx)?;
+        let pre_sql = pre.to_string_lossy().replace('\'', "''");
+        let vacuum_sql = format!("VACUUM INTO '{pre_sql}'");
+        let vacuum = sqlx::query(&vacuum_sql);
+        run!(self, vacuum, execute).map_err(map_sqlx)?;
+
+        let conn = self
+            .pool
+            .as_ref()
+            .ok_or_else(|| AppError::Io("database pool is closed".into()))?
+            .acquire()
+            .await
+            .map_err(map_sqlx)?;
+        self.conn = Some(conn);
+        let result = self.import_attached(&src).await;
+        self.conn.take();
+        result
     }
 
     async fn begin(&mut self) -> Result<(), AppError> {
         if self.conn.is_some() {
             return Err(AppError::Io("transaction already active".into()));
         }
-        let mut conn = self.pool.acquire().await.map_err(map_sqlx)?;
+        let mut conn = self
+            .pool
+            .as_ref()
+            .ok_or_else(|| AppError::Io("database pool is closed".into()))?
+            .acquire()
+            .await
+            .map_err(map_sqlx)?;
         sqlx::query("BEGIN IMMEDIATE")
             .execute(&mut *conn)
             .await
