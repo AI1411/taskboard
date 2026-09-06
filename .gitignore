@@ -4,3 +4,4 @@ node_modules
 **/*.sqlite3-*
 .DS_Store
 apps/web/dist
+apps/desktop/dist
