@@ -2,6 +2,8 @@ mod args;
 mod data_dir;
 mod output;
 
+use std::io::Write;
+use std::net::Ipv4Addr;
 use std::path::PathBuf;
 
 use chrono::Utc;
@@ -27,11 +29,6 @@ async fn main() {
 }
 
 async fn run(cli: Cli) -> Result<(), i32> {
-    if matches!(cli.command, Command::Serve(_)) {
-        eprintln!("error: tb serve is not available in this build");
-        return Err(1);
-    }
-
     let json = cli.json;
     let data_dir = data_dir::resolve(cli.data_dir.as_deref());
     let pool = open_db(&data_dir)
@@ -42,8 +39,37 @@ async fn run(cli: Cli) -> Result<(), i32> {
     app.purge_expired_trash(Utc::now())
         .await
         .map_err(|err| output::print_error(&err, json))?;
+
+    if let Command::Serve(args) = cli.command {
+        return serve_cmd(app, args.port, args.open).await;
+    }
+
     let actor = cli.actor();
     dispatch(&app, &actor, cli).await
+}
+
+async fn serve_cmd(app: App, port: Option<u16>, open_browser: bool) -> Result<(), i32> {
+    let addr = std::net::SocketAddr::from((Ipv4Addr::LOCALHOST, port.unwrap_or(0)));
+    match taskboard_api::serve(app, addr, false).await {
+        Ok(bound) => {
+            let url = format!("http://127.0.0.1:{}", bound.port());
+            println!("{url}");
+            let _ = std::io::stdout().flush();
+            if open_browser {
+                let _ = open::that(&url);
+            }
+            std::future::pending::<()>().await;
+            Ok(())
+        }
+        Err(taskboard_api::ApiError::Bind { .. }) if port.is_some() => {
+            eprintln!("error: port unavailable");
+            Err(1)
+        }
+        Err(err) => {
+            eprintln!("error: {err}");
+            Err(1)
+        }
+    }
 }
 
 async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
@@ -88,7 +114,7 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
             Ok(())
         }
         Command::Backup(cmd) => backup_cmd(app, json, cmd).await,
-        Command::Serve(_) => unreachable!("serve is handled before opening the database"),
+        Command::Serve(_) => unreachable!("serve is handled before dispatch"),
     }
 }
 

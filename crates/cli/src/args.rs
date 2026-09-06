@@ -75,7 +75,7 @@ pub enum Command {
     /// Database backup
     #[command(subcommand)]
     Backup(BackupCommand),
-    /// Start the local HTTP UI (not available in this build)
+    /// Start the local HTTP UI
     Serve(ServeArgs),
 }
 

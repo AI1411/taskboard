@@ -4,18 +4,17 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::{Json, Router};
 use serde_json::json;
 use taskboard_application::App;
 use thiserror::Error;
 use tokio::net::TcpListener;
 
-use crate::origin::origin_allowed;
 use crate::session::{generate_session, SessionToken};
 
 const SESSION_COOKIE: &str = "taskboard_session";
-const SESSION_HEADER: &str = "X-Taskboard-Session";
+pub(crate) const SESSION_HEADER: &str = "X-Taskboard-Session";
 const HTML_SHELL: &str = r#"<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -40,10 +39,10 @@ pub enum ApiError {
     },
 }
 
-struct AppState {
-    app: App,
-    session: SessionToken,
-    port: u16,
+pub(crate) struct AppState {
+    pub(crate) app: App,
+    pub(crate) session: SessionToken,
+    pub(crate) port: u16,
 }
 
 pub async fn serve(app: App, addr: SocketAddr, open: bool) -> Result<SocketAddr, ApiError> {
@@ -74,8 +73,7 @@ pub async fn serve(app: App, addr: SocketAddr, open: bool) -> Result<SocketAddr,
 fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/", get(html_shell))
-        .route("/api/v1/bootstrap", get(bootstrap))
-        .route("/api/v1/projects", post(dummy_create_project))
+        .merge(crate::routes::api_router())
         .with_state(state)
 }
 
@@ -92,36 +90,14 @@ async fn html_shell(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     (headers, Html(HTML_SHELL))
 }
 
-async fn bootstrap(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
-    if !session_from_header_or_cookie(&headers, &state.session.0) {
-        return unauthorized();
-    }
-    let activity_sequence = state.app.activity_head().await.unwrap_or(0);
-    Json(json!({
-        "session": state.session.0,
-        "activitySequence": activity_sequence,
-    }))
-    .into_response()
-}
-
-async fn dummy_create_project(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
-    if !session_from_header(&headers, &state.session.0) {
-        return unauthorized();
-    }
-    if !origin_allowed(headers.get(header::ORIGIN), state.port) {
-        return forbidden_origin();
-    }
-    Json(json!({ "ok": true })).into_response()
-}
-
-fn session_from_header(headers: &HeaderMap, expected: &str) -> bool {
+pub(crate) fn session_from_header(headers: &HeaderMap, expected: &str) -> bool {
     headers
         .get(SESSION_HEADER)
         .and_then(|value| value.to_str().ok())
         .is_some_and(|token| token == expected)
 }
 
-fn session_from_header_or_cookie(headers: &HeaderMap, expected: &str) -> bool {
+pub(crate) fn session_from_header_or_cookie(headers: &HeaderMap, expected: &str) -> bool {
     if session_from_header(headers, expected) {
         return true;
     }
@@ -138,7 +114,7 @@ fn session_from_header_or_cookie(headers: &HeaderMap, expected: &str) -> bool {
         })
 }
 
-fn unauthorized() -> Response {
+pub(crate) fn unauthorized() -> Response {
     (
         StatusCode::UNAUTHORIZED,
         Json(json!({ "error": { "code": "unauthorized" } })),
@@ -146,7 +122,7 @@ fn unauthorized() -> Response {
         .into_response()
 }
 
-fn forbidden_origin() -> Response {
+pub(crate) fn forbidden_origin() -> Response {
     (
         StatusCode::FORBIDDEN,
         Json(json!({ "error": { "code": "forbidden_origin" } })),

@@ -53,15 +53,37 @@ fn failed_mutation_is_not_ok_true() {
 }
 
 #[test]
-fn serve_is_unavailable() {
-    let (mut cmd, _dir) = tb();
-    cmd.args(["serve"])
-        .assert()
-        .failure()
-        .code(1)
-        .stderr(predicate::str::contains(
-            "error: tb serve is not available in this build",
-        ));
+fn serve_prints_localhost_url() {
+    let dir = tempfile::tempdir().unwrap();
+    let bin = assert_cmd::cargo::cargo_bin("taskboard");
+    let mut child = std::process::Command::new(bin)
+        .args(["serve"])
+        .env("TASKBOARD_DATA_DIR", dir.path())
+        .env("HTTP_PROXY", "")
+        .env("HTTPS_PROXY", "")
+        .env("http_proxy", "")
+        .env("https_proxy", "")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut line = String::new();
+        let mut reader = std::io::BufReader::new(stdout);
+        let _ = std::io::BufRead::read_line(&mut reader, &mut line);
+        let _ = tx.send(line);
+    });
+    let line = rx
+        .recv_timeout(std::time::Duration::from_secs(15))
+        .expect("serve should print a URL");
+    assert!(
+        line.contains("http://127.0.0.1:"),
+        "expected localhost URL, got {line:?}"
+    );
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 #[test]
