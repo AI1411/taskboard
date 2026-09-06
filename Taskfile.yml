@@ -1,0 +1,22 @@
+version: "3"
+
+tasks:
+  default:
+    task: start
+
+  install:
+    desc: Install JS dependencies
+    cmds:
+      - pnpm install
+    status:
+      - test -d node_modules
+
+  start:
+    desc: Start the local web UI (tb serve --open)
+    deps: [install]
+    aliases: [dev, run, serve]
+    env:
+      TASKBOARD_WEB_DIST: "{{.ROOT_DIR}}/apps/web/dist"
+    cmds:
+      - pnpm --filter web build
+      - cargo run --bin taskboard -- serve --open
