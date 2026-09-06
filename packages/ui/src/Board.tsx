@@ -13,8 +13,9 @@ import type { Column, TaskSummary } from "@taskboard/types";
 
 import type { ReactNode, Ref } from "react";
 
+import { resolveDragEnd } from "./boardDrag";
 import { Card } from "./Card";
-import { COLUMNS, COLUMN_IDS } from "./columns";
+import { COLUMNS } from "./columns";
 import { Search } from "./Search";
 import styles from "./Board.module.css";
 
@@ -38,16 +39,13 @@ export function Board(props: {
     : props.tasks;
 
   function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over) return;
-    const id = String(active.id);
-    const overId = String(over.id);
-    if (id === overId) return;
-    if ((COLUMN_IDS as string[]).includes(overId)) {
-      props.onMove(id, overId as Column);
-      return;
-    }
-    props.onReorder(id, overId);
+    const action = resolveDragEnd(
+      String(event.active.id),
+      event.over ? String(event.over.id) : null,
+      props.tasks,
+    );
+    if (action.kind === "move") props.onMove(action.displayId, action.column);
+    if (action.kind === "reorder") props.onReorder(action.displayId, action.beforeId);
   }
 
   return (

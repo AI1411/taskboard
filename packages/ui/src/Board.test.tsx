@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { fakeTransport } from "./fakeTransport";
 import { TaskboardApp } from "./index";
@@ -58,5 +58,33 @@ describe("Board", () => {
     await userEvent.keyboard("alpha");
     expect(screen.getByText("Alpha task")).toBeTruthy();
     expect(screen.queryByText("Beta item")).toBeNull();
+  });
+
+  it("taskNoteSet after title commit uses the updated revision", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Untitled" });
+    await transport.taskCreate(project.slug, { title: "Old title", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Old title"));
+
+    const titleInput = await screen.findByLabelText("Title");
+    await userEvent.clear(titleInput);
+    await userEvent.type(titleInput, "New title");
+    fireEvent.blur(titleInput);
+    await waitFor(() => expect(transport.taskUpdate).toHaveBeenCalled());
+    const afterTitle = await vi.mocked(transport.taskUpdate).mock.results.at(-1)!.value;
+    const titleRevision = afterTitle.revision;
+    expect(titleRevision).toBeGreaterThan(1);
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(screen.getByLabelText("Note"), { target: { value: "updated note" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400);
+      });
+      expect(transport.taskNoteSet).toHaveBeenCalledWith("TASK-1", "updated note", titleRevision);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

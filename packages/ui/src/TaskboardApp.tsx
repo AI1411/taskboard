@@ -48,8 +48,12 @@ export function TaskboardApp(props: { transport: Transport }) {
   queryRef.current = query;
   inspectorOpenRef.current = inspectorOpen;
   projectsRef.current = projects;
-  detailRef.current = detail;
   includeArchivedRef.current = includeArchived;
+
+  const applyDetail = (updated: TaskDetail | null) => {
+    detailRef.current = updated;
+    setDetail(updated);
+  };
 
   const refreshTasks = useCallback(
     async (slug: string) => {
@@ -68,7 +72,7 @@ export function TaskboardApp(props: { transport: Transport }) {
       setProjectNote(project.noteMarkdown);
       setSelectedId(null);
       selectedIdRef.current = null;
-      setDetail(null);
+      applyDetail(null);
       setInspectorOpen(true);
       inspectorOpenRef.current = true;
       setCurrentColumn("todo");
@@ -98,7 +102,7 @@ export function TaskboardApp(props: { transport: Transport }) {
       selectedIdRef.current = null;
       setSelectedProject(project);
       setSelectedId(null);
-      setDetail(null);
+      applyDetail(null);
       setInspectorOpen(true);
       inspectorOpenRef.current = true;
       setProjectNote(project.noteMarkdown);
@@ -126,8 +130,7 @@ export function TaskboardApp(props: { transport: Transport }) {
         currentColumnRef.current = task.column;
       }
       const shown = await transport.taskShow(displayId);
-      setDetail(shown);
-      detailRef.current = shown;
+      applyDetail(shown);
     },
     [transport],
   );
@@ -145,8 +148,7 @@ export function TaskboardApp(props: { transport: Transport }) {
     await refreshTasks(project.slug);
     selectedIdRef.current = created.displayId;
     setSelectedId(created.displayId);
-    setDetail(created);
-    detailRef.current = created;
+    applyDetail(created);
     setInspectorOpen(true);
     inspectorOpenRef.current = true;
   }, [transport, refreshTasks]);
@@ -157,8 +159,7 @@ export function TaskboardApp(props: { transport: Transport }) {
     const task = tasksRef.current.find((t) => t.displayId === id);
     const next = !(task?.urgent ?? detailRef.current?.urgent ?? false);
     const updated = await transport.taskUrgent(id, next, task?.revision ?? detailRef.current?.revision);
-    setDetail(updated);
-    detailRef.current = updated;
+    applyDetail(updated);
     const project = selectedProjectRef.current;
     if (project) await refreshTasks(project.slug);
   }, [transport, refreshTasks]);
@@ -173,8 +174,7 @@ export function TaskboardApp(props: { transport: Transport }) {
       }
       const task = tasksRef.current.find((t) => t.displayId === id);
       const updated = await transport.taskMove(id, column, task?.revision);
-      setDetail(updated);
-      detailRef.current = updated;
+      applyDetail(updated);
       setCurrentColumn(column);
       currentColumnRef.current = column;
       const project = selectedProjectRef.current;
@@ -323,8 +323,7 @@ export function TaskboardApp(props: { transport: Transport }) {
       const task = tasksRef.current.find((t) => t.displayId === displayId);
       const updated = await transport.taskMove(displayId, column, task?.revision);
       if (selectedIdRef.current === displayId) {
-        setDetail(updated);
-        detailRef.current = updated;
+        applyDetail(updated);
       }
       const project = selectedProjectRef.current;
       if (project) await refreshTasks(project.slug);
@@ -347,8 +346,7 @@ export function TaskboardApp(props: { transport: Transport }) {
       const id = selectedIdRef.current;
       if (!id) return;
       const updated = await transport.taskNoteSet(id, markdown, detailRef.current?.revision);
-      setDetail(updated);
-      detailRef.current = updated;
+      applyDetail(updated);
     },
     [transport],
   );
@@ -372,7 +370,7 @@ export function TaskboardApp(props: { transport: Transport }) {
       const id = selectedIdRef.current;
       if (!id) return;
       const updated = await transport.taskUpdate(id, { title }, detailRef.current?.revision);
-      setDetail(updated);
+      applyDetail(updated);
       const project = selectedProjectRef.current;
       if (project) await refreshTasks(project.slug);
     },
@@ -385,8 +383,7 @@ export function TaskboardApp(props: { transport: Transport }) {
     await transport.taskDelete(id, detailRef.current?.revision);
     setSelectedId(null);
     selectedIdRef.current = null;
-    setDetail(null);
-    detailRef.current = null;
+    applyDetail(null);
     const project = selectedProjectRef.current;
     if (project) await refreshTasks(project.slug);
   }, [transport, refreshTasks]);
@@ -449,7 +446,7 @@ export function TaskboardApp(props: { transport: Transport }) {
           const id = selectedIdRef.current;
           if (!id) return;
           void transport.taskUrgent(id, urgent, detailRef.current?.revision).then(async (updated) => {
-            setDetail(updated);
+            applyDetail(updated);
             const project = selectedProjectRef.current;
             if (project) await refreshTasks(project.slug);
           });
