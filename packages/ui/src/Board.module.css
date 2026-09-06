@@ -16,9 +16,9 @@
 
 .columns {
   display: grid;
-  grid-template-columns: repeat(4, minmax(240px, 1fr));
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
   gap: 0.85rem;
-  min-width: 1100px;
+  min-width: 0;
   overflow-x: auto;
   padding-bottom: 1rem;
 }

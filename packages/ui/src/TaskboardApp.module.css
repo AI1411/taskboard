@@ -21,3 +21,11 @@
   padding: 0.9rem 1rem 1.25rem;
   overflow: auto;
 }
+
+@media (max-width: 800px) {
+  .app,
+  .collapsed {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+}

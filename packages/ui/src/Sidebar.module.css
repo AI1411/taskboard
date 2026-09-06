@@ -104,3 +104,13 @@
 .toggle[aria-pressed="true"] {
   color: var(--accent-2);
 }
+
+@media (max-width: 800px) {
+  .sidebar {
+    height: auto;
+  }
+
+  .note textarea {
+    min-height: 3.5rem;
+  }
+}
