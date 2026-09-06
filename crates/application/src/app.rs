@@ -3,14 +3,18 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use taskboard_core::{
-    card_display_status, display_id, next_unique_slug, place_before, place_urgent,
-    rewrite_positions, slugify, sort_column, trim_project_name, trim_title, Column, DisplayKind,
-    EntityType, FieldError, OrderError, OrderKey, Project, RunStatusView, SlugError, Task,
-    TaskDetail, TaskSummary, ValidationError,
+    card_display_status, display_id, next_unique_slug, parse_agent, parse_path_link, parse_url,
+    place_before, place_urgent, rewrite_positions, slugify, sort_column, trim_project_name,
+    trim_title, Column, DisplayKind, EntityType, FieldError, Link, LinkKind, OrderError, OrderKey,
+    Project, Run, RunStatus, RunStatusView, SlugError, Task, TaskDetail, TaskSummary,
+    ValidationError,
 };
 
 use crate::actor::Actor;
-use crate::commands::{ProjectAdd, ProjectUpdate, TaskCreate, TaskUpdate};
+use crate::commands::{
+    LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunStart, RunUpdate, RunWait,
+    TaskCreate, TaskUpdate,
+};
 use crate::error::AppError;
 use crate::store::{NewActivity, Store};
 
@@ -226,6 +230,104 @@ impl App {
         let store = &mut **store;
         store.begin().await?;
         let result = task_urgent_inner(store, actor, display_id, urgent, revision, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn task_note_set(
+        &self,
+        actor: &Actor,
+        display_id: &str,
+        markdown: String,
+        revision: Option<i64>,
+    ) -> Result<TaskDetail, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = task_note_set_inner(store, actor, display_id, markdown, revision, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn task_note_add(
+        &self,
+        actor: &Actor,
+        display_id: &str,
+        paragraph: &str,
+        revision: Option<i64>,
+    ) -> Result<TaskDetail, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = task_note_add_inner(store, actor, display_id, paragraph, revision, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn link_add(&self, actor: &Actor, cmd: LinkAdd) -> Result<TaskDetail, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = link_add_inner(store, actor, cmd, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn link_remove(
+        &self,
+        actor: &Actor,
+        link_id: Uuid,
+        revision: Option<i64>,
+    ) -> Result<TaskDetail, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = link_remove_inner(store, actor, link_id, revision, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn run_start(&self, actor: &Actor, cmd: RunStart) -> Result<Run, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = run_start_inner(store, actor, cmd, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn run_update(&self, actor: &Actor, cmd: RunUpdate) -> Result<Run, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = run_update_inner(store, actor, cmd, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn run_wait(&self, actor: &Actor, cmd: RunWait) -> Result<Run, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = run_wait_inner(store, actor, cmd, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn run_fail(&self, actor: &Actor, cmd: RunFail) -> Result<Run, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = run_fail_inner(store, actor, cmd, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn run_finish(&self, actor: &Actor, cmd: RunFinish) -> Result<Run, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = run_finish_inner(store, actor, cmd, now).await;
         commit_or_rollback(store, result).await
     }
 }
@@ -821,6 +923,383 @@ async fn task_urgent_inner(
     load_task_detail(store, task).await
 }
 
+async fn task_note_set_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    display_id: &str,
+    markdown: String,
+    revision: Option<i64>,
+    now: DateTime<Utc>,
+) -> Result<TaskDetail, AppError> {
+    write_task_note(store, actor, display_id, markdown, revision, now).await
+}
+
+async fn task_note_add_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    display_id: &str,
+    paragraph: &str,
+    revision: Option<i64>,
+    now: DateTime<Utc>,
+) -> Result<TaskDetail, AppError> {
+    let paragraph = require_non_blank("paragraph", paragraph)?;
+    let task = require_live_task(store, display_id).await?;
+    let markdown = if task.note_markdown.is_empty() {
+        paragraph
+    } else {
+        format!("{}\n\n{paragraph}", task.note_markdown)
+    };
+    write_task_note(store, actor, display_id, markdown, revision, now).await
+}
+
+async fn write_task_note(
+    store: &mut dyn Store,
+    actor: &Actor,
+    display_id: &str,
+    markdown: String,
+    revision: Option<i64>,
+    now: DateTime<Utc>,
+) -> Result<TaskDetail, AppError> {
+    let mut task = require_live_task(store, display_id).await?;
+    check_revision(&task, task.revision, revision)?;
+    let before = task.clone();
+    task.note_markdown = markdown;
+    task.revision += 1;
+    task.updated_at = now;
+    store.update_task(&task).await?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Task,
+            operation: "task.note.set",
+            entity_id: task.id,
+            previous_revision: Some(before.revision),
+            before_json: Some(json_value(&before)?),
+            after_json: Some(json_value(&task)?),
+        },
+    )
+    .await?;
+    load_task_detail(store, task).await
+}
+
+async fn link_add_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: LinkAdd,
+    now: DateTime<Utc>,
+) -> Result<TaskDetail, AppError> {
+    let mut task = require_live_task(store, &cmd.task_display_id).await?;
+    check_revision(&task, task.revision, cmd.revision)?;
+    let value = match cmd.kind {
+        LinkKind::Url => parse_url(&cmd.value).map_err(map_validation)?,
+        LinkKind::Path => parse_path_link(&cmd.value).map_err(map_validation)?,
+    };
+    let existing = store.list_links(task.id).await?;
+    let sort_order = existing
+        .iter()
+        .map(|link| link.sort_order)
+        .max()
+        .map(|max| max + 1)
+        .unwrap_or(0);
+    let link = Link {
+        id: Uuid::now_v7(),
+        task_id: task.id,
+        kind: cmd.kind,
+        value,
+        sort_order,
+    };
+    store.insert_link(&link).await?;
+    task.revision += 1;
+    task.updated_at = now;
+    store.update_task(&task).await?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Link,
+            operation: "link.add",
+            entity_id: link.id,
+            previous_revision: None,
+            before_json: None,
+            after_json: Some(json_value(&link)?),
+        },
+    )
+    .await?;
+    load_task_detail(store, task).await
+}
+
+async fn link_remove_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    link_id: Uuid,
+    revision: Option<i64>,
+    now: DateTime<Utc>,
+) -> Result<TaskDetail, AppError> {
+    let link = store
+        .get_link(link_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound {
+            entity: "link".into(),
+            id: link_id.to_string(),
+        })?;
+    let mut task = store
+        .get_task(link.task_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound {
+            entity: "task".into(),
+            id: link.task_id.to_string(),
+        })?;
+    if task.deleted_at.is_some() {
+        return Err(AppError::NotFound {
+            entity: "task".into(),
+            id: task.display_id,
+        });
+    }
+    check_revision(&task, task.revision, revision)?;
+    store.delete_link(link.id).await?;
+    task.revision += 1;
+    task.updated_at = now;
+    store.update_task(&task).await?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Link,
+            operation: "link.remove",
+            entity_id: link.id,
+            previous_revision: None,
+            before_json: Some(json_value(&link)?),
+            after_json: None,
+        },
+    )
+    .await?;
+    load_task_detail(store, task).await
+}
+
+async fn run_start_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: RunStart,
+    now: DateTime<Utc>,
+) -> Result<Run, AppError> {
+    let task = require_live_task(store, &cmd.task_display_id).await?;
+    let agent = parse_agent(&cmd.agent).map_err(map_validation)?;
+    let session_id = parse_session_id(cmd.session_id)?;
+    let n = store.next_display_n("run").await?;
+    let run = Run {
+        id: Uuid::now_v7(),
+        display_id: display_id(DisplayKind::Run, n),
+        task_id: task.id,
+        agent,
+        session_id,
+        status: RunStatus::Running,
+        message: None,
+        waiting_reason: None,
+        summary: None,
+        started_at: now,
+        ended_at: None,
+        revision: 1,
+        created_at: now,
+        updated_at: now,
+    };
+    store.insert_run(&run).await?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Run,
+            operation: "run.start",
+            entity_id: run.id,
+            previous_revision: None,
+            before_json: None,
+            after_json: Some(json_value(&run)?),
+        },
+    )
+    .await?;
+    Ok(run)
+}
+
+async fn run_update_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: RunUpdate,
+    now: DateTime<Utc>,
+) -> Result<Run, AppError> {
+    mutate_run(
+        store,
+        actor,
+        &cmd.run_display_id,
+        cmd.revision,
+        now,
+        "run.update",
+        |run| {
+            if let Some(message) = cmd.message {
+                run.message = Some(parse_run_message(&message)?);
+            }
+            Ok(())
+        },
+    )
+    .await
+}
+
+async fn run_wait_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: RunWait,
+    now: DateTime<Utc>,
+) -> Result<Run, AppError> {
+    let reason = require_non_blank("reason", &cmd.reason)?;
+    mutate_run(
+        store,
+        actor,
+        &cmd.run_display_id,
+        cmd.revision,
+        now,
+        "run.wait",
+        |run| {
+            run.status = RunStatus::Waiting;
+            run.waiting_reason = Some(reason);
+            Ok(())
+        },
+    )
+    .await
+}
+
+async fn run_fail_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: RunFail,
+    now: DateTime<Utc>,
+) -> Result<Run, AppError> {
+    let summary = require_non_blank("summary", &cmd.summary)?;
+    mutate_run(
+        store,
+        actor,
+        &cmd.run_display_id,
+        cmd.revision,
+        now,
+        "run.fail",
+        |run| {
+            run.status = RunStatus::Failed;
+            run.summary = Some(summary);
+            run.ended_at = Some(now);
+            Ok(())
+        },
+    )
+    .await
+}
+
+async fn run_finish_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: RunFinish,
+    now: DateTime<Utc>,
+) -> Result<Run, AppError> {
+    let summary = require_non_blank("summary", &cmd.summary)?;
+    mutate_run(
+        store,
+        actor,
+        &cmd.run_display_id,
+        cmd.revision,
+        now,
+        "run.finish",
+        |run| {
+            run.status = RunStatus::Completed;
+            run.summary = Some(summary);
+            run.ended_at = Some(now);
+            Ok(())
+        },
+    )
+    .await
+}
+
+async fn mutate_run<F>(
+    store: &mut dyn Store,
+    actor: &Actor,
+    display_id: &str,
+    revision: Option<i64>,
+    now: DateTime<Utc>,
+    operation: &'static str,
+    mutate: F,
+) -> Result<Run, AppError>
+where
+    F: FnOnce(&mut Run) -> Result<(), AppError>,
+{
+    let mut run = require_run(store, display_id).await?;
+    check_revision(&run, run.revision, revision)?;
+    let before = run.clone();
+    mutate(&mut run)?;
+    run.revision += 1;
+    run.updated_at = now;
+    store.update_run(&run).await?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Run,
+            operation,
+            entity_id: run.id,
+            previous_revision: Some(before.revision),
+            before_json: Some(json_value(&before)?),
+            after_json: Some(json_value(&run)?),
+        },
+    )
+    .await?;
+    Ok(run)
+}
+
+async fn require_run(store: &mut dyn Store, display_id: &str) -> Result<Run, AppError> {
+    store
+        .get_run_by_display_id(display_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound {
+            entity: "run".into(),
+            id: display_id.to_string(),
+        })
+}
+
+fn require_non_blank(field: &str, raw: &str) -> Result<String, AppError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::Validation {
+            field: field.to_string(),
+            message: "must not be empty".into(),
+        });
+    }
+    Ok(trimmed.to_string())
+}
+
+fn parse_session_id(session_id: Option<String>) -> Result<Option<String>, AppError> {
+    match session_id {
+        None => Ok(None),
+        Some(raw) => {
+            if raw.chars().count() > 128 {
+                return Err(AppError::Validation {
+                    field: "session_id".into(),
+                    message: "must be at most 128 characters".into(),
+                });
+            }
+            Ok(Some(raw))
+        }
+    }
+}
+
+fn parse_run_message(raw: &str) -> Result<String, AppError> {
+    if raw.chars().count() > 500 {
+        return Err(AppError::Validation {
+            field: "message".into(),
+            message: "must be at most 500 characters".into(),
+        });
+    }
+    Ok(raw.to_string())
+}
+
 async fn require_live_task(store: &mut dyn Store, display_id: &str) -> Result<Task, AppError> {
     store
         .get_task_by_display_id(display_id, false)
@@ -933,9 +1412,7 @@ async fn to_task_summary(store: &mut dyn Store, task: Task) -> Result<TaskSummar
     })
 }
 
-fn display_from_runs(
-    runs: &[taskboard_core::Run],
-) -> (taskboard_core::CardDisplayStatus, Option<String>) {
+fn display_from_runs(runs: &[Run]) -> (taskboard_core::CardDisplayStatus, Option<String>) {
     let views: Vec<RunStatusView> = runs
         .iter()
         .map(|run| RunStatusView {
@@ -945,8 +1422,12 @@ fn display_from_runs(
         })
         .collect();
     let display_status = card_display_status(&views);
+    let has_active = runs
+        .iter()
+        .any(|run| matches!(run.status, RunStatus::Running | RunStatus::Waiting));
     let run_message = runs
         .iter()
+        .filter(|run| !has_active || matches!(run.status, RunStatus::Running | RunStatus::Waiting))
         .max_by(|left, right| {
             left.started_at
                 .cmp(&right.started_at)
