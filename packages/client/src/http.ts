@@ -21,11 +21,15 @@ type Envelope = {
   error?: { message?: string; code?: string };
 };
 
+function defaultFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return globalThis.fetch(input, init);
+}
+
 export class HttpTransport implements Transport {
   constructor(
     private readonly baseUrl: string,
     private readonly session: string,
-    private readonly fetchImpl: typeof fetch = fetch,
+    private readonly fetchImpl: typeof fetch = defaultFetch,
   ) {}
 
   projectAdd(input: { name: string; repoPath?: string; slug?: string }): Promise<Project> {

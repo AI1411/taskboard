@@ -5,8 +5,12 @@ export type Bootstrap = {
   activitySequence?: number;
 };
 
+function defaultFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return globalThis.fetch(input, init);
+}
+
 export async function fetchBootstrap(
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: typeof fetch = defaultFetch,
 ): Promise<Bootstrap> {
   const res = await fetchImpl("/api/v1/bootstrap", { credentials: "include" });
   if (!res.ok) {
@@ -18,7 +22,7 @@ export async function fetchBootstrap(
 export function transportFromBootstrap(
   json: { session: string },
   baseUrl: string,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: typeof fetch = defaultFetch,
 ): HttpTransport {
   return new HttpTransport(baseUrl, json.session, fetchImpl);
 }
