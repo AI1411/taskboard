@@ -30,6 +30,7 @@ export function Inspector(props: {
   onUrgentChange: (urgent: boolean) => void;
   onNoteChange: (markdown: string) => void;
   onDelete: () => void;
+  onClose?: () => void;
 }) {
   const [title, setTitle] = useState(props.task?.title ?? "");
   const [note, setNote] = useState(props.task?.noteMarkdown ?? "");
@@ -64,7 +65,7 @@ export function Inspector(props: {
 
   if (!props.task) {
     return (
-      <aside className={styles.panel}>
+      <aside className={`${styles.panel} ${styles.hidden}`}>
         <div className={styles.empty}>
           <EmptyState>Select a card</EmptyState>
         </div>
@@ -76,89 +77,101 @@ export function Inspector(props: {
   const activities = [...props.task.recentActivities].sort((a, b) => b.sequence - a.sequence);
 
   return (
-    <aside className={styles.panel}>
-      <label className={styles.field}>
-        Title
-        <input
-          ref={props.titleRef}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={() => props.onTitleCommit(title)}
-        />
-      </label>
-      <p className={styles.displayId}>{props.task.displayId}</p>
-      <label className={styles.field}>
-        Column
-        <select
-          value={props.task.column}
-          onChange={(e) => props.onColumnChange(e.target.value as Column)}
-        >
-          {COLUMNS.map((col) => (
-            <option key={col.id} value={col.id}>
-              {col.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className={styles.switch}>
-        <input
-          type="checkbox"
-          checked={props.task.urgent}
-          onChange={(e) => props.onUrgentChange(e.target.checked)}
-        />
-        Urgent
-      </label>
-      <label className={styles.field}>
-        Note
-        <textarea
-          className={styles.note}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-        />
-      </label>
-      <div>
-        <h3 className={styles.heading}>Links</h3>
-        <ul className={styles.list}>
-          {props.task.links.map((link) => (
-            <li key={link.id}>{link.value}</li>
-          ))}
-        </ul>
-      </div>
-      <div>
-        <h3 className={styles.heading}>Runs</h3>
-        <ul className={styles.list}>
-          {runs.map((run) => (
-            <li key={run.id}>
-              {run.displayId} {run.status}
-              {run.message ? ` — ${run.message}` : ""}
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div>
-        <h3 className={styles.heading}>Activity</h3>
-        <ul className={styles.list}>
-          {activities.map((item) => (
-            <li key={item.id}>
-              {activityLabel(item.operation)} · {item.actorLabel}
-            </li>
-          ))}
-        </ul>
-      </div>
-      {confirmDelete ? (
-        <div className={styles.deleteRow}>
-          <button type="button" className={styles.delete} onClick={props.onDelete}>
-            Move to Trash
-          </button>
-          <button type="button" className={styles.cancel} onClick={() => setConfirmDelete(false)}>
-            Cancel
-          </button>
+    <>
+      <button
+        type="button"
+        className={styles.backdrop}
+        aria-label="Dismiss details"
+        onClick={() => props.onClose?.()}
+      />
+      <aside className={styles.panel} role="dialog" aria-label="Task details">
+        <label className={styles.field}>
+          Title
+          <input
+            ref={props.titleRef}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={() => props.onTitleCommit(title)}
+          />
+        </label>
+        <p className={styles.displayId}>{props.task.displayId}</p>
+        <label className={styles.field}>
+          Column
+          <select
+            value={props.task.column}
+            onChange={(e) => props.onColumnChange(e.target.value as Column)}
+          >
+            {COLUMNS.map((col) => (
+              <option key={col.id} value={col.id}>
+                {col.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className={styles.switch}>
+          <input
+            type="checkbox"
+            checked={props.task.urgent}
+            onChange={(e) => props.onUrgentChange(e.target.checked)}
+          />
+          Urgent
+        </label>
+        <label className={styles.field}>
+          Note
+          <textarea
+            className={styles.note}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </label>
+        <div>
+          <h3 className={styles.heading}>Links</h3>
+          <ul className={styles.list}>
+            {props.task.links.map((link) => (
+              <li key={link.id}>{link.value}</li>
+            ))}
+          </ul>
         </div>
-      ) : (
-        <button type="button" className={styles.delete} onClick={() => setConfirmDelete(true)}>
-          Delete
-        </button>
-      )}
-    </aside>
+        <div>
+          <h3 className={styles.heading}>Runs</h3>
+          <ul className={styles.list}>
+            {runs.map((run) => (
+              <li key={run.id}>
+                {run.displayId} {run.status}
+                {run.message ? ` — ${run.message}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h3 className={styles.heading}>Activity</h3>
+          <ul className={styles.list}>
+            {activities.map((item) => (
+              <li key={item.id}>
+                {activityLabel(item.operation)} · {item.actorLabel}
+              </li>
+            ))}
+          </ul>
+        </div>
+        {confirmDelete ? (
+          <div className={styles.deleteRow}>
+            <button type="button" className={styles.delete} onClick={props.onDelete}>
+              Move to Trash
+            </button>
+            <button
+              type="button"
+              className={styles.cancel}
+              onClick={() => setConfirmDelete(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button type="button" className={styles.delete} onClick={() => setConfirmDelete(true)}>
+            Delete
+          </button>
+        )}
+      </aside>
+    </>
   );
 }

@@ -1,17 +1,10 @@
 .app {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) minmax(320px, 420px);
+  grid-template-columns: 240px minmax(0, 1fr);
   min-height: 100vh;
   font-family: var(--font);
   background: var(--board-bg);
-}
-
-.collapsed {
-  grid-template-columns: 240px minmax(0, 1fr);
-}
-
-.collapsed > aside:last-child {
-  display: none;
+  position: relative;
 }
 
 .main {
@@ -23,9 +16,8 @@
 }
 
 @media (max-width: 800px) {
-  .app,
-  .collapsed {
+  .app {
     grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 }

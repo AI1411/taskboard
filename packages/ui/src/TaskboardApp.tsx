@@ -493,7 +493,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   }, [transport, applyProject]);
 
   return (
-    <div className={`${styles.app} ${inspectorOpen && detail ? "" : styles.collapsed}`}>
+    <div className={styles.app}>
       <Sidebar
         projects={projects}
         selectedSlug={selectedProject?.slug ?? null}
@@ -544,6 +544,13 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         }}
         onNoteChange={onNoteChange}
         onDelete={() => void onDelete()}
+        onClose={() => {
+          setSelectedId(null);
+          selectedIdRef.current = null;
+          applyDetail(null);
+          setInspectorOpen(true);
+          inspectorOpenRef.current = true;
+        }}
       />
     </div>
   );

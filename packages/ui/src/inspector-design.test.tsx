@@ -35,4 +35,29 @@ describe("design-review regressions", () => {
     const scheme = getComputedStyle(document.documentElement).colorScheme;
     expect(scheme).toMatch(/dark/);
   });
+
+  it("keeps four columns visible while the inspector is open", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Untitled" });
+    await transport.taskCreate(project.slug, { title: "Keep columns", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByRole("listitem", { name: /Keep columns/ }));
+    expect(await screen.findByLabelText("Title")).toBeTruthy();
+    expect(screen.getByRole("list", { name: "Todo" })).toBeTruthy();
+    expect(screen.getByRole("list", { name: "In Progress" })).toBeTruthy();
+    expect(screen.getByRole("list", { name: "In Review" })).toBeTruthy();
+    expect(screen.getByRole("list", { name: "Done" })).toBeTruthy();
+  });
+
+  it("closes the inspector when dismiss is clicked", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Untitled" });
+    await transport.taskCreate(project.slug, { title: "Closable", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByRole("listitem", { name: /Closable/ }));
+    expect(await screen.findByLabelText("Title")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss details" }));
+    expect(screen.queryByLabelText("Title")).toBeNull();
+    expect(screen.getByText("Select a card")).toBeTruthy();
+  });
 });
