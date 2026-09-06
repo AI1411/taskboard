@@ -95,8 +95,8 @@
   min-height: 6.5rem;
   resize: vertical;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, #fff 12%, transparent);
-  background: color-mix(in srgb, #fff 6%, transparent);
+  border: 1px solid var(--hairline);
+  background: var(--board-bg);
   color: var(--sidebar-fg);
   font: inherit;
   padding: 0.5rem;
@@ -116,7 +116,7 @@
 }
 
 .toggle[aria-pressed="true"] {
-  color: var(--accent-2);
+  color: var(--accent);
 }
 
 @media (max-width: 800px) {
