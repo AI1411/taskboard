@@ -493,7 +493,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   }, [transport, applyProject]);
 
   return (
-    <div className={`${styles.app} ${inspectorOpen ? "" : styles.collapsed}`}>
+    <div className={`${styles.app} ${inspectorOpen && detail ? "" : styles.collapsed}`}>
       <Sidebar
         projects={projects}
         selectedSlug={selectedProject?.slug ?? null}
