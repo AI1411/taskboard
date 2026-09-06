@@ -334,7 +334,10 @@ export function TaskboardApp(props: { transport: Transport }) {
   const onReorder = useCallback(
     async (displayId: string, beforeId: string) => {
       const task = tasksRef.current.find((t) => t.displayId === displayId);
-      await transport.taskReorder(displayId, beforeId, task?.revision);
+      const updated = await transport.taskReorder(displayId, beforeId, task?.revision);
+      if (selectedIdRef.current === displayId) {
+        applyDetail(updated);
+      }
       const project = selectedProjectRef.current;
       if (project) await refreshTasks(project.slug);
     },

@@ -1,9 +1,25 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { fakeTransport } from "./fakeTransport";
 import { TaskboardApp } from "./index";
+
+vi.mock("./Board", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./Board")>();
+  return {
+    ...actual,
+    Board: (props: ComponentProps<typeof actual.Board>) => (
+      <>
+        <actual.Board {...props} />
+        <button type="button" onClick={() => props.onReorder("TASK-1", "TASK-2")}>
+          Test reorder
+        </button>
+      </>
+    ),
+  };
+});
 
 describe("Board", () => {
   it("shows empty copy when there are no projects", async () => {
@@ -83,6 +99,33 @@ describe("Board", () => {
         await vi.advanceTimersByTimeAsync(400);
       });
       expect(transport.taskNoteSet).toHaveBeenCalledWith("TASK-1", "updated note", titleRevision);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("taskNoteSet after reorder uses the updated revision", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Untitled" });
+    await transport.taskCreate(project.slug, { title: "First", column: "todo" });
+    await transport.taskCreate(project.slug, { title: "Second", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("First"));
+    await screen.findByLabelText("Note");
+
+    await userEvent.click(screen.getByRole("button", { name: "Test reorder" }));
+    await waitFor(() => expect(transport.taskReorder).toHaveBeenCalled());
+    const afterReorder = await vi.mocked(transport.taskReorder).mock.results.at(-1)!.value;
+    const reorderRevision = afterReorder.revision;
+    expect(reorderRevision).toBeGreaterThan(1);
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(screen.getByLabelText("Note"), { target: { value: "after reorder" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400);
+      });
+      expect(transport.taskNoteSet).toHaveBeenCalledWith("TASK-1", "after reorder", reorderRevision);
     } finally {
       vi.useRealTimers();
     }
