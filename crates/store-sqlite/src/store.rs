@@ -5,12 +5,17 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Row, SqlitePool};
 use taskboard_application::{AppError, NewActivity, Store};
-use taskboard_core::{Activity, ActorKind, Column, EntityType, Link, Project, Run, Task};
+use taskboard_core::{
+    Activity, ActorKind, Column, EntityType, Link, LinkKind, Project, Run, RunStatus, Task,
+};
 use uuid::Uuid;
 
 use crate::db::map_sqlx;
 
 const PROJECT_COLUMNS: &str = "id, slug, name, repo_path, archived, note_markdown, sort_order, revision, created_at, updated_at, deleted_at";
+const TASK_COLUMNS: &str = "id, display_id, project_id, title, column, urgent, note_markdown, position, revision, created_at, updated_at, deleted_at";
+const LINK_COLUMNS: &str = "id, task_id, kind, value, sort_order";
+const RUN_COLUMNS: &str = "id, display_id, task_id, agent, session_id, status, message, waiting_reason, summary, started_at, ended_at, revision, created_at, updated_at";
 const ACTIVITY_COLUMNS: &str = "id, sequence, actor_kind, actor_label, operation, entity_type, entity_id, previous_revision, before_json, after_json, created_at";
 
 macro_rules! run {
@@ -126,6 +131,69 @@ fn activity_from_row(row: &SqliteRow) -> Result<Activity, AppError> {
             .transpose()
             .map_err(|err| AppError::Io(err.to_string()))?,
         created_at: parse_dt(&created_at)?,
+    })
+}
+
+fn task_from_row(row: &SqliteRow) -> Result<Task, AppError> {
+    let id: Vec<u8> = row.try_get("id").map_err(map_sqlx)?;
+    let project_id: Vec<u8> = row.try_get("project_id").map_err(map_sqlx)?;
+    let column: String = row.try_get("column").map_err(map_sqlx)?;
+    let urgent: i64 = row.try_get("urgent").map_err(map_sqlx)?;
+    let created_at: String = row.try_get("created_at").map_err(map_sqlx)?;
+    let updated_at: String = row.try_get("updated_at").map_err(map_sqlx)?;
+    let deleted_at: Option<String> = row.try_get("deleted_at").map_err(map_sqlx)?;
+    Ok(Task {
+        id: uuid_from_blob(&id)?,
+        display_id: row.try_get("display_id").map_err(map_sqlx)?,
+        project_id: uuid_from_blob(&project_id)?,
+        title: row.try_get("title").map_err(map_sqlx)?,
+        column: parse_enum(&column)?,
+        urgent: urgent != 0,
+        note_markdown: row.try_get("note_markdown").map_err(map_sqlx)?,
+        position: row.try_get("position").map_err(map_sqlx)?,
+        revision: row.try_get("revision").map_err(map_sqlx)?,
+        created_at: parse_dt(&created_at)?,
+        updated_at: parse_dt(&updated_at)?,
+        deleted_at: deleted_at.as_deref().map(parse_dt).transpose()?,
+    })
+}
+
+fn link_from_row(row: &SqliteRow) -> Result<Link, AppError> {
+    let id: Vec<u8> = row.try_get("id").map_err(map_sqlx)?;
+    let task_id: Vec<u8> = row.try_get("task_id").map_err(map_sqlx)?;
+    let kind: String = row.try_get("kind").map_err(map_sqlx)?;
+    Ok(Link {
+        id: uuid_from_blob(&id)?,
+        task_id: uuid_from_blob(&task_id)?,
+        kind: parse_enum::<LinkKind>(&kind)?,
+        value: row.try_get("value").map_err(map_sqlx)?,
+        sort_order: row.try_get("sort_order").map_err(map_sqlx)?,
+    })
+}
+
+fn run_from_row(row: &SqliteRow) -> Result<Run, AppError> {
+    let id: Vec<u8> = row.try_get("id").map_err(map_sqlx)?;
+    let task_id: Vec<u8> = row.try_get("task_id").map_err(map_sqlx)?;
+    let status: String = row.try_get("status").map_err(map_sqlx)?;
+    let started_at: String = row.try_get("started_at").map_err(map_sqlx)?;
+    let ended_at: Option<String> = row.try_get("ended_at").map_err(map_sqlx)?;
+    let created_at: String = row.try_get("created_at").map_err(map_sqlx)?;
+    let updated_at: String = row.try_get("updated_at").map_err(map_sqlx)?;
+    Ok(Run {
+        id: uuid_from_blob(&id)?,
+        display_id: row.try_get("display_id").map_err(map_sqlx)?,
+        task_id: uuid_from_blob(&task_id)?,
+        agent: row.try_get("agent").map_err(map_sqlx)?,
+        session_id: row.try_get("session_id").map_err(map_sqlx)?,
+        status: parse_enum::<RunStatus>(&status)?,
+        message: row.try_get("message").map_err(map_sqlx)?,
+        waiting_reason: row.try_get("waiting_reason").map_err(map_sqlx)?,
+        summary: row.try_get("summary").map_err(map_sqlx)?,
+        started_at: parse_dt(&started_at)?,
+        ended_at: ended_at.as_deref().map(parse_dt).transpose()?,
+        revision: row.try_get("revision").map_err(map_sqlx)?,
+        created_at: parse_dt(&created_at)?,
+        updated_at: parse_dt(&updated_at)?,
     })
 }
 
@@ -272,61 +340,139 @@ impl Store for SqliteStore {
         Ok(())
     }
 
-    async fn get_task(&mut self, _id: Uuid) -> Result<Option<Task>, AppError> {
-        Err(not_impl("get_task"))
+    async fn get_task(&mut self, id: Uuid) -> Result<Option<Task>, AppError> {
+        let sql = format!("SELECT {TASK_COLUMNS} FROM tasks WHERE id = ?");
+        let query = sqlx::query(&sql).bind(uuid_bytes(id));
+        let row = run!(self, query, fetch_optional).map_err(map_sqlx)?;
+        row.as_ref().map(task_from_row).transpose()
     }
 
     async fn get_task_by_display_id(
         &mut self,
-        _display_id: &str,
-        _include_deleted: bool,
+        display_id: &str,
+        include_deleted: bool,
     ) -> Result<Option<Task>, AppError> {
-        Err(not_impl("get_task_by_display_id"))
+        let sql = if include_deleted {
+            format!(
+                "SELECT {TASK_COLUMNS} FROM tasks WHERE display_id = ? ORDER BY CASE WHEN deleted_at IS NULL THEN 0 ELSE 1 END, deleted_at DESC LIMIT 1"
+            )
+        } else {
+            format!("SELECT {TASK_COLUMNS} FROM tasks WHERE display_id = ? AND deleted_at IS NULL")
+        };
+        let query = sqlx::query(&sql).bind(display_id);
+        let row = run!(self, query, fetch_optional).map_err(map_sqlx)?;
+        row.as_ref().map(task_from_row).transpose()
     }
 
-    async fn list_tasks(&mut self, _project_id: Uuid) -> Result<Vec<Task>, AppError> {
-        Err(not_impl("list_tasks"))
+    async fn list_tasks(&mut self, project_id: Uuid) -> Result<Vec<Task>, AppError> {
+        let sql = format!(
+            "SELECT {TASK_COLUMNS} FROM tasks WHERE project_id = ? AND deleted_at IS NULL ORDER BY urgent DESC, position ASC"
+        );
+        let query = sqlx::query(&sql).bind(uuid_bytes(project_id));
+        let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
+        rows.iter().map(task_from_row).collect()
     }
 
     async fn list_deleted_tasks(&mut self) -> Result<Vec<Task>, AppError> {
-        Err(not_impl("list_deleted_tasks"))
+        let sql = format!(
+            "SELECT {TASK_COLUMNS} FROM tasks WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"
+        );
+        let query = sqlx::query(&sql);
+        let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
+        rows.iter().map(task_from_row).collect()
     }
 
-    async fn insert_task(&mut self, _task: &Task) -> Result<(), AppError> {
-        Err(not_impl("insert_task"))
+    async fn insert_task(&mut self, task: &Task) -> Result<(), AppError> {
+        let query = sqlx::query(
+            "INSERT INTO tasks (id, display_id, project_id, title, column, urgent, note_markdown, position, revision, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(uuid_bytes(task.id))
+        .bind(&task.display_id)
+        .bind(uuid_bytes(task.project_id))
+        .bind(&task.title)
+        .bind(enum_str(task.column)?)
+        .bind(if task.urgent { 1i64 } else { 0 })
+        .bind(&task.note_markdown)
+        .bind(task.position)
+        .bind(task.revision)
+        .bind(fmt_dt(task.created_at))
+        .bind(fmt_dt(task.updated_at))
+        .bind(task.deleted_at.map(fmt_dt));
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
     }
 
-    async fn update_task(&mut self, _task: &Task) -> Result<(), AppError> {
-        Err(not_impl("update_task"))
+    async fn update_task(&mut self, task: &Task) -> Result<(), AppError> {
+        let query = sqlx::query(
+            "UPDATE tasks SET display_id = ?, project_id = ?, title = ?, column = ?, urgent = ?, note_markdown = ?, position = ?, revision = ?, created_at = ?, updated_at = ?, deleted_at = ? WHERE id = ?",
+        )
+        .bind(&task.display_id)
+        .bind(uuid_bytes(task.project_id))
+        .bind(&task.title)
+        .bind(enum_str(task.column)?)
+        .bind(if task.urgent { 1i64 } else { 0 })
+        .bind(&task.note_markdown)
+        .bind(task.position)
+        .bind(task.revision)
+        .bind(fmt_dt(task.created_at))
+        .bind(fmt_dt(task.updated_at))
+        .bind(task.deleted_at.map(fmt_dt))
+        .bind(uuid_bytes(task.id));
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
     }
 
     async fn soft_delete_task(
         &mut self,
-        _id: Uuid,
-        _deleted_at: DateTime<Utc>,
+        id: Uuid,
+        deleted_at: DateTime<Utc>,
     ) -> Result<(), AppError> {
-        Err(not_impl("soft_delete_task"))
+        let query = sqlx::query("UPDATE tasks SET deleted_at = ? WHERE id = ?")
+            .bind(fmt_dt(deleted_at))
+            .bind(uuid_bytes(id));
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
     }
 
-    async fn restore_task(&mut self, _id: Uuid) -> Result<(), AppError> {
-        Err(not_impl("restore_task"))
+    async fn restore_task(&mut self, id: Uuid) -> Result<(), AppError> {
+        let query =
+            sqlx::query("UPDATE tasks SET deleted_at = NULL WHERE id = ?").bind(uuid_bytes(id));
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
     }
 
     async fn rewrite_task_positions(
         &mut self,
-        _project_id: Uuid,
-        _column: Column,
-        _ordered_ids: &[Uuid],
+        project_id: Uuid,
+        column: Column,
+        ordered_ids: &[Uuid],
     ) -> Result<(), AppError> {
-        Err(not_impl("rewrite_task_positions"))
+        let column = enum_str(column)?;
+        let negate = sqlx::query(
+            "UPDATE tasks SET position = -(position + 1) WHERE project_id = ? AND column = ? AND deleted_at IS NULL",
+        )
+        .bind(uuid_bytes(project_id))
+        .bind(&column);
+        run!(self, negate, execute).map_err(map_sqlx)?;
+        for (index, id) in ordered_ids.iter().enumerate() {
+            let query = sqlx::query("UPDATE tasks SET position = ? WHERE id = ?")
+                .bind(index as i64)
+                .bind(uuid_bytes(*id));
+            run!(self, query, execute).map_err(map_sqlx)?;
+        }
+        Ok(())
     }
 
     async fn get_link(&mut self, _id: Uuid) -> Result<Option<Link>, AppError> {
         Err(not_impl("get_link"))
     }
 
-    async fn list_links(&mut self, _task_id: Uuid) -> Result<Vec<Link>, AppError> {
-        Err(not_impl("list_links"))
+    async fn list_links(&mut self, task_id: Uuid) -> Result<Vec<Link>, AppError> {
+        let sql =
+            format!("SELECT {LINK_COLUMNS} FROM links WHERE task_id = ? ORDER BY sort_order ASC");
+        let query = sqlx::query(&sql).bind(uuid_bytes(task_id));
+        let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
+        rows.iter().map(link_from_row).collect()
     }
 
     async fn insert_link(&mut self, _link: &Link) -> Result<(), AppError> {
@@ -349,8 +495,13 @@ impl Store for SqliteStore {
         Err(not_impl("get_run_by_display_id"))
     }
 
-    async fn list_runs(&mut self, _task_id: Uuid) -> Result<Vec<Run>, AppError> {
-        Err(not_impl("list_runs"))
+    async fn list_runs(&mut self, task_id: Uuid) -> Result<Vec<Run>, AppError> {
+        let sql = format!(
+            "SELECT {RUN_COLUMNS} FROM runs WHERE task_id = ? ORDER BY started_at DESC, display_id DESC"
+        );
+        let query = sqlx::query(&sql).bind(uuid_bytes(task_id));
+        let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
+        rows.iter().map(run_from_row).collect()
     }
 
     async fn insert_run(&mut self, _run: &Run) -> Result<(), AppError> {
