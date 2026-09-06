@@ -1,11 +1,11 @@
 .input {
   width: 100%;
-  max-width: 28rem;
+  max-width: none;
   border: 1px solid var(--card-border);
   border-radius: 10px;
   background: var(--card-bg);
   color: var(--board-fg);
-  padding: 0.55rem 0.75rem;
+  padding: 0.55rem 2rem 0.55rem 0.75rem;
   min-height: 44px;
   font: inherit;
 }

@@ -68,7 +68,12 @@ export function Board(props: {
   return (
     <section className={styles.board}>
       <div className={styles.toolbar}>
-        <Search value={props.query} onChange={props.onQueryChange} inputRef={props.searchRef} />
+        <div className={styles.searchWrap}>
+          <Search value={props.query} onChange={props.onQueryChange} inputRef={props.searchRef} />
+          <kbd className={styles.searchHint} aria-hidden="true">
+            /
+          </kbd>
+        </div>
         {props.onNewTask ? (
           <button type="button" className={styles.newTask} onClick={props.onNewTask}>
             New task
