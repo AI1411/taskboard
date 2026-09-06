@@ -284,6 +284,12 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         return;
       }
 
+      if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z")) {
+        e.preventDefault();
+        void transport.undo().then(() => reloadBoard());
+        return;
+      }
+
       if (e.key === "/") {
         e.preventDefault();
         searchRef.current?.focus();
@@ -369,7 +375,18 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [addProject, createTask, jumpColumn, moveSelected, selectCard, selectInColumn, switchProject, toggleUrgent]);
+  }, [
+    addProject,
+    createTask,
+    jumpColumn,
+    moveSelected,
+    reloadBoard,
+    selectCard,
+    selectInColumn,
+    switchProject,
+    toggleUrgent,
+    transport,
+  ]);
 
   const onMove = useCallback(
     async (displayId: string, column: Column) => {

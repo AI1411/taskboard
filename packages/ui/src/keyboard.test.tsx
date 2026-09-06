@@ -87,6 +87,13 @@ describe("keyboard", () => {
     await waitFor(() => expect(transport.taskMove).toHaveBeenCalled());
   });
 
+  it("meta+z calls undo", async () => {
+    const transport = fakeTransport();
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.keyboard("{Meta>}z{/Meta}");
+    expect(transport.undo).toHaveBeenCalled();
+  });
+
   it("Enter opens the inspector for the selected card", async () => {
     const transport = fakeTransport();
     const project = await transport.projectAdd({ name: "Untitled" });
