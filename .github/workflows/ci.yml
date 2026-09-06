@@ -33,16 +33,27 @@ jobs:
         run: cargo test -- --test-threads=1
 
   js:
-    if: hashFiles('pnpm-lock.yaml') != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Skip when lockfile is absent
+        id: lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: pnpm/action-setup@v4
+        if: steps.lockfile.outputs.present == 'true'
       - uses: actions/setup-node@v4
+        if: steps.lockfile.outputs.present == 'true'
         with:
           node-version: "22"
           cache: pnpm
       - name: Install
+        if: steps.lockfile.outputs.present == 'true'
         run: pnpm install --frozen-lockfile
       - name: Test
+        if: steps.lockfile.outputs.present == 'true'
         run: pnpm test
