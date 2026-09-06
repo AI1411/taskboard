@@ -21,6 +21,15 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  background: var(--board-bg);
+  color: var(--board-fg);
+}
+
 :focus-visible {
   outline: 2px solid var(--accent-2);
   outline-offset: 2px;
