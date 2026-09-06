@@ -2,7 +2,7 @@
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr) minmax(320px, 420px);
   min-height: 100vh;
-  font-family: "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font);
   background: var(--board-bg);
 }
 

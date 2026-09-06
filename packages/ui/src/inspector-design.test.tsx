@@ -26,4 +26,13 @@ describe("design-review regressions", () => {
     await userEvent.click(screen.getByRole("button", { name: "Move to Trash" }));
     await waitFor(() => expect(transport.taskDelete).toHaveBeenCalled());
   });
+
+  it("uses a dark color-scheme on the document", async () => {
+    const transport = fakeTransport();
+    await transport.projectAdd({ name: "Untitled" });
+    render(<TaskboardApp transport={transport} />);
+    await screen.findByRole("list", { name: "Todo" });
+    const scheme = getComputedStyle(document.documentElement).colorScheme;
+    expect(scheme).toMatch(/dark/);
+  });
 });
