@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use chrono::{DateTime, Utc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -5,8 +7,8 @@ use uuid::Uuid;
 use taskboard_core::{
     card_display_status, display_id, next_unique_slug, parse_agent, parse_path_link, parse_url,
     place_before, place_urgent, rewrite_positions, slugify, sort_column, trim_project_name,
-    trim_title, Column, DisplayKind, EntityType, FieldError, Link, LinkKind, OrderError, OrderKey,
-    Project, Run, RunStatus, RunStatusView, SlugError, Task, TaskDetail, TaskSummary,
+    trim_title, Activity, Column, DisplayKind, EntityType, FieldError, Link, LinkKind, OrderError,
+    OrderKey, Project, Run, RunStatus, RunStatusView, SlugError, Task, TaskDetail, TaskSummary,
     ValidationError,
 };
 
@@ -16,7 +18,7 @@ use crate::commands::{
     TaskCreate, TaskUpdate,
 };
 use crate::error::AppError;
-use crate::store::{NewActivity, Store};
+use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
 
 pub trait Clock: Send + Sync {
     fn now(&self) -> DateTime<Utc>;
@@ -329,6 +331,95 @@ impl App {
         store.begin().await?;
         let result = run_finish_inner(store, actor, cmd, now).await;
         commit_or_rollback(store, result).await
+    }
+
+    pub async fn task_delete(
+        &self,
+        actor: &Actor,
+        display_id: &str,
+        revision: Option<i64>,
+    ) -> Result<TaskDetail, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = task_delete_inner(store, actor, display_id, revision, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn task_restore(
+        &self,
+        actor: &Actor,
+        display_id: &str,
+    ) -> Result<TaskDetail, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = task_restore_inner(store, actor, display_id, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn trash_list(&self) -> Result<Trash, AppError> {
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        let projects = store.list_deleted_projects().await?;
+        let deleted_tasks = store.list_deleted_tasks().await?;
+        let mut tasks = Vec::with_capacity(deleted_tasks.len());
+        for task in deleted_tasks {
+            tasks.push(to_task_summary(store, task).await?);
+        }
+        Ok(Trash { projects, tasks })
+    }
+
+    pub async fn purge_expired_trash(&self, now: DateTime<Utc>) -> Result<u64, AppError> {
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = store.purge_expired(now, 30).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn undo(&self, actor: &Actor) -> Result<UndoResult, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = undo_inner(store, actor, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn activity_head(&self) -> Result<i64, AppError> {
+        let mut store = self.store.lock().await;
+        store.activity_head().await
+    }
+
+    pub async fn sync(&self, after: i64) -> Result<SyncDelta, AppError> {
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        sync_inner(store, after).await
+    }
+
+    pub async fn backup_export(&self, dest: &Path) -> Result<(), AppError> {
+        let mut store = self.store.lock().await;
+        store.backup_to(dest).await
+    }
+
+    pub async fn backup_import(&self, src: &Path) -> Result<(), AppError> {
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.validate_import(src).await?;
+        let pre = store.pre_import_path()?;
+        store.backup_to(&pre).await?;
+        store.close_pool().await?;
+        let copied = store.replace_from(src).await;
+        let reopened = store.reopen_pool().await;
+        match (copied, reopened) {
+            (Ok(()), Ok(())) => Ok(()),
+            (Err(err), Ok(())) => Err(err),
+            (Ok(()), Err(err)) => Err(err),
+            (Err(err), Err(_)) => Err(err),
+        }
     }
 }
 
@@ -984,6 +1075,74 @@ async fn write_task_note(
     load_task_detail(store, task).await
 }
 
+async fn task_delete_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    display_id: &str,
+    revision: Option<i64>,
+    now: DateTime<Utc>,
+) -> Result<TaskDetail, AppError> {
+    let mut task = require_live_task(store, display_id).await?;
+    check_revision(&task, task.revision, revision)?;
+    let before = task.clone();
+    task.deleted_at = Some(now);
+    task.revision += 1;
+    task.updated_at = now;
+    store.update_task(&task).await?;
+    rewrite_live_column(store, before.project_id, before.column).await?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Task,
+            operation: "task.delete",
+            entity_id: task.id,
+            previous_revision: Some(before.revision),
+            before_json: Some(json_value(&before)?),
+            after_json: Some(json_value(&task)?),
+        },
+    )
+    .await?;
+    load_task_detail(store, task).await
+}
+
+async fn task_restore_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    display_id: &str,
+    now: DateTime<Utc>,
+) -> Result<TaskDetail, AppError> {
+    let mut task = store
+        .get_task_by_display_id(display_id, true)
+        .await?
+        .ok_or_else(|| task_not_found(display_id))?;
+    if task.deleted_at.is_none() {
+        return Err(task_not_found(display_id));
+    }
+    let before = task.clone();
+    task.deleted_at = None;
+    assign_unique_task_position(store, &mut task).await?;
+    task.revision += 1;
+    task.updated_at = now;
+    store.update_task(&task).await?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Task,
+            operation: "task.restore",
+            entity_id: task.id,
+            previous_revision: Some(before.revision),
+            before_json: Some(json_value(&before)?),
+            after_json: Some(json_value(&task)?),
+        },
+    )
+    .await?;
+    load_task_detail(store, task).await
+}
+
 async fn link_add_inner(
     store: &mut dyn Store,
     actor: &Actor,
@@ -1374,6 +1533,22 @@ async fn rewrite_column(
         .await
 }
 
+async fn rewrite_live_column(
+    store: &mut dyn Store,
+    project_id: Uuid,
+    column: Column,
+) -> Result<(), AppError> {
+    let column_tasks: Vec<Task> = store
+        .list_tasks(project_id)
+        .await?
+        .into_iter()
+        .filter(|item| item.column == column)
+        .collect();
+    let mut keys = task_keys(&column_tasks);
+    rewrite_positions(&mut keys);
+    rewrite_column(store, project_id, column, &keys, &column_tasks).await
+}
+
 async fn load_task_detail(store: &mut dyn Store, task: Task) -> Result<TaskDetail, AppError> {
     let links = store.list_links(task.id).await?;
     let runs = store.list_runs(task.id).await?;
@@ -1507,6 +1682,386 @@ async fn record_activity(
             created_at: now,
         })
         .await
+}
+
+async fn undo_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    now: DateTime<Utc>,
+) -> Result<UndoResult, AppError> {
+    let undoable = store
+        .latest_undoable()
+        .await?
+        .ok_or_else(|| AppError::NotFound {
+            entity: "activity".into(),
+            id: "undo".into(),
+        })?;
+    let latest = store.latest_activity_for(undoable.entity_id).await?;
+    if latest
+        .as_ref()
+        .is_some_and(|activity| activity.sequence > undoable.sequence)
+    {
+        return Err(AppError::UndoConflict {
+            current: current_entity_json(store, undoable.entity_type, undoable.entity_id).await?,
+        });
+    }
+    let previous_revision = revision_just_undone(store, &undoable).await?;
+    let entity = apply_compensation(store, &undoable, now).await?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: undoable.entity_type,
+            operation: "undo",
+            entity_id: undoable.entity_id,
+            previous_revision,
+            before_json: undoable.after_json.clone(),
+            after_json: Some(entity.clone()),
+        },
+    )
+    .await?;
+    Ok(UndoResult {
+        entity_type: undoable.entity_type,
+        entity,
+    })
+}
+
+async fn apply_compensation(
+    store: &mut dyn Store,
+    activity: &Activity,
+    now: DateTime<Utc>,
+) -> Result<serde_json::Value, AppError> {
+    if activity.operation == "project.reorder" {
+        return compensate_project_reorder(store, activity).await;
+    }
+    if activity.before_json.is_none() {
+        return compensate_create(store, activity, now).await;
+    }
+    if activity.operation == "link.remove" {
+        let link: Link = serde_json::from_value(
+            activity
+                .before_json
+                .clone()
+                .ok_or_else(|| AppError::Io("link.remove missing before_json".into()))?,
+        )
+        .map_err(map_json)?;
+        store.insert_link(&link).await?;
+        return json_value(&link);
+    }
+    restore_snapshot(store, activity, now).await
+}
+
+async fn revision_just_undone(
+    store: &mut dyn Store,
+    activity: &Activity,
+) -> Result<Option<i64>, AppError> {
+    match activity.entity_type {
+        EntityType::Task => Ok(store
+            .get_task(activity.entity_id)
+            .await?
+            .map(|task| task.revision)),
+        EntityType::Project => Ok(store
+            .get_project(activity.entity_id)
+            .await?
+            .map(|project| project.revision)),
+        EntityType::Run => Ok(store
+            .get_run(activity.entity_id)
+            .await?
+            .map(|run| run.revision)),
+        EntityType::Link => Ok(None),
+    }
+}
+
+async fn compensate_create(
+    store: &mut dyn Store,
+    activity: &Activity,
+    now: DateTime<Utc>,
+) -> Result<serde_json::Value, AppError> {
+    match activity.entity_type {
+        EntityType::Task => {
+            let mut task =
+                store
+                    .get_task(activity.entity_id)
+                    .await?
+                    .ok_or_else(|| AppError::NotFound {
+                        entity: "task".into(),
+                        id: activity.entity_id.to_string(),
+                    })?;
+            task.deleted_at = Some(now);
+            task.revision += 1;
+            task.updated_at = now;
+            store.update_task(&task).await?;
+            rewrite_live_column(store, task.project_id, task.column).await?;
+            json_value(&task)
+        }
+        EntityType::Project => {
+            let mut project = store
+                .get_project(activity.entity_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound {
+                    entity: "project".into(),
+                    id: activity.entity_id.to_string(),
+                })?;
+            project.deleted_at = Some(now);
+            project.revision += 1;
+            project.updated_at = now;
+            store.update_project(&project).await?;
+            json_value(&project)
+        }
+        EntityType::Link => {
+            let link = store.get_link(activity.entity_id).await?;
+            store.delete_link(activity.entity_id).await?;
+            match link {
+                Some(link) => json_value(&link),
+                None => Ok(serde_json::Value::Null),
+            }
+        }
+        EntityType::Run => {
+            let run = store.get_run(activity.entity_id).await?;
+            store.delete_run(activity.entity_id).await?;
+            match run {
+                Some(run) => json_value(&run),
+                None => Ok(serde_json::Value::Null),
+            }
+        }
+    }
+}
+
+async fn restore_snapshot(
+    store: &mut dyn Store,
+    activity: &Activity,
+    now: DateTime<Utc>,
+) -> Result<serde_json::Value, AppError> {
+    let before = activity
+        .before_json
+        .clone()
+        .ok_or_else(|| AppError::Io("activity missing before_json".into()))?;
+    match activity.entity_type {
+        EntityType::Task => {
+            let current =
+                store
+                    .get_task(activity.entity_id)
+                    .await?
+                    .ok_or_else(|| AppError::NotFound {
+                        entity: "task".into(),
+                        id: activity.entity_id.to_string(),
+                    })?;
+            let mut task: Task = serde_json::from_value(before).map_err(map_json)?;
+            assign_unique_task_position(store, &mut task).await?;
+            task.revision = current.revision + 1;
+            task.updated_at = now;
+            store.update_task(&task).await?;
+            json_value(&task)
+        }
+        EntityType::Project => {
+            let current = store
+                .get_project(activity.entity_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound {
+                    entity: "project".into(),
+                    id: activity.entity_id.to_string(),
+                })?;
+            let mut project: Project = serde_json::from_value(before).map_err(map_json)?;
+            assign_unique_project_sort(store, &mut project).await?;
+            project.revision = current.revision + 1;
+            project.updated_at = now;
+            store.update_project(&project).await?;
+            json_value(&project)
+        }
+        EntityType::Link => {
+            let link: Link = serde_json::from_value(before).map_err(map_json)?;
+            store.update_link(&link).await?;
+            json_value(&link)
+        }
+        EntityType::Run => {
+            let current =
+                store
+                    .get_run(activity.entity_id)
+                    .await?
+                    .ok_or_else(|| AppError::NotFound {
+                        entity: "run".into(),
+                        id: activity.entity_id.to_string(),
+                    })?;
+            let mut run: Run = serde_json::from_value(before).map_err(map_json)?;
+            run.revision = current.revision + 1;
+            run.updated_at = now;
+            store.update_run(&run).await?;
+            json_value(&run)
+        }
+    }
+}
+
+async fn compensate_project_reorder(
+    store: &mut dyn Store,
+    activity: &Activity,
+) -> Result<serde_json::Value, AppError> {
+    let before: Vec<Project> = serde_json::from_value(
+        activity
+            .before_json
+            .clone()
+            .ok_or_else(|| AppError::Io("project.reorder missing before_json".into()))?,
+    )
+    .map_err(map_json)?;
+    let ids: Vec<Uuid> = before.iter().map(|project| project.id).collect();
+    store.rewrite_project_sort_orders(&ids).await?;
+    for project in &before {
+        store.update_project(project).await?;
+    }
+    json_value(&before)
+}
+
+async fn assign_unique_task_position(
+    store: &mut dyn Store,
+    task: &mut Task,
+) -> Result<(), AppError> {
+    if task.deleted_at.is_some() {
+        return Ok(());
+    }
+    let taken: std::collections::HashSet<i64> = store
+        .list_tasks(task.project_id)
+        .await?
+        .into_iter()
+        .filter(|item| item.column == task.column && item.id != task.id)
+        .map(|item| item.position)
+        .collect();
+    if taken.contains(&task.position) {
+        task.position = taken.iter().max().copied().unwrap_or(-1) + 1;
+    }
+    Ok(())
+}
+
+async fn assign_unique_project_sort(
+    store: &mut dyn Store,
+    project: &mut Project,
+) -> Result<(), AppError> {
+    if project.deleted_at.is_some() {
+        return Ok(());
+    }
+    let taken: std::collections::HashSet<i64> = store
+        .list_projects(true)
+        .await?
+        .into_iter()
+        .filter(|item| item.id != project.id)
+        .map(|item| item.sort_order)
+        .collect();
+    if taken.contains(&project.sort_order) {
+        project.sort_order = taken.iter().max().copied().unwrap_or(-1) + 1;
+    }
+    Ok(())
+}
+
+async fn current_entity_json(
+    store: &mut dyn Store,
+    entity_type: EntityType,
+    entity_id: Uuid,
+) -> Result<serde_json::Value, AppError> {
+    match entity_type {
+        EntityType::Project => match store.get_project(entity_id).await? {
+            Some(project) => json_value(&project),
+            None => Ok(serde_json::Value::Null),
+        },
+        EntityType::Task => match store.get_task(entity_id).await? {
+            Some(task) => json_value(&task),
+            None => Ok(serde_json::Value::Null),
+        },
+        EntityType::Link => match store.get_link(entity_id).await? {
+            Some(link) => json_value(&link),
+            None => Ok(serde_json::Value::Null),
+        },
+        EntityType::Run => match store.get_run(entity_id).await? {
+            Some(run) => json_value(&run),
+            None => Ok(serde_json::Value::Null),
+        },
+    }
+}
+
+async fn sync_inner(store: &mut dyn Store, after: i64) -> Result<SyncDelta, AppError> {
+    let activities = store.list_activities_after(after).await?;
+    let sequence = store.activity_head().await?;
+    let mut project_ids = Vec::new();
+    let mut task_ids = Vec::new();
+    let mut run_ids = Vec::new();
+    let mut seen_projects = std::collections::HashSet::new();
+    let mut seen_tasks = std::collections::HashSet::new();
+    let mut seen_runs = std::collections::HashSet::new();
+
+    for activity in activities {
+        match activity.entity_type {
+            EntityType::Project => {
+                if seen_projects.insert(activity.entity_id) {
+                    project_ids.push(activity.entity_id);
+                }
+            }
+            EntityType::Task => {
+                if seen_tasks.insert(activity.entity_id) {
+                    task_ids.push(activity.entity_id);
+                }
+            }
+            EntityType::Run => {
+                if seen_runs.insert(activity.entity_id) {
+                    run_ids.push(activity.entity_id);
+                }
+            }
+            EntityType::Link => {
+                if let Some(task_id) = link_task_id(store, &activity).await? {
+                    if seen_tasks.insert(task_id) {
+                        task_ids.push(task_id);
+                    }
+                }
+            }
+        }
+    }
+
+    let mut projects = Vec::new();
+    for id in project_ids {
+        if let Some(project) = store.get_project(id).await? {
+            projects.push(project);
+        }
+    }
+    let mut tasks = Vec::new();
+    for id in task_ids {
+        if let Some(task) = store.get_task(id).await? {
+            tasks.push(load_task_detail(store, task).await?);
+        }
+    }
+    let mut runs = Vec::new();
+    for id in run_ids {
+        if let Some(run) = store.get_run(id).await? {
+            runs.push(run);
+        }
+    }
+    Ok(SyncDelta {
+        sequence,
+        projects,
+        tasks,
+        runs,
+    })
+}
+
+async fn link_task_id(
+    store: &mut dyn Store,
+    activity: &Activity,
+) -> Result<Option<Uuid>, AppError> {
+    if let Some(link) = store.get_link(activity.entity_id).await? {
+        return Ok(Some(link.task_id));
+    }
+    for payload in [&activity.after_json, &activity.before_json]
+        .into_iter()
+        .flatten()
+    {
+        if let Some(task_id) = uuid_from_json(payload, "task_id") {
+            return Ok(Some(task_id));
+        }
+    }
+    Ok(None)
+}
+
+fn uuid_from_json(value: &serde_json::Value, key: &str) -> Option<Uuid> {
+    value
+        .get(key)
+        .and_then(|item| item.as_str())
+        .and_then(|raw| Uuid::parse_str(raw).ok())
 }
 
 fn json_value<T: serde::Serialize>(value: &T) -> Result<serde_json::Value, AppError> {

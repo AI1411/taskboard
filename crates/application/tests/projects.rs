@@ -14,7 +14,7 @@ struct TestApp {
 impl TestApp {
     async fn activity_head(&self) -> i64 {
         let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool);
+        let mut store = SqliteStore::new(pool, self._tmp.path());
         store.activity_head().await.unwrap()
     }
 }
@@ -37,7 +37,7 @@ fn cli_actor() -> Actor {
 async fn test_app() -> TestApp {
     let tmp = tempfile::tempdir().unwrap();
     let pool = open_db(tmp.path()).await.unwrap();
-    let store = SqliteStore::new(pool);
+    let store = SqliteStore::new(pool, tmp.path());
     TestApp {
         app: App::new(store, SystemClock),
         _tmp: tmp,

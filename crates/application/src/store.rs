@@ -132,6 +132,11 @@ pub trait Store: Send + Sync {
         retention_days: i64,
     ) -> Result<u64, AppError>;
     async fn backup_to(&mut self, dest: &Path) -> Result<(), AppError>;
+    async fn validate_import(&mut self, src: &Path) -> Result<(), AppError>;
+    fn pre_import_path(&self) -> Result<std::path::PathBuf, AppError>;
+    async fn close_pool(&mut self) -> Result<(), AppError>;
+    async fn reopen_pool(&mut self) -> Result<(), AppError>;
+    /// Copy `src` over the live SQLite file. Caller must have closed the pool.
     async fn replace_from(&mut self, src: &Path) -> Result<(), AppError>;
     async fn begin(&mut self) -> Result<(), AppError>;
     async fn commit(&mut self) -> Result<(), AppError>;

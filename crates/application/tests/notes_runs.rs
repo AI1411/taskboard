@@ -16,7 +16,7 @@ struct TestApp {
 impl TestApp {
     async fn task_row(&self, display_id: &str) -> Task {
         let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool);
+        let mut store = SqliteStore::new(pool, self._tmp.path());
         store
             .get_task_by_display_id(display_id, false)
             .await
@@ -26,13 +26,13 @@ impl TestApp {
 
     async fn latest_activity_for(&self, entity_id: Uuid) -> taskboard_core::Activity {
         let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool);
+        let mut store = SqliteStore::new(pool, self._tmp.path());
         store.latest_activity_for(entity_id).await.unwrap().unwrap()
     }
 
     async fn get_run(&self, display_id: &str) -> Run {
         let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool);
+        let mut store = SqliteStore::new(pool, self._tmp.path());
         store
             .get_run_by_display_id(display_id)
             .await
@@ -42,13 +42,13 @@ impl TestApp {
 
     async fn get_link(&self, id: Uuid) -> Option<taskboard_core::Link> {
         let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool);
+        let mut store = SqliteStore::new(pool, self._tmp.path());
         store.get_link(id).await.unwrap()
     }
 
     async fn soft_delete_task(&self, display_id: &str) {
         let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool);
+        let mut store = SqliteStore::new(pool, self._tmp.path());
         let task = store
             .get_task_by_display_id(display_id, false)
             .await
@@ -79,7 +79,7 @@ fn cli_actor() -> Actor {
 async fn test_app() -> TestApp {
     let tmp = tempfile::tempdir().unwrap();
     let pool = open_db(tmp.path()).await.unwrap();
-    let store = SqliteStore::new(pool);
+    let store = SqliteStore::new(pool, tmp.path());
     TestApp {
         app: App::new(store, SystemClock),
         _tmp: tmp,
