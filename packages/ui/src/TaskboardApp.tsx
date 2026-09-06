@@ -523,6 +523,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
             onSelectCard={(id) => void selectCard(id)}
             onMove={(id, column) => void onMove(id, column)}
             onReorder={(id, beforeId) => void onReorder(id, beforeId)}
+            onNewTask={() => void createTask()}
           />
         ) : null}
       </main>

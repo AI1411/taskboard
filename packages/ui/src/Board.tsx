@@ -31,6 +31,7 @@ export function Board(props: {
   onSelectCard: (displayId: string) => void;
   onMove: (displayId: string, column: Column) => void;
   onReorder: (displayId: string, beforeId: string) => void;
+  onNewTask?: () => void;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -68,6 +69,11 @@ export function Board(props: {
     <section className={styles.board}>
       <div className={styles.toolbar}>
         <Search value={props.query} onChange={props.onQueryChange} inputRef={props.searchRef} />
+        {props.onNewTask ? (
+          <button type="button" className={styles.newTask} onClick={props.onNewTask}>
+            New task
+          </button>
+        ) : null}
       </div>
       <DndContext
         sensors={sensors}

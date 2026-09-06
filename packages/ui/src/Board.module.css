@@ -14,6 +14,20 @@
   padding: 0.25rem 0.15rem 0;
 }
 
+.newTask {
+  margin-left: auto;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+}
+
 .columns {
   display: grid;
   grid-template-columns: repeat(4, minmax(160px, 1fr));
