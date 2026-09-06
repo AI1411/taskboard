@@ -142,3 +142,110 @@ async fn sync_after_zero_then_after_head() {
     assert_eq!(again["sequence"], seq);
     assert!(again["projects"].as_array().unwrap().is_empty());
 }
+
+async fn task_display_ids(s: &TestServer, slug: &str) -> Vec<String> {
+    let listed = authed(s)
+        .get(format!("{}/api/v1/projects/{slug}/tasks", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    listed["entities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|task| task["displayId"].as_str().unwrap().to_string())
+        .collect()
+}
+
+#[tokio::test]
+async fn patch_task_before_display_id_null_moves_card_to_end() {
+    let s = start_test_server().await;
+    let client = authed(&s);
+    assert_eq!(
+        client
+            .post(format!("{}/api/v1/projects", s.base))
+            .json(&json!({"name": "Renai Sim"}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
+    for title in ["First", "Second", "Third"] {
+        assert_eq!(
+            client
+                .post(format!("{}/api/v1/projects/renai-sim/tasks", s.base))
+                .json(&json!({ "title": title }))
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            200
+        );
+    }
+    assert_eq!(
+        task_display_ids(&s, "renai-sim").await,
+        ["TASK-1", "TASK-2", "TASK-3"]
+    );
+
+    let res = client
+        .patch(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .json(&json!({ "beforeDisplayId": null }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    assert_eq!(
+        task_display_ids(&s, "renai-sim").await,
+        ["TASK-2", "TASK-3", "TASK-1"]
+    );
+}
+
+#[tokio::test]
+async fn patch_task_chains_if_match_across_fields() {
+    let s = seeded_task_server().await;
+    let client = authed(&s);
+    let shown = client
+        .get(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    let revision = shown["entity"]["revision"].as_i64().unwrap();
+
+    let ok = client
+        .patch(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .header("If-Match", revision.to_string())
+        .json(&json!({ "title": "Updated title", "urgent": true }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ok.status(), 200);
+    let body = ok.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(body["entity"]["title"], "Updated title");
+    assert_eq!(body["entity"]["urgent"], true);
+
+    let conflict = client
+        .patch(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .header("If-Match", revision.to_string())
+        .json(&json!({ "title": "Should not apply", "urgent": false }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(conflict.status(), 409);
+    let shown = client
+        .get(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    assert_eq!(shown["entity"]["title"], "Updated title");
+    assert_eq!(shown["entity"]["urgent"], true);
+}

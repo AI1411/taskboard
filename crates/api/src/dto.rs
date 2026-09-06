@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use taskboard_application::{SyncDelta, Trash};
 use taskboard_core::{
@@ -286,7 +286,18 @@ pub struct PatchTaskBody {
     pub note_markdown: Option<String>,
     pub urgent: Option<bool>,
     pub column: Option<Column>,
-    pub before_display_id: Option<String>,
+    /// Absent: do not reorder. `null`: move to end. String: place before that card.
+    #[serde(default, deserialize_with = "deserialize_present_option")]
+    pub before_display_id: Option<Option<String>>,
+}
+
+/// Distinguishes JSON field absent (`None`) from explicit `null` (`Some(None)`).
+fn deserialize_present_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    Ok(Some(Option::<T>::deserialize(deserializer)?))
 }
 
 #[derive(Debug, Deserialize)]

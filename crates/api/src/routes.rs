@@ -249,18 +249,17 @@ async fn patch_project(
             .await
             .map_err(app_error)?;
         slug = updated.slug.clone();
+        revision = Some(updated.revision);
         project = Some(updated);
-        revision = None;
     }
     if let Some(archived) = body.archived {
-        project = Some(
-            state
-                .app
-                .project_archive(&actor, &slug, archived, revision)
-                .await
-                .map_err(app_error)?,
-        );
-        revision = None;
+        let updated = state
+            .app
+            .project_archive(&actor, &slug, archived, revision)
+            .await
+            .map_err(app_error)?;
+        revision = Some(updated.revision);
+        project = Some(updated);
     }
     if let Some(note_markdown) = body.note_markdown {
         project = Some(
@@ -394,62 +393,53 @@ async fn patch_task(
     let mut revision = if_match(&headers)?;
     let mut task = None;
     if body.title.is_some() {
-        task = Some(
-            state
-                .app
-                .task_update(
-                    &actor,
-                    TaskUpdate {
-                        display_id: display_id.clone(),
-                        title: body.title,
-                        revision,
-                    },
-                )
-                .await
-                .map_err(app_error)?,
-        );
-        revision = None;
+        let updated = state
+            .app
+            .task_update(
+                &actor,
+                TaskUpdate {
+                    display_id: display_id.clone(),
+                    title: body.title,
+                    revision,
+                },
+            )
+            .await
+            .map_err(app_error)?;
+        revision = Some(updated.revision);
+        task = Some(updated);
     }
     if let Some(note_markdown) = body.note_markdown {
-        task = Some(
-            state
-                .app
-                .task_note_set(&actor, &display_id, note_markdown, revision)
-                .await
-                .map_err(app_error)?,
-        );
-        revision = None;
+        let updated = state
+            .app
+            .task_note_set(&actor, &display_id, note_markdown, revision)
+            .await
+            .map_err(app_error)?;
+        revision = Some(updated.revision);
+        task = Some(updated);
     }
     if let Some(urgent) = body.urgent {
-        task = Some(
-            state
-                .app
-                .task_urgent(&actor, &display_id, urgent, revision)
-                .await
-                .map_err(app_error)?,
-        );
-        revision = None;
+        let updated = state
+            .app
+            .task_urgent(&actor, &display_id, urgent, revision)
+            .await
+            .map_err(app_error)?;
+        revision = Some(updated.revision);
+        task = Some(updated);
     }
     if let Some(column) = body.column {
-        task = Some(
-            state
-                .app
-                .task_move(&actor, &display_id, column, revision)
-                .await
-                .map_err(app_error)?,
-        );
-        revision = None;
+        let updated = state
+            .app
+            .task_move(&actor, &display_id, column, revision)
+            .await
+            .map_err(app_error)?;
+        revision = Some(updated.revision);
+        task = Some(updated);
     }
     if let Some(before_display_id) = body.before_display_id {
         task = Some(
             state
                 .app
-                .task_reorder(
-                    &actor,
-                    &display_id,
-                    Some(before_display_id.as_str()),
-                    revision,
-                )
+                .task_reorder(&actor, &display_id, before_display_id.as_deref(), revision)
                 .await
                 .map_err(app_error)?,
         );
