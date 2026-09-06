@@ -16,11 +16,14 @@ export function Sidebar(props: {
 }) {
   return (
     <aside className={styles.sidebar}>
-      <div className={styles.header}>
-        <span className={styles.brand}>Projects</span>
-        <button type="button" className={styles.newProject} onClick={props.onNewProject}>
-          New project
-        </button>
+      <div className={styles.masthead}>
+        <h1 className={styles.wordmark}>Taskboard</h1>
+        <div className={styles.header}>
+          <span className={styles.brand}>Projects</span>
+          <button type="button" className={styles.newProject} onClick={props.onNewProject}>
+            New project
+          </button>
+        </div>
       </div>
       {props.projects.length === 0 ? (
         <EmptyState>Create a project to start a board</EmptyState>
