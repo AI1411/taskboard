@@ -1,0 +1,86 @@
+.card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto auto;
+  gap: 0.2rem 0.5rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+  color: var(--board-fg);
+  cursor: grab;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 8px 20px rgba(28, 27, 34, 0.04);
+}
+
+.card[aria-selected="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.title {
+  grid-column: 1;
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.displayId {
+  grid-column: 1;
+  color: color-mix(in srgb, var(--board-fg) 55%, transparent);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+
+.meta {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--urgent);
+}
+
+.badge {
+  font-size: 0.65rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.waiting {
+  background: var(--waiting);
+}
+
+.running {
+  background: var(--running);
+}
+
+.failed {
+  background: var(--failed);
+}
+
+.completed {
+  background: var(--completed);
+}
+
+.runMessage {
+  grid-column: 1 / -1;
+  font-size: 0.75rem;
+  color: color-mix(in srgb, var(--board-fg) 62%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

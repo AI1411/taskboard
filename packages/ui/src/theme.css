@@ -1,0 +1,27 @@
+:root {
+  --sidebar-bg: #1c1b22;
+  --board-bg: #f4f2f8;
+  --accent: #5b4bdb;
+  --accent-2: #7c6cff;
+  --urgent: #e24a2b;
+  --waiting: #d89a1a;
+  --completed: #2f9e62;
+  --running: #5b4bdb;
+  --sidebar-fg: #f4f2f8;
+  --sidebar-muted: #a9a6b3;
+  --board-fg: #1c1b22;
+  --card-bg: rgba(255, 255, 255, 0.82);
+  --card-border: rgba(28, 27, 34, 0.08);
+  --failed: #c45c4a;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+}
