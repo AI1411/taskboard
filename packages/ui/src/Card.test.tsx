@@ -41,4 +41,19 @@ describe("Card", () => {
     expect(getByRole("listitem", { name: /Urgent/ })).toBeTruthy();
     expect(getByRole("listitem").querySelector('[aria-label="Urgent"]')).toBeTruthy();
   });
+
+  it("shows a lifted pickup clone and a dim placeholder while grabbed", () => {
+    const { getByRole, rerender } = render(
+      <Card task={summary({ title: "Fix login" })} selected={false} grabbed />,
+    );
+    const placeholder = getByRole("listitem");
+    expect(placeholder.getAttribute("aria-grabbed")).toBe("true");
+    expect(placeholder.getAttribute("data-placeholder")).toBe("true");
+    expect(placeholder.getAttribute("data-lifted")).toBeNull();
+    rerender(<Card task={summary({ title: "Fix login" })} selected={false} lifted />);
+    const overlay = getByRole("listitem", { hidden: true });
+    expect(overlay.getAttribute("data-lifted")).toBe("true");
+    expect(overlay.getAttribute("aria-hidden")).toBe("true");
+    expect(overlay.getAttribute("data-placeholder")).toBeNull();
+  });
 });

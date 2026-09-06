@@ -13,9 +13,38 @@
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 8px 20px rgba(28, 27, 34, 0.04);
 }
 
+.card:active {
+  cursor: grabbing;
+}
+
+.placeholder {
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+.lifted {
+  cursor: grabbing;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.75) inset,
+    0 18px 40px rgba(28, 27, 34, 0.22);
+  transform: rotate(1.5deg) scale(1.03);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lifted {
+    transform: none;
+  }
+}
+
 .card[aria-selected="true"] {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
+}
+
+.card.lifted[aria-selected="true"] {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 18px 40px rgba(28, 27, 34, 0.22);
 }
 
 .title {

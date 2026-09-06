@@ -1,23 +1,35 @@
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   closestCenter,
+  defaultDropAnimationSideEffects,
   useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
+  type DropAnimation,
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Column, TaskSummary } from "@taskboard/types";
 
-import type { ReactNode, Ref } from "react";
+import { useState, type ReactNode, type Ref } from "react";
 
 import { resolveDragEnd } from "./boardDrag";
 import { Card } from "./Card";
 import { COLUMNS } from "./columns";
 import { Search } from "./Search";
 import styles from "./Board.module.css";
+
+const dropAnimation: DropAnimation = {
+  duration: 180,
+  easing: "ease",
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: { active: { opacity: "0.4" } },
+  }),
+};
 
 export function Board(props: {
   tasks: TaskSummary[];
@@ -33,10 +45,23 @@ export function Board(props: {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [overlayWidth, setOverlayWidth] = useState<number>();
   const q = props.query;
   const visible = q
     ? props.tasks.filter((t) => t.title.toLowerCase().includes(q.toLowerCase()))
     : props.tasks;
+  const activeTask = activeId ? props.tasks.find((task) => task.displayId === activeId) : undefined;
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(String(event.active.id));
+    setOverlayWidth(event.active.rect.current.initial?.width);
+  }
+
+  function clearDrag() {
+    setActiveId(null);
+    setOverlayWidth(undefined);
+  }
 
   function handleDragEnd(event: DragEndEvent) {
     const action = resolveDragEnd(
@@ -46,6 +71,7 @@ export function Board(props: {
     );
     if (action.kind === "move") props.onMove(action.displayId, action.column);
     if (action.kind === "reorder") props.onReorder(action.displayId, action.beforeId);
+    clearDrag();
   }
 
   return (
@@ -53,7 +79,13 @@ export function Board(props: {
       <div className={styles.toolbar}>
         <Search value={props.query} onChange={props.onQueryChange} inputRef={props.searchRef} />
       </div>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragCancel={clearDrag}
+        onDragEnd={handleDragEnd}
+      >
         <div className={styles.columns}>
           {COLUMNS.map((col) => {
             const columnTasks = visible.filter((t) => t.column === col.id);
@@ -83,6 +115,16 @@ export function Board(props: {
             );
           })}
         </div>
+        <DragOverlay dropAnimation={dropAnimation}>
+          {activeTask ? (
+            <Card
+              task={activeTask}
+              selected={props.selectedId === activeTask.displayId}
+              lifted
+              style={overlayWidth ? { width: overlayWidth } : undefined}
+            />
+          ) : null}
+        </DragOverlay>
       </DndContext>
     </section>
   );
@@ -124,7 +166,10 @@ function SortableCard(props: {
       selected={props.selected}
       grabbed={isDragging}
       onClick={props.onSelect}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{
+        transform: isDragging ? undefined : CSS.Transform.toString(transform),
+        transition: isDragging ? undefined : transition,
+      }}
       {...attributes}
       {...listeners}
     />
