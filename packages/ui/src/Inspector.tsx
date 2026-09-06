@@ -84,7 +84,7 @@ export function Inspector(props: {
         aria-label="Dismiss details"
         onClick={() => props.onClose?.()}
       />
-      <aside className={styles.panel} role="dialog" aria-label="Task details">
+      <aside className={styles.panel} aria-label="Task details">
         <label className={styles.field}>
           Title
           <input
