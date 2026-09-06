@@ -391,6 +391,13 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   const onMove = useCallback(
     async (displayId: string, column: Column) => {
       const task = tasksRef.current.find((t) => t.displayId === displayId);
+      setTasks((prev) => {
+        const next = prev.map((item) =>
+          item.displayId === displayId ? { ...item, column } : item,
+        );
+        tasksRef.current = next;
+        return next;
+      });
       const updated = await transport.taskMove(displayId, column, task?.revision);
       if (selectedIdRef.current === displayId) {
         applyDetail(updated);
@@ -404,6 +411,16 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   const onReorder = useCallback(
     async (displayId: string, beforeId: string) => {
       const task = tasksRef.current.find((t) => t.displayId === displayId);
+      setTasks((prev) => {
+        const next = [...prev];
+        const from = next.findIndex((item) => item.displayId === displayId);
+        if (from < 0) return prev;
+        const [item] = next.splice(from, 1);
+        const to = next.findIndex((other) => other.displayId === beforeId);
+        next.splice(to < 0 ? next.length : to, 0, item);
+        tasksRef.current = next;
+        return next;
+      });
       const updated = await transport.taskReorder(displayId, beforeId, task?.revision);
       if (selectedIdRef.current === displayId) {
         applyDetail(updated);

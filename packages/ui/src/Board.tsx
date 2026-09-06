@@ -3,13 +3,11 @@ import {
   DragOverlay,
   PointerSensor,
   closestCenter,
-  defaultDropAnimationSideEffects,
   useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
-  type DropAnimation,
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -22,14 +20,6 @@ import { Card } from "./Card";
 import { COLUMNS } from "./columns";
 import { Search } from "./Search";
 import styles from "./Board.module.css";
-
-const dropAnimation: DropAnimation = {
-  duration: 180,
-  easing: "ease",
-  sideEffects: defaultDropAnimationSideEffects({
-    styles: { active: { opacity: "0.4" } },
-  }),
-};
 
 export function Board(props: {
   tasks: TaskSummary[];
@@ -115,7 +105,7 @@ export function Board(props: {
             );
           })}
         </div>
-        <DragOverlay dropAnimation={dropAnimation}>
+        <DragOverlay dropAnimation={null}>
           {activeTask ? (
             <Card
               task={activeTask}
@@ -156,8 +146,9 @@ function SortableCard(props: {
   selected: boolean;
   onSelect: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({
     id: props.task.displayId,
+    animateLayoutChanges: () => false,
   });
   return (
     <Card
@@ -168,7 +159,7 @@ function SortableCard(props: {
       onClick={props.onSelect}
       style={{
         transform: isDragging ? undefined : CSS.Transform.toString(transform),
-        transition: isDragging ? undefined : transition,
+        transition: undefined,
       }}
       {...attributes}
       {...listeners}
