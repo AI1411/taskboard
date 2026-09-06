@@ -14,7 +14,7 @@ struct TestApp {
 impl TestApp {
     async fn task_row(&self, display_id: &str) -> Task {
         let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool);
+        let mut store = SqliteStore::new(pool, self._tmp.path());
         store
             .get_task_by_display_id(display_id, false)
             .await
@@ -41,7 +41,7 @@ fn cli_actor() -> Actor {
 async fn test_app() -> TestApp {
     let tmp = tempfile::tempdir().unwrap();
     let pool = open_db(tmp.path()).await.unwrap();
-    let store = SqliteStore::new(pool);
+    let store = SqliteStore::new(pool, tmp.path());
     TestApp {
         app: App::new(store, SystemClock),
         _tmp: tmp,

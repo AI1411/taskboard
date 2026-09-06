@@ -260,6 +260,132 @@ async fn backup_import_rejects_non_taskboard_db() {
         app.task_show("TASK-1").await.unwrap().title,
         "Fix login error"
     );
+    let projects = app.project_list(false).await.unwrap();
+    assert_eq!(projects.len(), 1);
+    assert_eq!(projects[0].slug, "renai-sim");
+}
+
+#[tokio::test]
+async fn backup_import_rejects_sqlite_without_projects_without_wiping() {
+    let app = seeded_task().await;
+    let junk = app.tmp.path().join("not-taskboard.sqlite3");
+    let status = std::process::Command::new("sqlite3")
+        .arg(&junk)
+        .arg("CREATE TABLE leftover (id INTEGER);")
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let err = app.backup_import(&junk).await.unwrap_err();
+    assert_eq!(err.code(), "io_error");
+    let projects = app.project_list(false).await.unwrap();
+    assert_eq!(projects.len(), 1);
+    assert_eq!(projects[0].slug, "renai-sim");
+    assert_eq!(
+        app.task_show("TASK-1").await.unwrap().title,
+        "Fix login error"
+    );
+}
+
+#[tokio::test]
+async fn backup_import_rejects_wrong_schema_projects_table_without_wiping() {
+    let app = seeded_task().await;
+    let junk = app.tmp.path().join("fake-projects.sqlite3");
+    let status = std::process::Command::new("sqlite3")
+        .arg(&junk)
+        .arg("CREATE TABLE projects (id INTEGER PRIMARY KEY);")
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let err = app.backup_import(&junk).await.unwrap_err();
+    assert_eq!(err.code(), "io_error");
+    let projects = app.project_list(false).await.unwrap();
+    assert_eq!(projects.len(), 1, "import must not delete live projects");
+    assert_eq!(projects[0].slug, "renai-sim");
+    assert_eq!(
+        app.task_show("TASK-1").await.unwrap().title,
+        "Fix login error"
+    );
+}
+
+#[tokio::test]
+async fn undo_task_create_rewrites_positions_so_next_create_does_not_collide() {
+    let app = seeded_task().await;
+    app.task_create(
+        &cli_actor(),
+        TaskCreate {
+            project_slug: "renai-sim".into(),
+            title: "Urgent card".into(),
+            column: Some(Column::Todo),
+            urgent: true,
+        },
+    )
+    .await
+    .unwrap();
+    app.undo(&cli_actor()).await.unwrap();
+    let created = app
+        .task_create(
+            &cli_actor(),
+            TaskCreate {
+                project_slug: "renai-sim".into(),
+                title: "Another".into(),
+                column: Some(Column::Todo),
+                urgent: false,
+            },
+        )
+        .await
+        .expect("creating after undo of task.create must not unique-collide");
+    assert_eq!(created.display_id, "TASK-3");
+    let listed = app.task_list("renai-sim").await.unwrap();
+    let ids: Vec<_> = listed.iter().map(|t| t.display_id.as_str()).collect();
+    assert_eq!(ids, ["TASK-1", "TASK-3"]);
+}
+
+#[tokio::test]
+async fn undo_of_title_update_increments_revision_past_pre_undo_current() {
+    let app = seeded_task().await;
+    app.task_update(
+        &cli_actor(),
+        TaskUpdate {
+            display_id: "TASK-1".into(),
+            title: Some("B".into()),
+            revision: None,
+        },
+    )
+    .await
+    .unwrap();
+    let current = app.task_show("TASK-1").await.unwrap();
+    assert_eq!(current.revision, 2);
+    app.undo(&cli_actor()).await.unwrap();
+    let shown = app.task_show("TASK-1").await.unwrap();
+    assert_eq!(shown.title, "Fix login error");
+    assert!(
+        shown.revision > current.revision,
+        "undo must bump revision above pre-undo current {}, got {}",
+        current.revision,
+        shown.revision
+    );
+    assert_ne!(
+        shown.revision, 1,
+        "must not rewind to the original revision"
+    );
+    let undo_activity = shown
+        .recent_activities
+        .iter()
+        .find(|activity| activity.operation == "undo")
+        .expect("undo activity");
+    assert_eq!(undo_activity.previous_revision, Some(current.revision));
+    let updated = app
+        .task_update(
+            &cli_actor(),
+            TaskUpdate {
+                display_id: "TASK-1".into(),
+                title: Some("C".into()),
+                revision: Some(shown.revision),
+            },
+        )
+        .await
+        .expect("client holding the post-undo revision must be able to mutate");
+    assert_eq!(updated.title, "C");
 }
 
 #[tokio::test]
@@ -267,8 +393,8 @@ async fn two_pools_second_writer_sees_busy_or_success() {
     let tmp = tempfile::tempdir().unwrap();
     let pool_a = open_db(tmp.path()).await.unwrap();
     let pool_b = open_db(tmp.path()).await.unwrap();
-    let app_a = App::new(SqliteStore::new(pool_a.clone()), SystemClock);
-    let app_b = App::new(SqliteStore::new(pool_b), SystemClock);
+    let app_a = App::new(SqliteStore::new(pool_a.clone(), tmp.path()), SystemClock);
+    let app_b = App::new(SqliteStore::new(pool_b, tmp.path()), SystemClock);
 
     app_a
         .project_add(
@@ -282,7 +408,7 @@ async fn two_pools_second_writer_sees_busy_or_success() {
         .await
         .unwrap();
 
-    let mut holder = SqliteStore::new(pool_a);
+    let mut holder = SqliteStore::new(pool_a, tmp.path());
     holder.begin().await.unwrap();
     holder.next_display_n("task").await.unwrap();
 

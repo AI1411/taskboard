@@ -1,9 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
-use sqlx::sqlite::SqliteRow;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow};
 use sqlx::{Row, SqlitePool};
 use taskboard_application::{AppError, NewActivity, Store};
 use taskboard_core::{
@@ -38,20 +39,16 @@ pub struct SqliteStore {
 }
 
 impl SqliteStore {
-    pub fn new(pool: SqlitePool) -> Self {
-        Self {
-            pool: Some(pool),
-            conn: None,
-            data_dir: PathBuf::new(),
-        }
-    }
-
-    pub fn with_data_dir(pool: SqlitePool, data_dir: impl Into<PathBuf>) -> Self {
+    pub fn new(pool: SqlitePool, data_dir: impl Into<PathBuf>) -> Self {
         Self {
             pool: Some(pool),
             conn: None,
             data_dir: data_dir.into(),
         }
+    }
+
+    pub fn with_data_dir(pool: SqlitePool, data_dir: impl Into<PathBuf>) -> Self {
+        Self::new(pool, data_dir)
     }
 
     async fn purge_task_row(&mut self, task_id: Uuid) -> Result<(), AppError> {
@@ -91,57 +88,6 @@ impl SqliteStore {
         run!(self, delete_project, execute).map_err(map_sqlx)?;
         Ok(())
     }
-
-    async fn import_attached(&mut self, src: &Path) -> Result<(), AppError> {
-        let src_sql = src.to_string_lossy().replace('\'', "''");
-        let attach_sql = format!("ATTACH DATABASE '{src_sql}' AS incoming");
-        let attach = sqlx::query(&attach_sql);
-        run!(self, attach, execute).map_err(map_sqlx)?;
-        let check = sqlx::query_scalar(
-            "SELECT name FROM incoming.sqlite_master WHERE type = 'table' AND name = 'projects'",
-        );
-        let incoming_projects: Result<Option<String>, AppError> =
-            run!(self, check, fetch_optional).map_err(map_sqlx);
-        let name = match incoming_projects {
-            Ok(name) => name,
-            Err(err) => {
-                let detach = sqlx::query("DETACH DATABASE incoming");
-                let _ = run!(self, detach, execute);
-                return Err(err);
-            }
-        };
-        if name.is_none() {
-            let detach = sqlx::query("DETACH DATABASE incoming");
-            let _ = run!(self, detach, execute);
-            return Err(AppError::Io("file is not a Taskboard database".into()));
-        }
-        for sql in [
-            "PRAGMA foreign_keys = OFF",
-            "DELETE FROM links",
-            "DELETE FROM runs",
-            "DELETE FROM activities",
-            "DELETE FROM tasks",
-            "DELETE FROM projects",
-            "DELETE FROM counters",
-            "INSERT INTO counters SELECT * FROM incoming.counters",
-            "INSERT INTO projects SELECT * FROM incoming.projects",
-            "INSERT INTO tasks SELECT * FROM incoming.tasks",
-            "INSERT INTO links SELECT * FROM incoming.links",
-            "INSERT INTO runs SELECT * FROM incoming.runs",
-            "INSERT INTO activities SELECT * FROM incoming.activities",
-            "PRAGMA foreign_keys = ON",
-        ] {
-            let query = sqlx::query(sql);
-            if let Err(err) = run!(self, query, execute).map_err(map_sqlx) {
-                let detach = sqlx::query("DETACH DATABASE incoming");
-                let _ = run!(self, detach, execute);
-                return Err(err);
-            }
-        }
-        let detach = sqlx::query("DETACH DATABASE incoming");
-        run!(self, detach, execute).map_err(map_sqlx)?;
-        Ok(())
-    }
 }
 
 fn fmt_dt(dt: DateTime<Utc>) -> String {
@@ -160,6 +106,66 @@ fn uuid_from_blob(bytes: &[u8]) -> Result<Uuid, AppError> {
 
 fn uuid_bytes(id: Uuid) -> Vec<u8> {
     id.as_bytes().to_vec()
+}
+
+fn sidecar(live: &Path, suffix: &str) -> PathBuf {
+    let mut name = live.as_os_str().to_os_string();
+    name.push(suffix);
+    PathBuf::from(name)
+}
+
+fn copy_over_sqlite(live: &Path, src: &Path) -> Result<(), AppError> {
+    let tmp = live.with_file_name(".import-incoming.sqlite3");
+    if tmp.exists() {
+        fs::remove_file(&tmp).map_err(|err| AppError::Io(err.to_string()))?;
+    }
+    fs::copy(src, &tmp).map_err(|err| AppError::Io(err.to_string()))?;
+    fs::rename(&tmp, live).map_err(|err| AppError::Io(err.to_string()))?;
+    let _ = fs::remove_file(sidecar(live, "-wal"));
+    let _ = fs::remove_file(sidecar(live, "-shm"));
+    Ok(())
+}
+
+fn not_taskboard() -> AppError {
+    AppError::Io("file is not a Taskboard database".into())
+}
+
+async fn assert_incoming_is_taskboard(src: PathBuf) -> Result<(), AppError> {
+    let options = SqliteConnectOptions::new()
+        .filename(&src)
+        .create_if_missing(false)
+        .read_only(true);
+    let pool = match SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await
+    {
+        Ok(pool) => pool,
+        Err(err) => return Err(map_sqlx(err)),
+    };
+    let name: Result<Option<String>, _> = sqlx::query_scalar(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'projects'",
+    )
+    .fetch_optional(&pool)
+    .await;
+    let name = match name {
+        Ok(name) => name,
+        Err(err) => {
+            pool.close().await;
+            return Err(map_sqlx(err));
+        }
+    };
+    if name.is_none() {
+        pool.close().await;
+        return Err(not_taskboard());
+    }
+    let sql = format!("SELECT {PROJECT_COLUMNS} FROM projects LIMIT 0");
+    let probe = sqlx::query(&sql).fetch_optional(&pool).await;
+    pool.close().await;
+    match probe {
+        Ok(_) => Ok(()),
+        Err(_) => Err(not_taskboard()),
+    }
 }
 
 fn map_constraint(err: sqlx::Error, slug: &str) -> AppError {
@@ -800,41 +806,69 @@ impl Store for SqliteStore {
         Ok(())
     }
 
-    async fn replace_from(&mut self, src: &Path) -> Result<(), AppError> {
+    async fn validate_import(&mut self, src: &Path) -> Result<(), AppError> {
         let src = src.to_path_buf();
-        if self.conn.is_some() {
-            return Err(AppError::Io("cannot import during a transaction".into()));
-        }
+        assert_incoming_is_taskboard(src).await
+    }
+
+    fn pre_import_path(&self) -> Result<PathBuf, AppError> {
         if self.data_dir.as_os_str().is_empty() {
             return Err(AppError::Io(
                 "data directory is unknown; cannot import".into(),
             ));
         }
-        let backups = self.data_dir.join("backups");
-        fs::create_dir_all(&backups).map_err(|err| AppError::Io(err.to_string()))?;
         let stamp = Utc::now().format("%Y%m%dT%H%M%SZ");
-        let pre = backups.join(format!("pre-import-{stamp}.sqlite3"));
-        if pre.exists() {
-            fs::remove_file(&pre).map_err(|err| AppError::Io(err.to_string()))?;
-        }
-        let checkpoint = sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)");
-        run!(self, checkpoint, execute).map_err(map_sqlx)?;
-        let pre_sql = pre.to_string_lossy().replace('\'', "''");
-        let vacuum_sql = format!("VACUUM INTO '{pre_sql}'");
-        let vacuum = sqlx::query(&vacuum_sql);
-        run!(self, vacuum, execute).map_err(map_sqlx)?;
+        Ok(self
+            .data_dir
+            .join("backups")
+            .join(format!("pre-import-{stamp}.sqlite3")))
+    }
 
-        let conn = self
-            .pool
-            .as_ref()
-            .ok_or_else(|| AppError::Io("database pool is closed".into()))?
-            .acquire()
+    async fn close_pool(&mut self) -> Result<(), AppError> {
+        if self.conn.is_some() {
+            return Err(AppError::Io("cannot import during a transaction".into()));
+        }
+        if let Some(pool) = self.pool.take() {
+            pool.close().await;
+        }
+        Ok(())
+    }
+
+    async fn reopen_pool(&mut self) -> Result<(), AppError> {
+        let data_dir = self.data_dir.clone();
+        if data_dir.as_os_str().is_empty() {
+            return Err(AppError::Io(
+                "data directory is unknown; cannot import".into(),
+            ));
+        }
+        let db_path = data_dir.join("taskboard.sqlite3");
+        let cfg = crate::load_config(&data_dir);
+        let options = SqliteConnectOptions::new()
+            .filename(db_path)
+            .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .foreign_keys(true)
+            .busy_timeout(Duration::from_millis(cfg.busy_timeout_ms));
+        let pool = SqlitePoolOptions::new()
+            .connect_with(options)
             .await
             .map_err(map_sqlx)?;
-        self.conn = Some(conn);
-        let result = self.import_attached(&src).await;
-        self.conn.take();
-        result
+        self.pool = Some(pool);
+        Ok(())
+    }
+
+    async fn replace_from(&mut self, src: &Path) -> Result<(), AppError> {
+        let src = src.to_path_buf();
+        if self.conn.is_some() {
+            return Err(AppError::Io("cannot import during a transaction".into()));
+        }
+        let data_dir = self.data_dir.clone();
+        if data_dir.as_os_str().is_empty() {
+            return Err(AppError::Io(
+                "data directory is unknown; cannot import".into(),
+            ));
+        }
+        copy_over_sqlite(&data_dir.join("taskboard.sqlite3"), &src)
     }
 
     async fn begin(&mut self) -> Result<(), AppError> {
@@ -893,7 +927,7 @@ mod tests {
     async fn stores_uuid_as_blob16_and_timestamps_with_z() {
         let tmp = tempfile::tempdir().unwrap();
         let pool = crate::open_db(tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool.clone());
+        let mut store = SqliteStore::new(pool.clone(), tmp.path());
         let now = Utc.with_ymd_and_hms(2026, 9, 5, 12, 0, 0).unwrap();
         let project = Project {
             id: Uuid::now_v7(),
@@ -932,7 +966,7 @@ mod tests {
     async fn link_and_run_insert_update_get_delete() {
         let tmp = tempfile::tempdir().unwrap();
         let pool = crate::open_db(tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool.clone());
+        let mut store = SqliteStore::new(pool.clone(), tmp.path());
         let now = Utc.with_ymd_and_hms(2026, 9, 5, 12, 0, 0).unwrap();
         let project = Project {
             id: Uuid::now_v7(),

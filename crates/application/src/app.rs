@@ -407,7 +407,19 @@ impl App {
 
     pub async fn backup_import(&self, src: &Path) -> Result<(), AppError> {
         let mut store = self.store.lock().await;
-        store.replace_from(src).await
+        let store = &mut **store;
+        store.validate_import(src).await?;
+        let pre = store.pre_import_path()?;
+        store.backup_to(&pre).await?;
+        store.close_pool().await?;
+        let copied = store.replace_from(src).await;
+        let reopened = store.reopen_pool().await;
+        match (copied, reopened) {
+            (Ok(()), Ok(())) => Ok(()),
+            (Err(err), Ok(())) => Err(err),
+            (Ok(()), Err(err)) => Err(err),
+            (Err(err), Err(_)) => Err(err),
+        }
     }
 }
 
@@ -1693,6 +1705,7 @@ async fn undo_inner(
             current: current_entity_json(store, undoable.entity_type, undoable.entity_id).await?,
         });
     }
+    let previous_revision = revision_just_undone(store, &undoable).await?;
     let entity = apply_compensation(store, &undoable, now).await?;
     record_activity(
         store,
@@ -1702,7 +1715,7 @@ async fn undo_inner(
             entity_type: undoable.entity_type,
             operation: "undo",
             entity_id: undoable.entity_id,
-            previous_revision: undoable.previous_revision,
+            previous_revision,
             before_json: undoable.after_json.clone(),
             after_json: Some(entity.clone()),
         },
@@ -1736,7 +1749,28 @@ async fn apply_compensation(
         store.insert_link(&link).await?;
         return json_value(&link);
     }
-    restore_snapshot(store, activity).await
+    restore_snapshot(store, activity, now).await
+}
+
+async fn revision_just_undone(
+    store: &mut dyn Store,
+    activity: &Activity,
+) -> Result<Option<i64>, AppError> {
+    match activity.entity_type {
+        EntityType::Task => Ok(store
+            .get_task(activity.entity_id)
+            .await?
+            .map(|task| task.revision)),
+        EntityType::Project => Ok(store
+            .get_project(activity.entity_id)
+            .await?
+            .map(|project| project.revision)),
+        EntityType::Run => Ok(store
+            .get_run(activity.entity_id)
+            .await?
+            .map(|run| run.revision)),
+        EntityType::Link => Ok(None),
+    }
 }
 
 async fn compensate_create(
@@ -1758,6 +1792,7 @@ async fn compensate_create(
             task.revision += 1;
             task.updated_at = now;
             store.update_task(&task).await?;
+            rewrite_live_column(store, task.project_id, task.column).await?;
             json_value(&task)
         }
         EntityType::Project => {
@@ -1796,6 +1831,7 @@ async fn compensate_create(
 async fn restore_snapshot(
     store: &mut dyn Store,
     activity: &Activity,
+    now: DateTime<Utc>,
 ) -> Result<serde_json::Value, AppError> {
     let before = activity
         .before_json
@@ -1803,14 +1839,33 @@ async fn restore_snapshot(
         .ok_or_else(|| AppError::Io("activity missing before_json".into()))?;
     match activity.entity_type {
         EntityType::Task => {
+            let current =
+                store
+                    .get_task(activity.entity_id)
+                    .await?
+                    .ok_or_else(|| AppError::NotFound {
+                        entity: "task".into(),
+                        id: activity.entity_id.to_string(),
+                    })?;
             let mut task: Task = serde_json::from_value(before).map_err(map_json)?;
             assign_unique_task_position(store, &mut task).await?;
+            task.revision = current.revision + 1;
+            task.updated_at = now;
             store.update_task(&task).await?;
             json_value(&task)
         }
         EntityType::Project => {
+            let current = store
+                .get_project(activity.entity_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound {
+                    entity: "project".into(),
+                    id: activity.entity_id.to_string(),
+                })?;
             let mut project: Project = serde_json::from_value(before).map_err(map_json)?;
             assign_unique_project_sort(store, &mut project).await?;
+            project.revision = current.revision + 1;
+            project.updated_at = now;
             store.update_project(&project).await?;
             json_value(&project)
         }
@@ -1820,7 +1875,17 @@ async fn restore_snapshot(
             json_value(&link)
         }
         EntityType::Run => {
-            let run: Run = serde_json::from_value(before).map_err(map_json)?;
+            let current =
+                store
+                    .get_run(activity.entity_id)
+                    .await?
+                    .ok_or_else(|| AppError::NotFound {
+                        entity: "run".into(),
+                        id: activity.entity_id.to_string(),
+                    })?;
+            let mut run: Run = serde_json::from_value(before).map_err(map_json)?;
+            run.revision = current.revision + 1;
+            run.updated_at = now;
             store.update_run(&run).await?;
             json_value(&run)
         }
