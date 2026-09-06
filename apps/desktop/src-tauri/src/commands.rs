@@ -12,7 +12,8 @@ use taskboard_desktop_commands::{
 
 use crate::state::DesktopState;
 
-#[tauri::command]
+// IPC keys match TauriTransport snake_case.
+#[tauri::command(rename_all = "snake_case")]
 pub async fn project_add(
     state: tauri::State<'_, DesktopState>,
     name: String,
@@ -25,7 +26,7 @@ pub async fn project_add(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn project_list(
     state: tauri::State<'_, DesktopState>,
     include_archived: bool,
@@ -36,7 +37,7 @@ pub async fn project_list(
         .map(|items| items.into_iter().map(Into::into).collect())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn project_update(
     state: tauri::State<'_, DesktopState>,
     slug: String,
@@ -51,7 +52,7 @@ pub async fn project_update(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn project_reorder(
     state: tauri::State<'_, DesktopState>,
     slugs: Vec<String>,
@@ -62,7 +63,7 @@ pub async fn project_reorder(
         .map(|items| items.into_iter().map(Into::into).collect())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn project_archive(
     state: tauri::State<'_, DesktopState>,
     slug: String,
@@ -75,7 +76,7 @@ pub async fn project_archive(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn project_delete(
     state: tauri::State<'_, DesktopState>,
     slug: String,
@@ -87,7 +88,7 @@ pub async fn project_delete(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn project_restore(
     state: tauri::State<'_, DesktopState>,
     slug: String,
@@ -96,7 +97,7 @@ pub async fn project_restore(
     project_restore_inner(&app, slug).await.map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn project_note_set(
     state: tauri::State<'_, DesktopState>,
     slug: String,
@@ -109,7 +110,7 @@ pub async fn project_note_set(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn task_create(
     state: tauri::State<'_, DesktopState>,
     project_slug: String,
@@ -123,7 +124,7 @@ pub async fn task_create(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn task_list(
     state: tauri::State<'_, DesktopState>,
     project_slug: String,
@@ -134,7 +135,7 @@ pub async fn task_list(
         .map(|items| items.into_iter().map(Into::into).collect())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn task_show(
     state: tauri::State<'_, DesktopState>,
     display_id: String,
@@ -143,7 +144,7 @@ pub async fn task_show(
     task_show_inner(&app, display_id).await.map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn task_update(
     state: tauri::State<'_, DesktopState>,
     display_id: String,
@@ -172,7 +173,7 @@ pub async fn task_update(
     .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn task_move(
     state: tauri::State<'_, DesktopState>,
     display_id: String,
@@ -185,7 +186,7 @@ pub async fn task_move(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn task_reorder(
     state: tauri::State<'_, DesktopState>,
     display_id: String,
@@ -198,7 +199,7 @@ pub async fn task_reorder(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn task_urgent(
     state: tauri::State<'_, DesktopState>,
     display_id: String,
@@ -211,7 +212,7 @@ pub async fn task_urgent(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn task_delete(
     state: tauri::State<'_, DesktopState>,
     display_id: String,
@@ -223,7 +224,7 @@ pub async fn task_delete(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn task_restore(
     state: tauri::State<'_, DesktopState>,
     display_id: String,
@@ -232,7 +233,7 @@ pub async fn task_restore(
     task_restore_inner(&app, display_id).await.map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn task_note_set(
     state: tauri::State<'_, DesktopState>,
     display_id: String,
@@ -245,7 +246,7 @@ pub async fn task_note_set(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn link_add(
     state: tauri::State<'_, DesktopState>,
     display_id: String,
@@ -259,7 +260,7 @@ pub async fn link_add(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn link_remove(
     state: tauri::State<'_, DesktopState>,
     link_id: String,
@@ -271,7 +272,7 @@ pub async fn link_remove(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn run_start(
     state: tauri::State<'_, DesktopState>,
     display_id: String,
@@ -284,7 +285,7 @@ pub async fn run_start(
         .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn run_patch(
     state: tauri::State<'_, DesktopState>,
     run_display_id: String,
@@ -308,19 +309,19 @@ pub async fn run_patch(
     .map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn trash_list(state: tauri::State<'_, DesktopState>) -> Result<TrashDto, AppErrorDto> {
     let app = state.app.lock().await;
     trash_list_inner(&app).await.map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn undo(state: tauri::State<'_, DesktopState>) -> Result<UndoResultDto, AppErrorDto> {
     let app = state.app.lock().await;
     undo_inner(&app).await.map(Into::into)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn sync(
     state: tauri::State<'_, DesktopState>,
     after: i64,
