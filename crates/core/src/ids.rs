@@ -47,9 +47,6 @@ mod tests {
     #[test]
     fn display_ids_round_trip() {
         assert_eq!(display_id(DisplayKind::Task, 142), "TASK-142");
-        assert_eq!(
-            parse_display_id("RUN-37").unwrap(),
-            (DisplayKind::Run, 37)
-        );
+        assert_eq!(parse_display_id("RUN-37").unwrap(), (DisplayKind::Run, 37));
     }
 }

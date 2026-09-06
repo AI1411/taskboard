@@ -38,7 +38,10 @@ pub fn place_urgent(keys: &mut Vec<OrderKey>, display_id: &str, urgent: bool) {
     let key = keys.remove(index);
 
     let insert_at = if urgent {
-        keys.iter().rposition(|k| k.urgent).map(|i| i + 1).unwrap_or(0)
+        keys.iter()
+            .rposition(|k| k.urgent)
+            .map(|i| i + 1)
+            .unwrap_or(0)
     } else {
         keys.iter().position(|k| !k.urgent).unwrap_or(keys.len())
     };
@@ -74,7 +77,11 @@ pub fn place_before(
     };
 
     let key = keys.remove(index);
-    let insert_at = if index < insert_at { insert_at - 1 } else { insert_at };
+    let insert_at = if index < insert_at {
+        insert_at - 1
+    } else {
+        insert_at
+    };
     keys.insert(insert_at, key);
     rewrite_positions(keys);
     Ok(())
@@ -330,9 +337,7 @@ mod tests {
 
     #[test]
     fn sort_and_rewrite_positions_property_on_permutations() {
-        let base = make_eight_keys([
-            true, false, true, false, true, false, false, true,
-        ]);
+        let base = make_eight_keys([true, false, true, false, true, false, false, true]);
 
         let permutations: Vec<Vec<usize>> = vec![
             vec![0, 1, 2, 3, 4, 5, 6, 7],
