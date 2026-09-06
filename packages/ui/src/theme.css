@@ -1,18 +1,21 @@
 :root {
-  --sidebar-bg: #1c1b22;
-  --board-bg: #f4f2f8;
-  --accent: #5b4bdb;
-  --accent-2: #7c6cff;
+  --sidebar-bg: #0c0d0e;
+  --board-bg: #08090a;
+  --accent: #5e6ad2;
+  --accent-2: #5e6ad2;
   --urgent: #e24a2b;
   --waiting: #d89a1a;
   --completed: #2f9e62;
-  --running: #5b4bdb;
-  --sidebar-fg: #f4f2f8;
-  --sidebar-muted: #a9a6b3;
-  --board-fg: #1c1b22;
-  --card-bg: rgba(255, 255, 255, 0.82);
-  --card-border: rgba(28, 27, 34, 0.08);
+  --running: #5e6ad2;
+  --sidebar-fg: #e8e8ec;
+  --sidebar-muted: #8a8f98;
+  --board-fg: #e8e8ec;
+  --card-bg: #16171a;
+  --card-border: #23242a;
   --failed: #c45c4a;
+  --panel-bg: #101113;
+  --hairline: #1b1c1f;
+  --font: Inter, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
 }
 
 *,
@@ -21,11 +24,15 @@
   box-sizing: border-box;
 }
 
+html {
+  color-scheme: dark;
+}
+
 html,
 body {
   margin: 0;
   min-height: 100%;
-  font-family: "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font);
   background: var(--board-bg);
   color: var(--board-fg);
 }

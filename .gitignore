@@ -6,3 +6,4 @@ node_modules
 apps/web/dist
 apps/desktop/dist
 .idea
+.superpowers/
