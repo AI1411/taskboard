@@ -23,6 +23,7 @@
     }
   },
   "bundle": {
+    // .dmg and app icons are produced on a macOS builder, not in this environment.
     "active": false
   }
 }

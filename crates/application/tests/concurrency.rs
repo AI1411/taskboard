@@ -436,3 +436,38 @@ async fn two_pools_second_writer_sees_busy_or_success() {
 
     holder.rollback().await.unwrap();
 }
+
+async fn open_app(dir: &std::path::Path) -> App {
+    let pool = open_db(dir).await.unwrap();
+    App::new(SqliteStore::new(pool, dir), SystemClock)
+}
+
+#[tokio::test]
+async fn second_connection_sees_commit_within_two_seconds() {
+    let dir = tempfile::tempdir().unwrap();
+    let app_a = open_app(dir.path()).await;
+    let app_b = open_app(dir.path()).await;
+    app_a
+        .project_add(
+            &cli_actor(),
+            ProjectAdd {
+                name: "A".into(),
+                repo_path: None,
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+    let start = std::time::Instant::now();
+    let mut seq = 0;
+    loop {
+        let delta = app_b.sync(seq).await.unwrap();
+        if delta.projects.iter().any(|p| p.slug == "a") {
+            assert!(start.elapsed() <= std::time::Duration::from_secs(2));
+            break;
+        }
+        seq = delta.sequence;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert!(start.elapsed() < std::time::Duration::from_secs(2));
+    }
+}
