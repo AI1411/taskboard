@@ -14,10 +14,12 @@ clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 taskboard-application = { path = "../application" }
+taskboard-api = { path = "../api" }
 taskboard-core = { path = "../core" }
 taskboard-store-sqlite = { path = "../store-sqlite" }
 tokio.workspace = true
 uuid.workspace = true
+open = "=5.3.2"
 
 [dev-dependencies]
 assert_cmd = "=2.0.16"

@@ -6,11 +6,15 @@ license.workspace = true
 
 [dependencies]
 axum = "=0.7.9"
+chrono.workspace = true
 rand = "=0.8.5"
+serde.workspace = true
 serde_json.workspace = true
 taskboard-application = { path = "../application" }
+taskboard-core = { path = "../core" }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["net", "signal", "io-util", "sync"] }
+uuid.workspace = true
 
 [dev-dependencies]
 reqwest = { version = "=0.12.12", default-features = false, features = ["json", "rustls-tls"] }
