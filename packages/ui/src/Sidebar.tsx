@@ -63,7 +63,7 @@ export function Sidebar(props: {
         aria-pressed={props.includeArchived}
         onClick={props.onToggleArchived}
       >
-        Archived
+        Archived projects
       </button>
       {props.onTrash ? (
         <button type="button" className={styles.trash} onClick={props.onTrash}>
