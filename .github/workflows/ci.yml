@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install 1.83.0 --profile minimal --component rustfmt --component clippy
+          rustup default 1.83.0
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: rust-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: |
+          unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
+          cargo test -- --test-threads=1
+
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect pnpm lockfile
+        id: lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.lockfile.outputs.present == 'true'
+        with:
+          node-version: "22"
+      - name: Enable pnpm
+        if: steps.lockfile.outputs.present == 'true'
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.3 --activate
+      - name: Install
+        if: steps.lockfile.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Test
+        if: steps.lockfile.outputs.present == 'true'
+        run: |
+          unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
+          pnpm test

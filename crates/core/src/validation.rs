@@ -41,7 +41,9 @@ pub fn parse_agent(raw: &str) -> Result<String, ValidationError> {
     if raw.is_empty() || raw.len() > 64 {
         return Err(ValidationError::new(
             AGENT_FIELD,
-            FieldError::Invalid { allowed: AGENT_ALLOWED },
+            FieldError::Invalid {
+                allowed: AGENT_ALLOWED,
+            },
         ));
     }
 
@@ -50,20 +52,19 @@ pub fn parse_agent(raw: &str) -> Result<String, ValidationError> {
     if !first.is_ascii_lowercase() && !first.is_ascii_digit() {
         return Err(ValidationError::new(
             AGENT_FIELD,
-            FieldError::Invalid { allowed: AGENT_ALLOWED },
+            FieldError::Invalid {
+                allowed: AGENT_ALLOWED,
+            },
         ));
     }
 
     for ch in chars {
-        if !ch.is_ascii_lowercase()
-            && !ch.is_ascii_digit()
-            && ch != '.'
-            && ch != '_'
-            && ch != '-'
-        {
+        if !ch.is_ascii_lowercase() && !ch.is_ascii_digit() && ch != '.' && ch != '_' && ch != '-' {
             return Err(ValidationError::new(
                 AGENT_FIELD,
-                FieldError::Invalid { allowed: AGENT_ALLOWED },
+                FieldError::Invalid {
+                    allowed: AGENT_ALLOWED,
+                },
             ));
         }
     }

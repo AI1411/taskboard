@@ -31,9 +31,7 @@ pub fn card_display_status(runs: &[RunStatusView]) -> CardDisplayStatus {
 
     let best = runs
         .iter()
-        .filter(|r| {
-            !has_active || matches!(r.status, RunStatus::Running | RunStatus::Waiting)
-        })
+        .filter(|r| !has_active || matches!(r.status, RunStatus::Running | RunStatus::Waiting))
         .max_by(|a, b| {
             a.started_at
                 .cmp(&b.started_at)
