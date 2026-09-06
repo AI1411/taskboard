@@ -1,0 +1,32 @@
+name: Packaging
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - Formula/**
+      - packaging/homebrew/**
+      - .github/workflows/packaging.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - Formula/**
+      - packaging/homebrew/**
+      - .github/workflows/packaging.yml
+
+concurrency:
+  group: packaging-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  homebrew-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tarball layout and alias_skipped
+        run: sh packaging/homebrew/tests/run.sh
