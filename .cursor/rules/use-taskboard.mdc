@@ -1,0 +1,22 @@
+---
+description: Require the Taskboard CLI for implementation work in this repo
+alwaysApply: true
+---
+
+# Use Taskboard
+
+When implementing, fixing, or changing this repo, track the work with the Taskboard CLI (`tb`, else `taskboard`, else `cargo run --quiet --bin taskboard --`). Always `--json --actor cursor`. Follow `AGENTS.md`.
+
+Before the first edit:
+
+```bash
+$TB project list --json
+$TB task list --project taskboard --json
+$TB task create --project taskboard --title "..." --json   # if no matching TASK-n
+$TB task move TASK-n in-progress --json
+$TB run start TASK-n --agent cursor --json
+```
+
+Before the final reply: `run finish` or `run fail` that `RUN-n`. Then `task move` to `in-review` or `done`. `run finish` does not move the card.
+
+Do not skip because the change is small or the user did not mention Taskboard. Questions with no edits may skip.

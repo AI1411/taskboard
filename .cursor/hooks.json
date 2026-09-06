@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": ".cursor/hooks/taskboard-session.sh",
+        "timeout": 15
+      }
+    ]
+  }
+}
