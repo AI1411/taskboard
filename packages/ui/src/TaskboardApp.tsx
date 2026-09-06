@@ -15,8 +15,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-export function TaskboardApp(props: { transport: Transport }) {
-  const { transport } = props;
+export function TaskboardApp(props: { transport: Transport; sequence?: number }) {
+  const { transport, sequence } = props;
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<TaskSummary[]>([]);
@@ -94,6 +94,59 @@ export function TaskboardApp(props: { transport: Transport }) {
       cancelled = true;
     };
   }, [transport, applyProject]);
+
+  const reloadBoard = useCallback(async () => {
+    const list = await transport.projectList(includeArchivedRef.current);
+    setProjects(list);
+    projectsRef.current = list;
+    const current = selectedProjectRef.current;
+    const nextProject = current
+      ? list.find((p) => p.id === current.id || p.slug === current.slug)
+      : undefined;
+    if (!nextProject) {
+      if (list[0]) await applyProject(list[0]);
+      else {
+        setSelectedProject(null);
+        selectedProjectRef.current = null;
+        setTasks([]);
+        tasksRef.current = [];
+        setSelectedId(null);
+        selectedIdRef.current = null;
+        applyDetail(null);
+      }
+      return;
+    }
+    selectedProjectRef.current = nextProject;
+    setSelectedProject(nextProject);
+    setProjectNote(nextProject.noteMarkdown);
+    const nextTasks = await refreshTasks(nextProject.slug);
+    const id = selectedIdRef.current;
+    if (id && !nextTasks.some((t) => t.displayId === id)) {
+      setSelectedId(null);
+      selectedIdRef.current = null;
+      applyDetail(null);
+      setInspectorOpen(false);
+      inspectorOpenRef.current = false;
+    } else if (id) {
+      try {
+        applyDetail(await transport.taskShow(id));
+      } catch {
+        setSelectedId(null);
+        selectedIdRef.current = null;
+        applyDetail(null);
+        setInspectorOpen(false);
+        inspectorOpenRef.current = false;
+      }
+    }
+  }, [transport, applyProject, refreshTasks]);
+
+  const prevSequence = useRef(sequence);
+  useEffect(() => {
+    if (sequence === undefined) return;
+    if (sequence === prevSequence.current) return;
+    prevSequence.current = sequence;
+    void reloadBoard();
+  }, [sequence, reloadBoard]);
 
   const addProject = useCallback(() => {
     const promise = (async () => {

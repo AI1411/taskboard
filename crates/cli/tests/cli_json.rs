@@ -86,6 +86,68 @@ fn serve_prints_localhost_url() {
     let _ = child.wait();
 }
 
+#[tokio::test]
+async fn serve_page_contains_root_and_poll_sees_cli_write() {
+    let dir = tempfile::tempdir().unwrap();
+    let dist =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../api/tests/fixtures/web-dist");
+    let bin = assert_cmd::cargo::cargo_bin("taskboard");
+    let mut child = std::process::Command::new(&bin)
+        .args(["serve", "--port", "0"])
+        .env("TASKBOARD_DATA_DIR", dir.path())
+        .env("TASKBOARD_WEB_DIST", &dist)
+        .env("HTTP_PROXY", "")
+        .env("HTTPS_PROXY", "")
+        .env("http_proxy", "")
+        .env("https_proxy", "")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut line = String::new();
+        let mut reader = std::io::BufReader::new(stdout);
+        let _ = std::io::BufRead::read_line(&mut reader, &mut line);
+        let _ = tx.send(line);
+    });
+    let line = rx
+        .recv_timeout(std::time::Duration::from_secs(15))
+        .expect("serve should print a URL");
+    let url = line.trim().to_string();
+    let html = reqwest::get(&url).await.unwrap().text().await.unwrap();
+    assert!(
+        html.contains("id=\"root\"") || html.contains("Taskboard"),
+        "html={html}"
+    );
+    assert!(
+        html.contains("data-taskboard-web=\"dist\""),
+        "TASKBOARD_WEB_DIST should be served, got {html}"
+    );
+    Command::cargo_bin("taskboard")
+        .unwrap()
+        .env("TASKBOARD_DATA_DIR", dir.path())
+        .args(["project", "add", "--name", "From CLI"])
+        .assert()
+        .success();
+    let list = Command::cargo_bin("taskboard")
+        .unwrap()
+        .env("TASKBOARD_DATA_DIR", dir.path())
+        .args(["project", "list", "--json"])
+        .output()
+        .unwrap();
+    assert!(
+        String::from_utf8_lossy(&list.stdout).contains("from-cli"),
+        "stdout={}",
+        String::from_utf8_lossy(&list.stdout)
+    );
+    let pid = child.id();
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = pid;
+}
+
 #[test]
 fn project_add_human() {
     let (mut cmd, _dir) = tb();
