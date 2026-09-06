@@ -463,8 +463,11 @@ impl Store for SqliteStore {
         Ok(())
     }
 
-    async fn get_link(&mut self, _id: Uuid) -> Result<Option<Link>, AppError> {
-        Err(not_impl("get_link"))
+    async fn get_link(&mut self, id: Uuid) -> Result<Option<Link>, AppError> {
+        let sql = format!("SELECT {LINK_COLUMNS} FROM links WHERE id = ?");
+        let query = sqlx::query(&sql).bind(uuid_bytes(id));
+        let row = run!(self, query, fetch_optional).map_err(map_sqlx)?;
+        row.as_ref().map(link_from_row).transpose()
     }
 
     async fn list_links(&mut self, task_id: Uuid) -> Result<Vec<Link>, AppError> {
@@ -475,24 +478,50 @@ impl Store for SqliteStore {
         rows.iter().map(link_from_row).collect()
     }
 
-    async fn insert_link(&mut self, _link: &Link) -> Result<(), AppError> {
-        Err(not_impl("insert_link"))
+    async fn insert_link(&mut self, link: &Link) -> Result<(), AppError> {
+        let query = sqlx::query(
+            "INSERT INTO links (id, task_id, kind, value, sort_order) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(uuid_bytes(link.id))
+        .bind(uuid_bytes(link.task_id))
+        .bind(enum_str(link.kind)?)
+        .bind(&link.value)
+        .bind(link.sort_order);
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
     }
 
-    async fn update_link(&mut self, _link: &Link) -> Result<(), AppError> {
-        Err(not_impl("update_link"))
+    async fn update_link(&mut self, link: &Link) -> Result<(), AppError> {
+        let query = sqlx::query(
+            "UPDATE links SET task_id = ?, kind = ?, value = ?, sort_order = ? WHERE id = ?",
+        )
+        .bind(uuid_bytes(link.task_id))
+        .bind(enum_str(link.kind)?)
+        .bind(&link.value)
+        .bind(link.sort_order)
+        .bind(uuid_bytes(link.id));
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
     }
 
-    async fn delete_link(&mut self, _id: Uuid) -> Result<(), AppError> {
-        Err(not_impl("delete_link"))
+    async fn delete_link(&mut self, id: Uuid) -> Result<(), AppError> {
+        let query = sqlx::query("DELETE FROM links WHERE id = ?").bind(uuid_bytes(id));
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
     }
 
-    async fn get_run(&mut self, _id: Uuid) -> Result<Option<Run>, AppError> {
-        Err(not_impl("get_run"))
+    async fn get_run(&mut self, id: Uuid) -> Result<Option<Run>, AppError> {
+        let sql = format!("SELECT {RUN_COLUMNS} FROM runs WHERE id = ?");
+        let query = sqlx::query(&sql).bind(uuid_bytes(id));
+        let row = run!(self, query, fetch_optional).map_err(map_sqlx)?;
+        row.as_ref().map(run_from_row).transpose()
     }
 
-    async fn get_run_by_display_id(&mut self, _display_id: &str) -> Result<Option<Run>, AppError> {
-        Err(not_impl("get_run_by_display_id"))
+    async fn get_run_by_display_id(&mut self, display_id: &str) -> Result<Option<Run>, AppError> {
+        let sql = format!("SELECT {RUN_COLUMNS} FROM runs WHERE display_id = ?");
+        let query = sqlx::query(&sql).bind(display_id);
+        let row = run!(self, query, fetch_optional).map_err(map_sqlx)?;
+        row.as_ref().map(run_from_row).transpose()
     }
 
     async fn list_runs(&mut self, task_id: Uuid) -> Result<Vec<Run>, AppError> {
@@ -504,16 +533,54 @@ impl Store for SqliteStore {
         rows.iter().map(run_from_row).collect()
     }
 
-    async fn insert_run(&mut self, _run: &Run) -> Result<(), AppError> {
-        Err(not_impl("insert_run"))
+    async fn insert_run(&mut self, run: &Run) -> Result<(), AppError> {
+        let query = sqlx::query(
+            "INSERT INTO runs (id, display_id, task_id, agent, session_id, status, message, waiting_reason, summary, started_at, ended_at, revision, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(uuid_bytes(run.id))
+        .bind(&run.display_id)
+        .bind(uuid_bytes(run.task_id))
+        .bind(&run.agent)
+        .bind(&run.session_id)
+        .bind(enum_str(run.status)?)
+        .bind(&run.message)
+        .bind(&run.waiting_reason)
+        .bind(&run.summary)
+        .bind(fmt_dt(run.started_at))
+        .bind(run.ended_at.map(fmt_dt))
+        .bind(run.revision)
+        .bind(fmt_dt(run.created_at))
+        .bind(fmt_dt(run.updated_at));
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
     }
 
-    async fn update_run(&mut self, _run: &Run) -> Result<(), AppError> {
-        Err(not_impl("update_run"))
+    async fn update_run(&mut self, run: &Run) -> Result<(), AppError> {
+        let query = sqlx::query(
+            "UPDATE runs SET display_id = ?, task_id = ?, agent = ?, session_id = ?, status = ?, message = ?, waiting_reason = ?, summary = ?, started_at = ?, ended_at = ?, revision = ?, created_at = ?, updated_at = ? WHERE id = ?",
+        )
+        .bind(&run.display_id)
+        .bind(uuid_bytes(run.task_id))
+        .bind(&run.agent)
+        .bind(&run.session_id)
+        .bind(enum_str(run.status)?)
+        .bind(&run.message)
+        .bind(&run.waiting_reason)
+        .bind(&run.summary)
+        .bind(fmt_dt(run.started_at))
+        .bind(run.ended_at.map(fmt_dt))
+        .bind(run.revision)
+        .bind(fmt_dt(run.created_at))
+        .bind(fmt_dt(run.updated_at))
+        .bind(uuid_bytes(run.id));
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
     }
 
-    async fn delete_run(&mut self, _id: Uuid) -> Result<(), AppError> {
-        Err(not_impl("delete_run"))
+    async fn delete_run(&mut self, id: Uuid) -> Result<(), AppError> {
+        let query = sqlx::query("DELETE FROM runs WHERE id = ?").bind(uuid_bytes(id));
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
     }
 
     async fn activity_head(&mut self) -> Result<i64, AppError> {
@@ -659,6 +726,86 @@ mod tests {
         assert_eq!(id_type, "blob");
         assert_eq!(id_len, 16);
         assert_eq!(created_at, "2026-09-05T12:00:00.000Z");
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn link_and_run_insert_update_get_delete() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pool = crate::open_db(tmp.path()).await.unwrap();
+        let mut store = SqliteStore::new(pool.clone());
+        let now = Utc.with_ymd_and_hms(2026, 9, 5, 12, 0, 0).unwrap();
+        let project = Project {
+            id: Uuid::now_v7(),
+            slug: "renai-sim".into(),
+            name: "Renai Sim".into(),
+            repo_path: None,
+            archived: false,
+            note_markdown: String::new(),
+            sort_order: 0,
+            revision: 1,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        };
+        store.insert_project(&project).await.unwrap();
+        let task = Task {
+            id: Uuid::now_v7(),
+            display_id: "TASK-1".into(),
+            project_id: project.id,
+            title: "Fix".into(),
+            column: Column::Todo,
+            urgent: false,
+            note_markdown: String::new(),
+            position: 0,
+            revision: 1,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        };
+        store.insert_task(&task).await.unwrap();
+
+        let mut link = Link {
+            id: Uuid::now_v7(),
+            task_id: task.id,
+            kind: LinkKind::Url,
+            value: "https://example.com".into(),
+            sort_order: 0,
+        };
+        store.insert_link(&link).await.unwrap();
+        link.value = "https://example.com/updated".into();
+        store.update_link(&link).await.unwrap();
+        let loaded = store.get_link(link.id).await.unwrap().unwrap();
+        assert_eq!(loaded.value, "https://example.com/updated");
+        store.delete_link(link.id).await.unwrap();
+        assert!(store.get_link(link.id).await.unwrap().is_none());
+
+        let mut run = Run {
+            id: Uuid::now_v7(),
+            display_id: "RUN-1".into(),
+            task_id: task.id,
+            agent: "codex".into(),
+            session_id: Some("abc".into()),
+            status: RunStatus::Running,
+            message: None,
+            waiting_reason: None,
+            summary: None,
+            started_at: now,
+            ended_at: None,
+            revision: 1,
+            created_at: now,
+            updated_at: now,
+        };
+        store.insert_run(&run).await.unwrap();
+        run.status = RunStatus::Completed;
+        run.summary = Some("done".into());
+        run.ended_at = Some(now);
+        store.update_run(&run).await.unwrap();
+        let loaded = store.get_run_by_display_id("RUN-1").await.unwrap().unwrap();
+        assert_eq!(loaded.status, RunStatus::Completed);
+        assert_eq!(store.get_run(run.id).await.unwrap().unwrap().id, run.id);
+        store.delete_run(run.id).await.unwrap();
+        assert!(store.get_run(run.id).await.unwrap().is_none());
         pool.close().await;
     }
 }
