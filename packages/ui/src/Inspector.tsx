@@ -17,6 +17,7 @@ export function Inspector(props: {
 }) {
   const [title, setTitle] = useState(props.task?.title ?? "");
   const [note, setNote] = useState(props.task?.noteMarkdown ?? "");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const lastId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -30,6 +31,7 @@ export function Inspector(props: {
       lastId.current = props.task.displayId;
       setTitle(props.task.title);
       setNote(props.task.noteMarkdown);
+      setConfirmDelete(false);
     }
   }, [props.task]);
 
@@ -127,9 +129,20 @@ export function Inspector(props: {
           ))}
         </ul>
       </div>
-      <button type="button" className={styles.delete} onClick={props.onDelete}>
-        Delete
-      </button>
+      {confirmDelete ? (
+        <div className={styles.deleteRow}>
+          <button type="button" className={styles.delete} onClick={props.onDelete}>
+            Move to Trash
+          </button>
+          <button type="button" className={styles.cancel} onClick={() => setConfirmDelete(false)}>
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button type="button" className={styles.delete} onClick={() => setConfirmDelete(true)}>
+          Delete
+        </button>
+      )}
     </aside>
   );
 }
