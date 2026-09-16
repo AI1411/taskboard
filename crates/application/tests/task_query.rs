@@ -139,6 +139,8 @@ async fn task_query_filters_all_projects_by_status_column_and_agent() {
             statuses: vec![CardDisplayStatus::Running, CardDisplayStatus::Waiting],
             column: Some(Column::InReview),
             agent: Some("cursor".into()),
+            blocked: false,
+            ready: false,
         })
         .await
         .unwrap();
@@ -155,6 +157,8 @@ async fn task_query_unknown_project_is_not_found() {
             statuses: Vec::new(),
             column: None,
             agent: None,
+            blocked: false,
+            ready: false,
         })
         .await
         .unwrap_err();

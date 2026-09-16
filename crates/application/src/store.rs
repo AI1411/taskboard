@@ -106,6 +106,7 @@ pub trait Store: Send + Sync {
 
     async fn get_link(&mut self, id: Uuid) -> Result<Option<Link>, AppError>;
     async fn list_links(&mut self, task_id: Uuid) -> Result<Vec<Link>, AppError>;
+    async fn list_all_links(&mut self) -> Result<Vec<Link>, AppError>;
     async fn insert_link(&mut self, link: &Link) -> Result<(), AppError>;
     async fn update_link(&mut self, link: &Link) -> Result<(), AppError>;
     async fn delete_link(&mut self, id: Uuid) -> Result<(), AppError>;

@@ -93,6 +93,8 @@ pub struct TaskListQuery {
     pub statuses: Vec<CardDisplayStatus>,
     pub column: Option<Column>,
     pub agent: Option<String>,
+    pub blocked: bool,
+    pub ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

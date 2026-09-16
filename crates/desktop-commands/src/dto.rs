@@ -57,6 +57,8 @@ pub struct TaskSummaryDto {
     pub run_message: Option<String>,
     pub waiting_reason: Option<String>,
     pub reply: Option<String>,
+    pub blocked_by: Vec<String>,
+    pub blocks: Vec<String>,
 }
 
 impl From<TaskSummary> for TaskSummaryDto {
@@ -73,6 +75,8 @@ impl From<TaskSummary> for TaskSummaryDto {
             run_message: task.run_message,
             waiting_reason: task.waiting_reason,
             reply: task.reply,
+            blocked_by: task.blocked_by,
+            blocks: task.blocks,
         }
     }
 }

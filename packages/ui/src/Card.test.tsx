@@ -83,4 +83,13 @@ describe("Card", () => {
     expect(onCopyId).toHaveBeenCalledWith("TASK-7");
     expect(onClick).not.toHaveBeenCalled();
   });
+
+  it("shows Blocked by and Blocks labels", () => {
+    const { getByText, rerender } = render(
+      <Card task={summary({ blockedBy: ["TASK-8"] })} selected={false} />,
+    );
+    expect(getByText("Blocked by TASK-8")).toBeTruthy();
+    rerender(<Card task={summary({ blocks: ["TASK-14"] })} selected={false} />);
+    expect(getByText("Blocks TASK-14")).toBeTruthy();
+  });
 });
