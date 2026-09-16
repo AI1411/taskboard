@@ -7,15 +7,15 @@ use uuid::Uuid;
 use taskboard_core::{
     card_display_status, display_id, inbox_membership, inbox_reason, next_unique_slug, parse_agent,
     parse_path_link, parse_url, place_before, place_urgent, rewrite_positions, slugify,
-    sort_column, trim_project_name, trim_title, Activity, Column, DisplayKind, EntityType,
-    FieldError, InboxItem, Link, LinkKind, OrderError, OrderKey, Project, Run, RunStatus,
-    RunStatusView, SlugError, Task, TaskDetail, TaskSummary, ValidationError,
+    sort_column, trim_project_name, trim_title, winning_run_view, Activity, Column, DisplayKind,
+    EntityType, FieldError, InboxItem, Link, LinkKind, OrderError, OrderKey, Project, Run,
+    RunStatus, RunStatusView, SlugError, Task, TaskDetail, TaskSummary, ValidationError,
 };
 
 use crate::actor::Actor;
 use crate::commands::{
     InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunStart, RunUpdate,
-    RunWait, TaskCreate, TaskUpdate,
+    RunWait, TaskCreate, TaskListQuery, TaskUpdate,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -176,13 +176,48 @@ impl App {
     }
 
     pub async fn task_list(&self, project_slug: &str) -> Result<Vec<TaskSummary>, AppError> {
+        self.task_query(TaskListQuery {
+            project: Some(project_slug.to_string()),
+            statuses: Vec::new(),
+            column: None,
+            agent: None,
+        })
+        .await
+    }
+
+    pub async fn task_query(&self, query: TaskListQuery) -> Result<Vec<TaskSummary>, AppError> {
         let mut store = self.store.lock().await;
         let store = &mut **store;
-        let project = require_live_project(store, project_slug).await?;
-        let tasks = store.list_tasks(project.id).await?;
-        let mut summaries = Vec::with_capacity(tasks.len());
-        for task in tasks {
-            summaries.push(to_task_summary(store, task).await?);
+        let projects = if let Some(slug) = query.project.as_deref() {
+            vec![require_live_project(store, slug).await?]
+        } else {
+            store.list_projects(false).await?
+        };
+        let mut summaries = Vec::new();
+        for project in projects {
+            let tasks = store.list_tasks(project.id).await?;
+            for task in tasks {
+                let runs = store.list_runs(task.id).await?;
+                let summary = to_task_summary_from_runs(task, &runs);
+                if let Some(column) = query.column {
+                    if summary.column != column {
+                        continue;
+                    }
+                }
+                if !query.statuses.is_empty() && !query.statuses.contains(&summary.display_status)
+                {
+                    continue;
+                }
+                if let Some(agent) = query.agent.as_deref() {
+                    let Some(run) = winning_run(&runs) else {
+                        continue;
+                    };
+                    if run.agent != agent {
+                        continue;
+                    }
+                }
+                summaries.push(summary);
+            }
         }
         Ok(summaries)
     }
@@ -1655,10 +1690,22 @@ async fn load_task_detail(store: &mut dyn Store, task: Task) -> Result<TaskDetai
     })
 }
 
-async fn to_task_summary(store: &mut dyn Store, task: Task) -> Result<TaskSummary, AppError> {
-    let runs = store.list_runs(task.id).await?;
-    let (display_status, run_message, waiting_reason) = display_from_runs(&runs);
-    Ok(TaskSummary {
+fn winning_run(runs: &[Run]) -> Option<&Run> {
+    let views: Vec<RunStatusView> = runs
+        .iter()
+        .map(|run| RunStatusView {
+            status: run.status,
+            started_at: run.started_at,
+            display_id: run.display_id.clone(),
+        })
+        .collect();
+    let view = winning_run_view(&views)?;
+    runs.iter().find(|run| run.display_id == view.display_id)
+}
+
+fn to_task_summary_from_runs(task: Task, runs: &[Run]) -> TaskSummary {
+    let (display_status, run_message, waiting_reason) = display_from_runs(runs);
+    TaskSummary {
         id: task.id,
         display_id: task.display_id,
         project_id: task.project_id,
@@ -1669,7 +1716,12 @@ async fn to_task_summary(store: &mut dyn Store, task: Task) -> Result<TaskSummar
         display_status,
         run_message,
         waiting_reason,
-    })
+    }
+}
+
+async fn to_task_summary(store: &mut dyn Store, task: Task) -> Result<TaskSummary, AppError> {
+    let runs = store.list_runs(task.id).await?;
+    Ok(to_task_summary_from_runs(task, &runs))
 }
 
 fn display_from_runs(
@@ -1688,17 +1740,7 @@ fn display_from_runs(
         })
         .collect();
     let display_status = card_display_status(&views);
-    let has_active = runs
-        .iter()
-        .any(|run| matches!(run.status, RunStatus::Running | RunStatus::Waiting));
-    let winning = runs
-        .iter()
-        .filter(|run| !has_active || matches!(run.status, RunStatus::Running | RunStatus::Waiting))
-        .max_by(|left, right| {
-            left.started_at
-                .cmp(&right.started_at)
-                .then_with(|| left.display_id.cmp(&right.display_id))
-        });
+    let winning = winning_run(runs);
     let run_message = winning.and_then(|run| run.message.clone());
     let waiting_reason = winning.and_then(|run| run.waiting_reason.clone());
     (display_status, run_message, waiting_reason)
