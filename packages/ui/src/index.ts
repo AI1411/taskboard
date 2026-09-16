@@ -5,3 +5,4 @@ export { EmptyState } from "./EmptyState";
 export { Inspector } from "./Inspector";
 export { Search } from "./Search";
 export { Sidebar } from "./Sidebar";
+export { InboxStrip } from "./InboxStrip";

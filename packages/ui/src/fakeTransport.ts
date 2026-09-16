@@ -2,6 +2,8 @@ import { vi } from "vitest";
 import type { Transport } from "@taskboard/client";
 import type {
   Column,
+  DisplayStatus,
+  InboxItem,
   Project,
   TaskDetail,
   TaskSummary,
@@ -25,6 +27,11 @@ function slugify(name: string, existing: Project[]): string {
     n += 1;
   }
   return slug;
+}
+
+function inboxMember(column: Column, urgent: boolean, status: DisplayStatus): boolean {
+  if (status === "waiting" || status === "failed") return true;
+  return urgent && column !== "done";
 }
 
 function asDetail(task: TaskSummary, extras?: Partial<TaskDetail>): TaskDetail {
@@ -228,8 +235,40 @@ export function fakeTransport(): Transport {
     async runPatch() {
       throw new Error("not implemented");
     },
-    async inbox() {
-      return [];
+    async inbox(opts) {
+      const includeArchived = opts?.includeArchived ?? false;
+      const items: InboxItem[] = [];
+      for (const task of tasks) {
+        const project = projects.find((p) => p.id === task.projectId);
+        if (!project) continue;
+        if (project.deletedAt) continue;
+        if (project.archived && !includeArchived) continue;
+        if (opts?.project && project.slug !== opts.project) continue;
+        const detail = details.get(task.displayId);
+        const status = detail?.displayStatus ?? task.displayStatus;
+        const urgent = detail?.urgent ?? task.urgent;
+        const column = detail?.column ?? task.column;
+        const waitingReason = detail?.waitingReason ?? task.waitingReason;
+        const runMessage = detail?.runMessage ?? task.runMessage;
+        if (!inboxMember(column, urgent, status)) continue;
+        items.push({
+          id: task.id,
+          displayId: task.displayId,
+          projectId: project.id,
+          projectSlug: project.slug,
+          projectName: project.name,
+          title: detail?.title ?? task.title,
+          column,
+          urgent,
+          revision: task.revision,
+          displayStatus: status,
+          runMessage,
+          waitingReason,
+          reason: (waitingReason && waitingReason.trim()) || (runMessage && runMessage.trim()) || "",
+          updatedAt: project.updatedAt,
+        });
+      }
+      return items;
     },
     async trashList() {
       return { projects: [], tasks: [] };

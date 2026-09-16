@@ -8,6 +8,7 @@ export function Sidebar(props: {
   selectedSlug: string | null;
   includeArchived: boolean;
   projectNote: string;
+  inboxCounts?: Record<string, number>;
   onNewProject: () => void;
   onSelectProject: (slug: string) => void;
   onToggleArchived: () => void;
@@ -34,10 +35,16 @@ export function Sidebar(props: {
               <button
                 type="button"
                 className={styles.project}
+                aria-label={project.name}
                 aria-current={project.slug === props.selectedSlug}
                 onClick={() => props.onSelectProject(project.slug)}
               >
                 {project.name}
+                {(props.inboxCounts?.[project.slug] ?? 0) > 0 ? (
+                  <span className={styles.inboxBadge} aria-hidden="true">
+                    {props.inboxCounts?.[project.slug]}
+                  </span>
+                ) : null}
               </button>
             </li>
           ))}

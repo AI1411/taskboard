@@ -1,0 +1,90 @@
+.strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.15rem 0.15rem 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  background: transparent;
+  color: var(--board-fg);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 0.35rem 0.15rem;
+  cursor: pointer;
+}
+
+.pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--waiting);
+}
+
+.counts {
+  color: var(--sidebar-muted);
+  font-weight: 500;
+}
+
+.scopes {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.scope {
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sidebar-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  min-height: 36px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
+
+.scope[aria-pressed="true"] {
+  color: var(--board-fg);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline));
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  color: var(--board-fg);
+  font: inherit;
+  font-size: 0.8rem;
+  min-height: 40px;
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+}
+
+.row:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--hairline));
+}
