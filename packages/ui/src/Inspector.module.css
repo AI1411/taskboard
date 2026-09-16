@@ -151,6 +151,40 @@
   color: var(--sidebar-muted);
 }
 
+.historyItem {
+  list-style: disc;
+}
+
+.historyMeta {
+  color: var(--sidebar-muted);
+  font-size: 0.75rem;
+}
+
+.runStatus {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.08rem 0.35rem;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.running {
+  background: var(--running);
+}
+
+.waiting {
+  background: var(--waiting);
+}
+
+.failed {
+  background: var(--failed);
+}
+
+.completed {
+  background: var(--completed);
+}
+
 .delete {
   margin-top: auto;
   border: 0;

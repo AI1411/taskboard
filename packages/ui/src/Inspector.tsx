@@ -4,6 +4,7 @@ import type { Column, TaskDetail } from "@taskboard/types";
 import { COLUMNS } from "./columns";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { openableHref } from "./openableHref";
+import { relativeTime } from "./relativeTime";
 import styles from "./Inspector.module.css";
 
 const ACTIVITY_LABELS: Record<string, string> = {
@@ -13,13 +14,29 @@ const ACTIVITY_LABELS: Record<string, string> = {
   "task.reorder": "Reordered",
   "task.delete": "Deleted",
   "task.urgent": "Urgent changed",
+  "task.restore": "Restored",
   "run.start": "Run started",
   "run.finish": "Run finished",
   "run.fail": "Run failed",
+  "run.wait": "Waiting",
+  "run.update": "Run updated",
+  "run.continue": "Run continued",
+  "link.add": "Link added",
+  "link.remove": "Link removed",
+  undo: "Undo",
+};
+
+const RUN_STATUS: Record<string, string> = {
+  running: "Running",
+  waiting: "Waiting",
+  failed: "Failed",
+  completed: "Done",
 };
 
 function activityLabel(operation: string): string {
-  return ACTIVITY_LABELS[operation] ?? operation;
+  if (ACTIVITY_LABELS[operation]) return ACTIVITY_LABELS[operation];
+  const last = operation.split(".").pop() ?? operation;
+  return last.replace(/[-_]/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
 export function Inspector(props: {
@@ -220,10 +237,19 @@ export function Inspector(props: {
           <h3 className={styles.heading}>Runs</h3>
           <ul className={styles.list}>
             {runs.map((run) => (
-              <li key={run.id}>
-                {run.displayId} {run.status}
-                {run.message ? ` — ${run.message}` : ""}
-                {run.waitingReason ? ` — wait: ${run.waitingReason}` : ""}
+              <li key={run.id} className={styles.historyItem}>
+                <div>
+                  {run.displayId} · {run.agent} ·{" "}
+                  <span className={`${styles.runStatus} ${styles[run.status] ?? ""}`}>
+                    {RUN_STATUS[run.status] ?? run.status}
+                  </span>{" "}
+                  · {relativeTime(run.endedAt || run.startedAt)}
+                </div>
+                {run.message ? <div className={styles.historyMeta}>{run.message}</div> : null}
+                {run.waitingReason ? (
+                  <div className={styles.historyMeta}>{run.waitingReason}</div>
+                ) : null}
+                {run.summary ? <div className={styles.historyMeta}>{run.summary}</div> : null}
               </li>
             ))}
           </ul>
@@ -233,7 +259,8 @@ export function Inspector(props: {
           <ul className={styles.list}>
             {activities.map((item) => (
               <li key={item.id}>
-                {activityLabel(item.operation)} · {item.actorLabel}
+                {activityLabel(item.operation)} · {item.actorLabel} ·{" "}
+                {relativeTime(item.createdAt)}
               </li>
             ))}
           </ul>
