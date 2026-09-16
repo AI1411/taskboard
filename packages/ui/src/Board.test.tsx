@@ -67,6 +67,38 @@ describe("Board", () => {
     expect(screen.queryByLabelText("Title")).toBeNull();
   });
 
+  it("filters by TASK-n, status badge, and run text", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Alpha task", column: "todo" });
+    await transport.taskCreate(project.slug, { title: "Beta item", column: "todo" });
+    const listed = await transport.taskList(project.slug);
+    const alpha = listed.find((task) => task.title === "Alpha task");
+    const beta = listed.find((task) => task.title === "Beta item");
+    if (alpha) {
+      alpha.displayStatus = "waiting";
+      alpha.waitingReason = "Need spec";
+    }
+    if (beta) beta.runMessage = "compiling kernel";
+    render(<TaskboardApp transport={transport} />);
+    expect(await screen.findByText("Alpha task")).toBeTruthy();
+    expect(screen.getByPlaceholderText("Search title, TASK-n, status")).toBeTruthy();
+    await userEvent.keyboard("/");
+    await userEvent.keyboard("task-2");
+    expect(screen.queryByText("Alpha task")).toBeNull();
+    expect(screen.getByText("Beta item")).toBeTruthy();
+    await userEvent.keyboard("{Escape}");
+    await userEvent.keyboard("/");
+    await userEvent.keyboard("waiting");
+    expect(screen.getByText("Alpha task")).toBeTruthy();
+    expect(screen.queryByText("Beta item")).toBeNull();
+    await userEvent.keyboard("{Escape}");
+    await userEvent.keyboard("/");
+    await userEvent.keyboard("kernel");
+    expect(screen.getByText("Beta item")).toBeTruthy();
+    expect(screen.queryByText("Alpha task")).toBeNull();
+  });
+
   it("filters cards by title substring", async () => {
     const transport = fakeTransport();
     const project = await transport.projectAdd({ name: "Untitled" });

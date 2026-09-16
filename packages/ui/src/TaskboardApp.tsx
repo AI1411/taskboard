@@ -11,6 +11,7 @@ import { Toast } from "./Toast";
 import { TrashPanel } from "./TrashPanel";
 import { COLUMNS, COLUMN_IDS, neighborColumn } from "./columns";
 import { errorCode, errorField, errorMessage, isNotFound } from "./errors";
+import { taskMatchesQuery } from "./searchMatch";
 import styles from "./TaskboardApp.module.css";
 import "./theme.css";
 
@@ -362,7 +363,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
       const col = currentColumnRef.current;
       const q = queryRef.current;
       const inCol = tasksRef.current.filter(
-        (t) => t.column === col && (!q || t.title.toLowerCase().includes(q.toLowerCase())),
+        (t) => t.column === col && taskMatchesQuery(t, q),
       );
       if (inCol.length === 0) return;
       const idx = inCol.findIndex((t) => t.displayId === selectedIdRef.current);
