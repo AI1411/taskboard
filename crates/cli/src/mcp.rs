@@ -3,10 +3,10 @@ use std::str::FromStr;
 
 use serde_json::{json, Value};
 use taskboard_application::{
-    ActivityQuery, Actor, App, CommentAdd, InboxScope, NextClaim, RunContinue, RunListQuery,
-    RunStart, TaskListQuery,
+    ActivityQuery, Actor, App, CheckAdd, CommentAdd, InboxScope, LinkAdd, NextClaim, RunContinue,
+    RunFail, RunFinish, RunListQuery, RunStart, RunWait, TaskCreate, TaskListQuery, TaskUpdate,
 };
-use taskboard_core::{CardDisplayStatus, Column};
+use taskboard_core::{CardDisplayStatus, Column, LinkKind};
 
 use crate::output;
 
@@ -227,6 +227,142 @@ fn tools() -> Vec<Value> {
                 "required": ["display_id"]
             }),
         ),
+        tool(
+            "task_create",
+            "Create a task",
+            json!({
+                "type": "object",
+                "properties": {
+                    "project": { "type": "string" },
+                    "title": { "type": "string" },
+                    "column": { "type": "string" },
+                    "urgent": { "type": "boolean" }
+                },
+                "required": ["title"]
+            }),
+        ),
+        tool(
+            "task_move",
+            "Move a task to a column",
+            json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "column": { "type": "string" }
+                },
+                "required": ["display_id", "column"]
+            }),
+        ),
+        tool(
+            "task_update",
+            "Update a task title, worktree, or branch",
+            json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "title": { "type": "string" },
+                    "worktree": { "type": "string" },
+                    "branch": { "type": "string" }
+                },
+                "required": ["display_id"]
+            }),
+        ),
+        tool(
+            "run_wait",
+            "Mark a run as waiting",
+            json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "reason": { "type": "string" }
+                },
+                "required": ["display_id", "reason"]
+            }),
+        ),
+        tool(
+            "run_finish",
+            "Mark a run as completed",
+            json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "summary": { "type": "string" }
+                },
+                "required": ["display_id", "summary"]
+            }),
+        ),
+        tool(
+            "run_fail",
+            "Mark a run as failed",
+            json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "summary": { "type": "string" }
+                },
+                "required": ["display_id", "summary"]
+            }),
+        ),
+        tool(
+            "check_add",
+            "Add a checklist item",
+            json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "text": { "type": "string" }
+                },
+                "required": ["display_id", "text"]
+            }),
+        ),
+        tool(
+            "check_toggle",
+            "Toggle a checklist item",
+            json!({
+                "type": "object",
+                "properties": { "display_id": { "type": "string" } },
+                "required": ["display_id"]
+            }),
+        ),
+        tool(
+            "check_list",
+            "List checklist items on a task",
+            json!({
+                "type": "object",
+                "properties": { "display_id": { "type": "string" } },
+                "required": ["display_id"]
+            }),
+        ),
+        tool(
+            "link_add",
+            "Add a URL, path, or blocked-by link",
+            json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "url": { "type": "string" },
+                    "path": { "type": "string" },
+                    "blocked_by": { "type": "string" }
+                },
+                "required": ["display_id"]
+            }),
+        ),
+        tool(
+            "stale",
+            "List stale running runs",
+            json!({
+                "type": "object",
+                "properties": { "minutes": { "type": "integer" } }
+            }),
+        ),
+        tool(
+            "project_detect",
+            "Resolve the current project from cwd or TASKBOARD_PROJECT",
+            json!({
+                "type": "object",
+                "properties": {}
+            }),
+        ),
     ]
 }
 
@@ -409,11 +545,174 @@ async fn dispatch_tool(
                 .await?;
             Ok(json!({ "ok": true, "entities": comments }))
         }
+        "task_create" => {
+            let project = match string_arg(&args, "project") {
+                Some(slug) => slug,
+                None => detect_current_project(app).await?.slug,
+            };
+            let task = app
+                .task_create(
+                    actor,
+                    TaskCreate {
+                        project_slug: project,
+                        title: require_string(&args, "title")?,
+                        column: parse_column(args.get("column"))?,
+                        urgent: args.get("urgent").and_then(Value::as_bool).unwrap_or(false),
+                    },
+                )
+                .await?;
+            Ok(json!({ "ok": true, "entity": task, "revision": task.revision }))
+        }
+        "task_move" => {
+            let column = parse_column(args.get("column"))?.ok_or_else(|| {
+                taskboard_application::AppError::Validation {
+                    field: "column".into(),
+                    message: "column is required".into(),
+                }
+            })?;
+            let task = app
+                .task_move(actor, &require_string(&args, "display_id")?, column, None)
+                .await?;
+            Ok(json!({ "ok": true, "entity": task, "revision": task.revision }))
+        }
+        "task_update" => {
+            let task = app
+                .task_update(
+                    actor,
+                    TaskUpdate {
+                        display_id: require_string(&args, "display_id")?,
+                        title: string_arg(&args, "title"),
+                        worktree_path: optional_clearable(&args, "worktree"),
+                        branch: optional_clearable(&args, "branch"),
+                        revision: None,
+                    },
+                )
+                .await?;
+            Ok(json!({ "ok": true, "entity": task, "revision": task.revision }))
+        }
+        "run_wait" => {
+            let run = app
+                .run_wait(
+                    actor,
+                    RunWait {
+                        run_display_id: require_string(&args, "display_id")?,
+                        reason: require_string(&args, "reason")?,
+                        revision: None,
+                    },
+                )
+                .await?;
+            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
+        }
+        "run_finish" => {
+            let run = app
+                .run_finish(
+                    actor,
+                    RunFinish {
+                        run_display_id: require_string(&args, "display_id")?,
+                        summary: require_string(&args, "summary")?,
+                        revision: None,
+                    },
+                )
+                .await?;
+            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
+        }
+        "run_fail" => {
+            let run = app
+                .run_fail(
+                    actor,
+                    RunFail {
+                        run_display_id: require_string(&args, "display_id")?,
+                        summary: require_string(&args, "summary")?,
+                        revision: None,
+                    },
+                )
+                .await?;
+            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
+        }
+        "check_add" => {
+            let check = app
+                .check_add(
+                    actor,
+                    CheckAdd {
+                        task_display_id: require_string(&args, "display_id")?,
+                        text: require_string(&args, "text")?,
+                    },
+                )
+                .await?;
+            Ok(json!({ "ok": true, "entity": check, "revision": 0 }))
+        }
+        "check_toggle" => {
+            let check = app
+                .check_toggle(actor, &require_string(&args, "display_id")?)
+                .await?;
+            Ok(json!({ "ok": true, "entity": check, "revision": 0 }))
+        }
+        "check_list" => {
+            let checks = app
+                .check_list(&require_string(&args, "display_id")?)
+                .await?;
+            Ok(json!({ "ok": true, "entities": checks }))
+        }
+        "link_add" => {
+            let (kind, value) = if let Some(url) = string_arg(&args, "url") {
+                (LinkKind::Url, url)
+            } else if let Some(path) = string_arg(&args, "path") {
+                (LinkKind::Path, path)
+            } else if let Some(blocked_by) = string_arg(&args, "blocked_by") {
+                (LinkKind::BlockedBy, blocked_by)
+            } else {
+                return Err(taskboard_application::AppError::Validation {
+                    field: "target".into(),
+                    message: "url, path, or blocked_by is required".into(),
+                });
+            };
+            let task = app
+                .link_add(
+                    actor,
+                    LinkAdd {
+                        task_display_id: require_string(&args, "display_id")?,
+                        kind,
+                        value,
+                        revision: None,
+                    },
+                )
+                .await?;
+            Ok(json!({ "ok": true, "entity": task, "revision": task.revision }))
+        }
+        "stale" => {
+            let minutes = args.get("minutes").and_then(Value::as_i64).unwrap_or(30);
+            let runs = app.stale_list(minutes).await?;
+            Ok(json!({ "ok": true, "entities": runs }))
+        }
+        "project_detect" => {
+            let project = detect_current_project(app).await?;
+            Ok(json!({ "ok": true, "entity": project, "revision": project.revision }))
+        }
         other => Err(taskboard_application::AppError::Validation {
             field: "name".into(),
             message: format!("unknown tool `{other}`"),
         }),
     }
+}
+
+async fn detect_current_project(
+    app: &App,
+) -> Result<taskboard_core::Project, taskboard_application::AppError> {
+    let cwd = std::env::current_dir()
+        .map_err(|err| taskboard_application::AppError::Io(err.to_string()))?;
+    let env_slug = std::env::var("TASKBOARD_PROJECT").ok();
+    app.detect_project(&cwd, env_slug.as_deref().filter(|value| !value.is_empty()))
+        .await
+}
+
+fn optional_clearable(args: &Value, key: &str) -> Option<Option<String>> {
+    args.get(key).and_then(Value::as_str).map(|value| {
+        if value.is_empty() {
+            None
+        } else {
+            Some(value.to_string())
+        }
+    })
 }
 
 fn string_arg(args: &Value, key: &str) -> Option<String> {
