@@ -57,6 +57,10 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  overflow-y: auto;
+  max-height: 50vh;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .project {
@@ -158,6 +162,33 @@
   gap: 0.35rem;
   font-size: 0.78rem;
   color: var(--sidebar-muted);
+}
+
+.noteToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sidebar-muted) 80%, transparent);
+}
+
+.dock {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .note textarea {

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -11,9 +11,9 @@ describe("project admin", () => {
     await transport.projectAdd({ name: "Alpha" });
     render(<TaskboardApp transport={transport} />);
     const name = await screen.findByLabelText("Project name");
-    await userEvent.clear(name);
-    await userEvent.type(name, "Renamed");
-    await userEvent.tab();
+    await waitFor(() => expect((name as HTMLInputElement).value).toBe("Alpha"));
+    fireEvent.change(name, { target: { value: "Renamed" } });
+    fireEvent.blur(name);
     await waitFor(() =>
       expect(transport.projectUpdate).toHaveBeenCalledWith("alpha", { name: "Renamed" }, 1),
     );
@@ -48,5 +48,24 @@ describe("project admin", () => {
     expect(screen.getByText("Delete Beta?")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(transport.projectDelete).toHaveBeenCalledWith("beta", 1));
+  });
+
+  it("collapses the project note and marks when it has text", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    project.noteMarkdown = "ship notes";
+    render(<TaskboardApp transport={transport} />);
+    const toggle = await screen.findByRole("button", { name: "Project note" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.querySelector("[data-filled]")).toBeTruthy();
+    expect(screen.queryByLabelText("Project note")).toBeNull();
+    await userEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect((screen.getByLabelText("Project note") as HTMLTextAreaElement).value).toBe("ship notes");
+    expect(screen.getByRole("list", { name: "Projects" }).getAttribute("data-scroll")).toBe(
+      "projects",
+    );
+    expect(screen.getByRole("button", { name: "Archived projects" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Trash" })).toBeTruthy();
   });
 });
