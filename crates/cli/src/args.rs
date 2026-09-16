@@ -181,6 +181,10 @@ pub enum TaskCommand {
         column: Option<Column>,
         #[arg(long)]
         agent: Option<String>,
+        #[arg(long, conflicts_with = "ready")]
+        blocked: bool,
+        #[arg(long, conflicts_with = "blocked")]
+        ready: bool,
     },
     /// Show one task
     Show { display_id: String },
@@ -249,11 +253,11 @@ pub enum NoteCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum LinkCommand {
-    /// Add a URL or path link
+    /// Add a URL, path, or blocked-by link
     #[command(group(
         clap::ArgGroup::new("target")
             .required(true)
-            .args(["url", "path"])
+            .args(["url", "path", "blocked_by"])
     ))]
     Add {
         display_id: String,
@@ -261,6 +265,8 @@ pub enum LinkCommand {
         url: Option<String>,
         #[arg(long)]
         path: Option<String>,
+        #[arg(long = "blocked-by")]
+        blocked_by: Option<String>,
     },
     /// Remove a link by UUID
     Remove { link_id: Uuid },

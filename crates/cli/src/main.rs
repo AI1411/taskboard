@@ -341,6 +341,8 @@ async fn task_cmd(
             status,
             column,
             agent,
+            blocked,
+            ready,
         } => {
             let project = if all {
                 None
@@ -357,8 +359,8 @@ async fn task_cmd(
                     statuses: status,
                     column,
                     agent,
-                    blocked: false,
-                    ready: false,
+                    blocked,
+                    ready,
                 })
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
@@ -507,11 +509,17 @@ async fn link_cmd(
             display_id,
             url,
             path,
+            blocked_by,
         } => {
             let (kind, value) = if let Some(url) = url {
                 (LinkKind::Url, url)
+            } else if let Some(path) = path {
+                (LinkKind::Path, path)
             } else {
-                (LinkKind::Path, path.expect("clap group requires --path"))
+                (
+                    LinkKind::BlockedBy,
+                    blocked_by.expect("clap group requires --blocked-by"),
+                )
             };
             let task = app
                 .link_add(

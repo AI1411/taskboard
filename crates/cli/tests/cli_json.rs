@@ -751,6 +751,86 @@ fn comment_reply_on_waiting_task_show() {
     assert_eq!(shown["entity"]["reply"], "here is spec");
 }
 
+#[test]
+fn link_add_blocked_by_json_and_filters() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Blocker",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Blocked",
+        ])
+        .assert()
+        .success();
+    let added = json_ok(&dir, &["link", "add", "TASK-2", "--blocked-by", "TASK-1"]);
+    assert_eq!(added["entity"]["links"][0]["kind"], "blocked_by");
+    assert_eq!(added["entity"]["links"][0]["value"], "TASK-1");
+    assert_eq!(added["entity"]["column"], "todo");
+    let blocked = json_ok(
+        &dir,
+        &["task", "list", "--project", "renai-sim", "--blocked"],
+    );
+    assert_eq!(blocked["entities"].as_array().unwrap().len(), 1);
+    assert_eq!(blocked["entities"][0]["display_id"], "TASK-2");
+    assert_eq!(blocked["entities"][0]["blocked_by"][0], "TASK-1");
+    let ready = json_ok(&dir, &["task", "list", "--project", "renai-sim", "--ready"]);
+    let ids: Vec<_> = ready["entities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["display_id"].as_str().unwrap().to_string())
+        .collect();
+    assert!(ids.contains(&"TASK-1".to_string()));
+    assert!(!ids.contains(&"TASK-2".to_string()));
+}
+
+#[test]
+fn link_add_blocked_by_cycle_is_validation_error() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "renai-sim", "--title", "A"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "renai-sim", "--title", "B"])
+        .assert()
+        .success();
+    json_ok(&dir, &["link", "add", "TASK-2", "--blocked-by", "TASK-1"]);
+    let out = tb_in(&dir)
+        .args(["link", "add", "TASK-1", "--blocked-by", "TASK-2", "--json"])
+        .assert()
+        .failure()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "validation_error");
+}
+
 fn json_ok(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     let mut argv = args.to_vec();
     argv.push("--json");
