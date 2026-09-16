@@ -1772,9 +1772,11 @@ async fn load_task_detail(store: &mut dyn Store, task: Task) -> Result<TaskDetai
         display_status,
         run_message,
         waiting_reason,
+        reply: None,
         note_markdown: task.note_markdown,
         links,
         runs,
+        comments: Vec::new(),
         recent_activities,
     })
 }
@@ -1805,6 +1807,7 @@ fn to_task_summary_from_runs(task: Task, runs: &[Run]) -> TaskSummary {
         display_status,
         run_message,
         waiting_reason,
+        reply: None,
     }
 }
 

@@ -22,8 +22,8 @@ pub use error::{FieldError, ValidationError};
 pub use ids::{display_id, parse_display_id, DisplayKind, ParseDisplayIdError};
 pub use inbox::{inbox_membership, inbox_reason, InboxGroup};
 pub use models::{
-    Activity, ActorKind, EntityType, InboxItem, Link, LinkKind, Project, Run, Task, TaskDetail,
-    TaskSummary,
+    Activity, ActorKind, Comment, EntityType, InboxItem, Link, LinkKind, Project, Run, Task,
+    TaskDetail, TaskSummary,
 };
 pub use order::{place_before, place_urgent, rewrite_positions, sort_column, OrderError, OrderKey};
 pub use run_status::{ParseRunStatusError, RunStatus};

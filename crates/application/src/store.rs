@@ -3,7 +3,8 @@ use std::path::Path;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use taskboard_core::{
-    Activity, ActorKind, Column, EntityType, Link, Project, Run, Task, TaskDetail, TaskSummary,
+    Activity, ActorKind, Column, Comment, EntityType, Link, Project, Run, Task, TaskDetail,
+    TaskSummary,
 };
 use uuid::Uuid;
 
@@ -108,6 +109,9 @@ pub trait Store: Send + Sync {
     async fn insert_link(&mut self, link: &Link) -> Result<(), AppError>;
     async fn update_link(&mut self, link: &Link) -> Result<(), AppError>;
     async fn delete_link(&mut self, id: Uuid) -> Result<(), AppError>;
+
+    async fn insert_comment(&mut self, comment: &Comment) -> Result<(), AppError>;
+    async fn list_comments(&mut self, task_id: Uuid) -> Result<Vec<Comment>, AppError>;
 
     async fn get_run(&mut self, id: Uuid) -> Result<Option<Run>, AppError>;
     async fn get_run_by_display_id(&mut self, display_id: &str) -> Result<Option<Run>, AppError>;

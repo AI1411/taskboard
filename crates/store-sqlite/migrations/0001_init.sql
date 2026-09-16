@@ -82,3 +82,14 @@ CREATE TABLE activities (
 );
 
 CREATE INDEX idx_activities_entity ON activities (entity_id, sequence);
+
+CREATE TABLE comments (
+    id BLOB NOT NULL PRIMARY KEY,
+    task_id BLOB NOT NULL REFERENCES tasks (id),
+    actor_kind TEXT NOT NULL,
+    actor_label TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_comments_task_created ON comments (task_id, created_at, id);

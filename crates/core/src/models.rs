@@ -76,6 +76,7 @@ pub struct TaskSummary {
     pub display_status: CardDisplayStatus,
     pub run_message: Option<String>,
     pub waiting_reason: Option<String>,
+    pub reply: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -91,9 +92,11 @@ pub struct TaskDetail {
     pub display_status: CardDisplayStatus,
     pub run_message: Option<String>,
     pub waiting_reason: Option<String>,
+    pub reply: Option<String>,
     pub note_markdown: String,
     pub links: Vec<Link>,
     pub runs: Vec<Run>,
+    pub comments: Vec<Comment>,
     pub recent_activities: Vec<Activity>,
 }
 
@@ -105,6 +108,17 @@ pub struct Link {
     pub kind: LinkKind,
     pub value: String,
     pub sort_order: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Comment {
+    pub id: Uuid,
+    pub task_id: Uuid,
+    pub actor_kind: ActorKind,
+    pub actor_label: String,
+    pub body: String,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
