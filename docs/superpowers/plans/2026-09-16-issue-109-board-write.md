@@ -824,7 +824,7 @@ describe("Inspector blocked-by", () => {
         value: "TASK-1",
       }),
     );
-    expect(await screen.findByText("TASK-1")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "TASK-1" })).toBeTruthy();
     expect(screen.getByPlaceholderText("https:// or /path")).toBeTruthy();
   });
 

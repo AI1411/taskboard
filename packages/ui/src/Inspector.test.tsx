@@ -73,6 +73,32 @@ describe("Inspector workspace", () => {
 });
 
 describe("Inspector checklists", () => {
+  it("toggles a check and adds a row", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    const task = await transport.taskCreate(project.slug, { title: "DoD", column: "todo" });
+    task.checks = [
+      {
+        id: "k1",
+        displayId: "CHECK-1",
+        taskId: task.id,
+        text: "Write tests",
+        done: false,
+        sortOrder: 0,
+      },
+    ];
+    task.checklistDone = 0;
+    task.checklistTotal = 1;
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("DoD"));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Write tests" }));
+    await waitFor(() => expect(transport.checkToggle).toHaveBeenCalledWith("CHECK-1"));
+    await userEvent.type(screen.getByPlaceholderText("Add a check"), "Ship it");
+    await userEvent.click(screen.getByRole("button", { name: "Add check" }));
+    await waitFor(() => expect(transport.checkAdd).toHaveBeenCalledWith("TASK-1", "Ship it"));
+    expect(await screen.findByRole("checkbox", { name: "Ship it" })).toBeTruthy();
+  });
+
   it("shows checklist items as checkboxes without changing the note", async () => {
     const transport = fakeTransport();
     const project = await transport.projectAdd({ name: "Alpha" });
@@ -194,5 +220,55 @@ describe("Inspector comments", () => {
     await userEvent.click(await screen.findByText("Talk"));
     expect(await screen.findByText(/2026-09-16T12:00:00Z · alice · use TDD/)).toBeTruthy();
     expect(screen.queryByText(/marked/i)).toBeNull();
+  });
+
+  it("adds a comment on Enter without changing the note", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    const task = await transport.taskCreate(project.slug, { title: "Talk", column: "todo" });
+    task.noteMarkdown = "# Spec";
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Talk"));
+    await userEvent.type(screen.getByPlaceholderText("Add a comment"), "use TDD{Enter}");
+    await waitFor(() => expect(transport.commentAdd).toHaveBeenCalledWith("TASK-1", "use TDD"));
+    expect(await screen.findByText(/local-ui · use TDD/)).toBeTruthy();
+    expect((screen.getByLabelText("Note") as HTMLTextAreaElement).value).toBe("# Spec");
+  });
+});
+
+describe("Inspector blocked-by", () => {
+  it("adds a TASK-n blocked-by link from a separate input", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Blocker", column: "todo" });
+    await transport.taskCreate(project.slug, { title: "Blocked", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Blocked"));
+    await userEvent.type(screen.getByPlaceholderText("TASK-n"), "TASK-1");
+    await userEvent.click(screen.getByRole("button", { name: "Add blocked-by" }));
+    await waitFor(() =>
+      expect(transport.linkAdd).toHaveBeenCalledWith("TASK-2", {
+        kind: "blocked_by",
+        value: "TASK-1",
+      }),
+    );
+    expect(await screen.findByRole("button", { name: "TASK-1" })).toBeTruthy();
+    expect(screen.getByPlaceholderText("https:// or /path")).toBeTruthy();
+  });
+
+  it("toasts validation_error on a blocked-by cycle", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "A", column: "todo" });
+    await transport.taskCreate(project.slug, { title: "B", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("B"));
+    await userEvent.type(screen.getByPlaceholderText("TASK-n"), "TASK-1");
+    await userEvent.click(screen.getByRole("button", { name: "Add blocked-by" }));
+    await waitFor(() => expect(transport.linkAdd).toHaveBeenCalled());
+    await userEvent.click(await screen.findByText("A"));
+    await userEvent.type(screen.getByPlaceholderText("TASK-n"), "TASK-2");
+    await userEvent.click(screen.getByRole("button", { name: "Add blocked-by" }));
+    expect(await screen.findByText("blocked-by cycle")).toBeTruthy();
   });
 });
