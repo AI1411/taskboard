@@ -3,7 +3,8 @@ use std::str::FromStr;
 
 use serde_json::{json, Value};
 use taskboard_application::{
-    ActivityQuery, Actor, App, CommentAdd, InboxScope, RunContinue, RunListQuery, TaskListQuery,
+    ActivityQuery, Actor, App, CommentAdd, InboxScope, NextClaim, RunContinue, RunListQuery,
+    RunStart, TaskListQuery,
 };
 use taskboard_core::{CardDisplayStatus, Column};
 
@@ -142,6 +143,32 @@ fn tools() -> Vec<Value> {
                 "type": "object",
                 "properties": { "display_id": { "type": "string" } },
                 "required": ["display_id"]
+            }),
+        ),
+        tool(
+            "run_start",
+            "Start a run on a task",
+            json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "agent": { "type": "string" },
+                    "session": { "type": "string" },
+                    "exclusive": { "type": "boolean" }
+                },
+                "required": ["display_id", "agent"]
+            }),
+        ),
+        tool(
+            "next",
+            "Claim the first ready card and start a run",
+            json!({
+                "type": "object",
+                "properties": {
+                    "project": { "type": "string" },
+                    "agent": { "type": "string" },
+                    "move": { "type": "boolean" }
+                }
             }),
         ),
         tool(
@@ -292,6 +319,40 @@ async fn dispatch_tool(
         "run_current" => {
             let run = app
                 .run_current(&require_string(&args, "display_id")?)
+                .await?;
+            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
+        }
+        "run_start" => {
+            let cmd = RunStart {
+                task_display_id: require_string(&args, "display_id")?,
+                agent: require_string(&args, "agent")?,
+                session_id: string_arg(&args, "session"),
+            };
+            let exclusive = args
+                .get("exclusive")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let run = if exclusive {
+                app.run_start_exclusive(actor, cmd).await?
+            } else {
+                app.run_start(actor, cmd).await?
+            };
+            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
+        }
+        "next" => {
+            let run = app
+                .next(
+                    actor,
+                    NextClaim {
+                        project: string_arg(&args, "project"),
+                        agent: string_arg(&args, "agent").unwrap_or_else(|| "cursor".into()),
+                        session_id: None,
+                        move_to_in_progress: args
+                            .get("move")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false),
+                    },
+                )
                 .await?;
             Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
         }

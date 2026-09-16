@@ -43,6 +43,14 @@ pub struct LinkAdd {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NextClaim {
+    pub project: Option<String>,
+    pub agent: String,
+    pub session_id: Option<String>,
+    pub move_to_in_progress: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunStart {
     pub task_display_id: String,
     pub agent: String,

@@ -16,9 +16,9 @@ use taskboard_core::{
 
 use crate::actor::Actor;
 use crate::commands::{
-    ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope, LinkAdd, ProjectAdd,
-    ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait,
-    StatusLine, TaskCreate, TaskListQuery, TaskUpdate, STATUS_HEAD,
+    ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope, LinkAdd, NextClaim,
+    ProjectAdd, ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate,
+    RunWait, StatusLine, TaskCreate, TaskListQuery, TaskUpdate, STATUS_HEAD,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -194,53 +194,7 @@ impl App {
         let now = self.clock.now();
         let mut store = self.store.lock().await;
         let store = &mut **store;
-        let projects = if let Some(slug) = query.project.as_deref() {
-            vec![require_live_project(store, slug).await?]
-        } else {
-            store.list_projects(false).await?
-        };
-        let index = load_block_index(store).await?;
-        let mut summaries = Vec::new();
-        for project in projects {
-            let tasks = store.list_tasks(project.id).await?;
-            for task in tasks {
-                let runs = store.list_runs(task.id).await?;
-                let comments = store.list_comments(task.id).await?;
-                let checks = store.list_checks(task.id).await?;
-                let (blocked_by, blocks) = block_lists(&task, &index);
-                let summary = to_task_summary_from_runs(
-                    task, &runs, &comments, &checks, blocked_by, blocks, now,
-                );
-                if let Some(column) = query.column {
-                    if summary.column != column {
-                        continue;
-                    }
-                }
-                if !query.statuses.is_empty() && !query.statuses.contains(&summary.display_status) {
-                    continue;
-                }
-                if let Some(agent) = query.agent.as_deref() {
-                    let Some(run) = winning_run(&runs) else {
-                        continue;
-                    };
-                    if run.agent != agent {
-                        continue;
-                    }
-                }
-                if query.blocked && !has_active_blocker(&summary.blocked_by, &index) {
-                    continue;
-                }
-                if query.ready
-                    && (has_active_blocker(&summary.blocked_by, &index)
-                        || !(summary.display_status == CardDisplayStatus::Idle
-                            || summary.column == Column::Todo))
-                {
-                    continue;
-                }
-                summaries.push(summary);
-            }
-        }
-        Ok(summaries)
+        task_query_inner(store, query, now).await
     }
 
     pub async fn inbox(&self, scope: InboxScope) -> Result<Vec<InboxItem>, AppError> {
@@ -549,7 +503,25 @@ impl App {
         let mut store = self.store.lock().await;
         let store = &mut **store;
         store.begin().await?;
-        let result = run_start_inner(store, actor, cmd, now).await;
+        let result = run_start_inner(store, actor, cmd, now, false).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn run_start_exclusive(&self, actor: &Actor, cmd: RunStart) -> Result<Run, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = run_start_inner(store, actor, cmd, now, true).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn next(&self, actor: &Actor, cmd: NextClaim) -> Result<Run, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = next_inner(store, actor, cmd, now).await;
         commit_or_rollback(store, result).await
     }
 
@@ -1668,13 +1640,135 @@ async fn link_remove_inner(
     load_task_detail(store, task).await
 }
 
+async fn task_query_inner(
+    store: &mut dyn Store,
+    query: TaskListQuery,
+    now: DateTime<Utc>,
+) -> Result<Vec<TaskSummary>, AppError> {
+    let projects = if let Some(slug) = query.project.as_deref() {
+        vec![require_live_project(store, slug).await?]
+    } else {
+        store.list_projects(false).await?
+    };
+    let index = load_block_index(store).await?;
+    let mut summaries = Vec::new();
+    for project in projects {
+        let tasks = store.list_tasks(project.id).await?;
+        for task in tasks {
+            let runs = store.list_runs(task.id).await?;
+            let comments = store.list_comments(task.id).await?;
+            let checks = store.list_checks(task.id).await?;
+            let (blocked_by, blocks) = block_lists(&task, &index);
+            let summary =
+                to_task_summary_from_runs(task, &runs, &comments, &checks, blocked_by, blocks, now);
+            if let Some(column) = query.column {
+                if summary.column != column {
+                    continue;
+                }
+            }
+            if !query.statuses.is_empty() && !query.statuses.contains(&summary.display_status) {
+                continue;
+            }
+            if let Some(agent) = query.agent.as_deref() {
+                let Some(run) = winning_run(&runs) else {
+                    continue;
+                };
+                if run.agent != agent {
+                    continue;
+                }
+            }
+            if query.blocked && !has_active_blocker(&summary.blocked_by, &index) {
+                continue;
+            }
+            if query.ready
+                && (has_active_blocker(&summary.blocked_by, &index)
+                    || !(summary.display_status == CardDisplayStatus::Idle
+                        || summary.column == Column::Todo))
+            {
+                continue;
+            }
+            summaries.push(summary);
+        }
+    }
+    Ok(summaries)
+}
+
+async fn next_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: NextClaim,
+    now: DateTime<Utc>,
+) -> Result<Run, AppError> {
+    let ready = task_query_inner(
+        store,
+        TaskListQuery {
+            project: cmd.project,
+            ready: true,
+            ..TaskListQuery::default()
+        },
+        now,
+    )
+    .await?;
+    let mut claimed = None;
+    for task in ready {
+        let runs = store.list_runs(task.id).await?;
+        if !has_open_run(&runs) {
+            claimed = Some(task);
+            break;
+        }
+    }
+    let task = claimed.ok_or_else(|| AppError::NotFound {
+        entity: "task".into(),
+        id: "ready".into(),
+    })?;
+    let run = run_start_inner(
+        store,
+        actor,
+        RunStart {
+            task_display_id: task.display_id.clone(),
+            agent: cmd.agent,
+            session_id: cmd.session_id,
+        },
+        now,
+        true,
+    )
+    .await?;
+    if cmd.move_to_in_progress {
+        task_move_inner(
+            store,
+            actor,
+            &task.display_id,
+            Column::InProgress,
+            None,
+            now,
+        )
+        .await?;
+    }
+    Ok(run)
+}
+
+fn has_open_run(runs: &[Run]) -> bool {
+    runs.iter()
+        .any(|run| matches!(run.status, RunStatus::Running | RunStatus::Waiting))
+}
+
 async fn run_start_inner(
     store: &mut dyn Store,
     actor: &Actor,
     cmd: RunStart,
     now: DateTime<Utc>,
+    exclusive: bool,
 ) -> Result<Run, AppError> {
     let task = require_live_task(store, &cmd.task_display_id).await?;
+    if exclusive {
+        let runs = store.list_runs(task.id).await?;
+        if has_open_run(&runs) {
+            return Err(AppError::Conflict {
+                entity: "task".into(),
+                id: task.display_id,
+            });
+        }
+    }
     let agent = parse_agent(&cmd.agent).map_err(map_validation)?;
     let session_id = parse_session_id(cmd.session_id)?;
     let n = store.next_display_n("run").await?;

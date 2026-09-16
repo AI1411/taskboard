@@ -113,6 +113,8 @@ fn mcp_initialize_lists_core_tools_and_calls_app() {
     assert!(names.contains(&"activity"));
     assert!(names.contains(&"comment_add"));
     assert!(names.contains(&"run_continue"));
+    assert!(names.contains(&"run_start"));
+    assert!(names.contains(&"next"));
     let shown: Value = serde_json::from_str(
         responses[2]["result"]["structuredContent"]
             .to_string()
@@ -130,4 +132,44 @@ fn mcp_initialize_lists_core_tools_and_calls_app() {
     );
     assert_eq!(responses[5]["result"]["structuredContent"]["ok"], true);
     assert!(responses[6]["result"]["structuredContent"]["entities"].is_array());
+}
+
+#[test]
+fn mcp_next_and_exclusive_start() {
+    let dir = tempfile::tempdir().unwrap();
+    seed(&dir);
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Two",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    let responses = mcp_rpc(
+        &dir,
+        &[
+            json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
+                "name":"next",
+                "arguments":{"project":"renai-sim","agent":"cursor"}
+            }}),
+            json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
+                "name":"run_start",
+                "arguments":{"display_id":"TASK-1","agent":"codex","exclusive":true}
+            }}),
+        ],
+    );
+    assert_eq!(
+        responses[0]["result"]["structuredContent"]["entity"]["display_id"],
+        "RUN-1"
+    );
+    assert_eq!(responses[1]["result"]["isError"], true);
+    assert_eq!(
+        responses[1]["result"]["structuredContent"]["error"]["code"],
+        "conflict"
+    );
 }

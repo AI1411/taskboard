@@ -14,6 +14,7 @@ fn help_lists_project_add() {
     assert!(out.contains("mcp"), "help missing mcp:\n{out}");
     assert!(out.contains("inbox"), "help missing inbox:\n{out}");
     assert!(out.contains("status"), "help missing status:\n{out}");
+    assert!(out.contains("next"), "help missing next:\n{out}");
 }
 
 #[test]
