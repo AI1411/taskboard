@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { fakeTransport } from "./fakeTransport";
 import { TaskboardApp } from "./index";
@@ -32,6 +32,30 @@ describe("Inspector links", () => {
     await userEvent.click(screen.getByRole("button", { name: "Remove https://example.com" }));
     await waitFor(() => expect(transport.linkRemove).toHaveBeenCalledWith("l1"));
     expect(screen.queryByText("https://example.com")).toBeNull();
+  });
+
+  it("opens URL and file links and copies a path", async () => {
+    const writeText = vi.fn();
+    Object.assign(navigator, { clipboard: { writeText } });
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    const task = await transport.taskCreate(project.slug, { title: "Linked", column: "todo" });
+    task.links = [
+      { id: "l1", taskId: task.id, kind: "url", value: "https://example.com", sortOrder: 0 },
+      { id: "l2", taskId: task.id, kind: "url", value: "file:///tmp/log.txt", sortOrder: 1 },
+      { id: "l3", taskId: task.id, kind: "path", value: "/tmp/notes.md", sortOrder: 2 },
+    ];
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Linked"));
+    const url = await screen.findByRole("link", { name: "https://example.com" });
+    expect(url.getAttribute("href")).toBe("https://example.com");
+    expect(url.getAttribute("target")).toBe("_blank");
+    expect(screen.getByRole("link", { name: "file:///tmp/log.txt" }).getAttribute("href")).toBe(
+      "file:///tmp/log.txt",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "/tmp/notes.md" }));
+    expect(writeText).toHaveBeenCalledWith("/tmp/notes.md");
+    expect(await screen.findByText("Copied")).toBeTruthy();
   });
 });
 

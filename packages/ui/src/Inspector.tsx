@@ -3,6 +3,7 @@ import type { Column, TaskDetail } from "@taskboard/types";
 
 import { COLUMNS } from "./columns";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { openableHref } from "./openableHref";
 import styles from "./Inspector.module.css";
 
 const ACTIVITY_LABELS: Record<string, string> = {
@@ -147,19 +148,39 @@ export function Inspector(props: {
         <div>
           <h3 className={styles.heading}>Links</h3>
           <ul className={styles.list}>
-            {props.task.links.map((link) => (
-              <li key={link.id} className={styles.linkRow}>
-                <span>{link.value}</span>
-                <button
-                  type="button"
-                  className={styles.linkRemove}
-                  aria-label={`Remove ${link.value}`}
-                  onClick={() => props.onLinkRemove?.(link.id)}
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
+            {props.task.links.map((link) => {
+              const href = openableHref(link.value);
+              return (
+                <li key={link.id} className={styles.linkRow}>
+                  {href ? (
+                    <a
+                      className={styles.linkValue}
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {link.value}
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.linkValue}
+                      onClick={() => props.onCopyId?.(link.value)}
+                    >
+                      {link.value}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={styles.linkRemove}
+                    aria-label={`Remove ${link.value}`}
+                    onClick={() => props.onLinkRemove?.(link.id)}
+                  >
+                    Remove
+                  </button>
+                </li>
+              );
+            })}
           </ul>
           <div className={styles.linkAdd}>
             <input
