@@ -50,6 +50,8 @@ export function Board(props: {
   const [overlayWidth, setOverlayWidth] = useState<number>();
   const q = props.query;
   const visible = props.tasks.filter((t) => taskMatchesQuery(t, q));
+  const emptyBoard = props.tasks.length === 0;
+  const noMatches = Boolean(q.trim()) && visible.length === 0;
   const activeTask = activeId ? props.tasks.find((task) => task.displayId === activeId) : undefined;
 
   function handleDragStart(event: DragStartEvent) {
@@ -93,6 +95,13 @@ export function Board(props: {
           </button>
         ) : null}
       </div>
+      {emptyBoard ? <p className={styles.banner}>No tasks — New task or press n</p> : null}
+      {noMatches ? (
+        <p className={styles.banner}>
+          No matching tasks{" "}
+          <kbd className={styles.hint}>Esc</kbd>
+        </p>
+      ) : null}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -133,7 +142,9 @@ export function Board(props: {
                       onCopyId={props.onCopyId}
                     />
                   ))}
-                  {columnTasks.length === 0 ? <div className={styles.slot} /> : null}
+                  {columnTasks.length === 0 && !noMatches ? (
+                    <div className={styles.slot} data-empty-slot="true" />
+                  ) : null}
                 </SortableContext>
               </ColumnDrop>
             );

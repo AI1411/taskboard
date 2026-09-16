@@ -166,4 +166,27 @@ describe("Board", () => {
       vi.useRealTimers();
     }
   });
+
+  it("shows next-step copy when the project has no tasks", async () => {
+    const transport = fakeTransport();
+    await transport.projectAdd({ name: "Alpha" });
+    render(<TaskboardApp transport={transport} />);
+    expect(await screen.findByText("No tasks — New task or press n")).toBeTruthy();
+    expect(screen.queryByText("No matching tasks")).toBeNull();
+  });
+
+  it("shows no-matching copy instead of empty slots when search hides every card", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Alpha task", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    expect(await screen.findByText("Alpha task")).toBeTruthy();
+    expect(screen.queryByText("No tasks — New task or press n")).toBeNull();
+    await userEvent.keyboard("/");
+    await userEvent.keyboard("zzzz");
+    expect(screen.queryByText("Alpha task")).toBeNull();
+    expect(screen.getByText("No matching tasks")).toBeTruthy();
+    expect(screen.getByText("Esc")).toBeTruthy();
+    expect(document.querySelector("[data-empty-slot]")).toBeNull();
+  });
 });

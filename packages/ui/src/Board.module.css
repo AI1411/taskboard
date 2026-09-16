@@ -11,6 +11,23 @@
   outline: none;
 }
 
+.banner {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--sidebar-muted);
+}
+
+.hint {
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--hairline);
+  background: var(--panel-bg);
+  color: var(--sidebar-muted);
+  font: inherit;
+  font-size: 0.75rem;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
