@@ -60,7 +60,7 @@
   - Board-focused `Delete` / `Backspace` opens the same confirm; `Escape` cancels
   - `fakeTransport.taskDelete` moves the task into `trashList().tasks`; `projectDelete` sets `deletedAt` and `projectList` hides it; restore puts the entity back
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `packages/ui/src/TrashPanel.test.tsx`:
 
@@ -156,13 +156,13 @@ await userEvent.click(screen.getByRole("button", { name: "Delete" }));
 await waitFor(() => expect(transport.taskDelete).toHaveBeenCalled());
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pnpm --filter @taskboard/ui test`
 
 Expected: FAIL missing Trash panel / `Restore TASK-1` / `Delete Drop me?` / confirm still labeled `Move to Trash`.
 
-- [ ] **Step 3: Implement panel, confirm, fake trash, and wiring**
+- [x] **Step 3: Implement panel, confirm, fake trash, and wiring**
 
 `ConfirmDialog.tsx`:
 
@@ -252,13 +252,13 @@ async function refreshTrash() {
 
 Inspector: `trashed?: boolean`, `confirming?: boolean`, `onDeleteRequest`, `onRestore`. When `trashed`, show Restore. When `confirming`, show `<ConfirmDialog message={`Delete ${task.title}?`} />` instead of the Delete button. Initial Delete calls `onDeleteRequest`.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pnpm --filter @taskboard/ui test`
 
 Expected: PASS. No remaining UI assertion on `Move to Trash`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/superpowers/plans/2026-09-16-issue-54-trash-panel.md packages/ui
