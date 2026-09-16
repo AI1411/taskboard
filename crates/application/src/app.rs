@@ -191,6 +191,7 @@ impl App {
     }
 
     pub async fn task_query(&self, query: TaskListQuery) -> Result<Vec<TaskSummary>, AppError> {
+        let now = self.clock.now();
         let mut store = self.store.lock().await;
         let store = &mut **store;
         let projects = if let Some(slug) = query.project.as_deref() {
@@ -206,7 +207,8 @@ impl App {
                 let runs = store.list_runs(task.id).await?;
                 let comments = store.list_comments(task.id).await?;
                 let (blocked_by, blocks) = block_lists(&task, &index);
-                let summary = to_task_summary_from_runs(task, &runs, &comments, blocked_by, blocks);
+                let summary =
+                    to_task_summary_from_runs(task, &runs, &comments, blocked_by, blocks, now);
                 if let Some(column) = query.column {
                     if summary.column != column {
                         continue;
@@ -240,6 +242,7 @@ impl App {
     }
 
     pub async fn inbox(&self, scope: InboxScope) -> Result<Vec<InboxItem>, AppError> {
+        let now = self.clock.now();
         let mut store = self.store.lock().await;
         let store = &mut **store;
         let projects = if let Some(slug) = scope.project.as_deref() {
@@ -263,7 +266,7 @@ impl App {
                     continue;
                 }
                 let updated_at = task.updated_at;
-                let summary = to_task_summary(store, task).await?;
+                let summary = to_task_summary(store, task, now).await?;
                 let Some(_group) =
                     inbox_membership(summary.column, summary.urgent, summary.display_status)
                 else {
@@ -571,13 +574,14 @@ impl App {
     }
 
     pub async fn trash_list(&self) -> Result<Trash, AppError> {
+        let now = self.clock.now();
         let mut store = self.store.lock().await;
         let store = &mut **store;
         let projects = store.list_deleted_projects().await?;
         let deleted_tasks = store.list_deleted_tasks().await?;
         let mut tasks = Vec::with_capacity(deleted_tasks.len());
         for task in deleted_tasks {
-            tasks.push(to_task_summary(store, task).await?);
+            tasks.push(to_task_summary(store, task, now).await?);
         }
         Ok(Trash { projects, tasks })
     }
@@ -597,6 +601,22 @@ impl App {
         store.begin().await?;
         let result = undo_inner(store, actor, now).await;
         commit_or_rollback(store, result).await
+    }
+
+    pub async fn stale_list(&self, minutes: i64) -> Result<Vec<Run>, AppError> {
+        if minutes < 1 {
+            return Err(AppError::Validation {
+                field: "minutes".into(),
+                message: "must be at least 1".into(),
+            });
+        }
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let runs = store.list_all_runs().await?;
+        Ok(runs
+            .into_iter()
+            .filter(|run| is_stale(run, now, minutes))
+            .collect())
     }
 
     pub async fn activity_head(&self) -> Result<i64, AppError> {
@@ -1902,8 +1922,12 @@ fn to_task_summary_from_runs(
     comments: &[Comment],
     blocked_by: Vec<String>,
     blocks: Vec<String>,
+    now: DateTime<Utc>,
 ) -> TaskSummary {
     let (display_status, run_message, waiting_reason) = display_from_runs(runs);
+    let stale = winning_run(runs)
+        .map(|run| is_stale(run, now, 30))
+        .unwrap_or(false);
     TaskSummary {
         id: task.id,
         display_id: task.display_id,
@@ -1918,7 +1942,12 @@ fn to_task_summary_from_runs(
         reply: reply_for(display_status, comments),
         blocked_by,
         blocks,
+        stale,
     }
+}
+
+fn is_stale(run: &Run, now: DateTime<Utc>, minutes: i64) -> bool {
+    run.status == RunStatus::Running && now - run.updated_at >= chrono::Duration::minutes(minutes)
 }
 
 fn reply_for(status: CardDisplayStatus, comments: &[Comment]) -> Option<String> {
@@ -2028,13 +2057,17 @@ async fn parse_blocked_by(
     Ok(blocker.display_id)
 }
 
-async fn to_task_summary(store: &mut dyn Store, task: Task) -> Result<TaskSummary, AppError> {
+async fn to_task_summary(
+    store: &mut dyn Store,
+    task: Task,
+    now: DateTime<Utc>,
+) -> Result<TaskSummary, AppError> {
     let runs = store.list_runs(task.id).await?;
     let comments = store.list_comments(task.id).await?;
     let index = load_block_index(store).await?;
     let (blocked_by, blocks) = block_lists(&task, &index);
     Ok(to_task_summary_from_runs(
-        task, &runs, &comments, blocked_by, blocks,
+        task, &runs, &comments, blocked_by, blocks, now,
     ))
 }
 

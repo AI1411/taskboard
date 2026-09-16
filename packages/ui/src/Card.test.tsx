@@ -84,6 +84,15 @@ describe("Card", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it("shows a Stale badge instead of Running", () => {
+    const { getByText, queryByText } = render(
+      <Card task={summary({ displayStatus: "running", stale: true })} selected={false} />,
+    );
+    expect(getByText("Stale")).toBeTruthy();
+    expect(queryByText("Running")).toBeNull();
+    expect(queryByText("Waiting")).toBeNull();
+  });
+
   it("shows Blocked by and Blocks labels", () => {
     const { getByText, rerender } = render(
       <Card task={summary({ blockedBy: ["TASK-8"] })} selected={false} />,

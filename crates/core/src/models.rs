@@ -80,6 +80,7 @@ pub struct TaskSummary {
     pub reply: Option<String>,
     pub blocked_by: Vec<String>,
     pub blocks: Vec<String>,
+    pub stale: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

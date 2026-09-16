@@ -113,6 +113,10 @@
   background: var(--completed);
 }
 
+.stale {
+  background: var(--sidebar-muted);
+}
+
 .runMessage {
   grid-column: 1 / -1;
   font-size: 0.75rem;

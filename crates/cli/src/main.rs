@@ -106,6 +106,14 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
             });
             Ok(())
         }
+        Command::Stale { minutes } => {
+            let runs = app
+                .stale_list(minutes)
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entities(json, &runs, || output::print_run_list(&runs));
+            Ok(())
+        }
         Command::Activity {
             after,
             project,

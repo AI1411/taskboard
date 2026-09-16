@@ -851,6 +851,30 @@ fn activity_json_lists_and_filters() {
         .all(|row| row["target"] == "TASK-1"));
 }
 
+#[test]
+fn stale_json_skips_fresh_running_run() {
+    let dir = tempfile::tempdir().unwrap();
+    json_ok(&dir, &["project", "add", "--name", "Renai Sim"]);
+    json_ok(
+        &dir,
+        &["task", "create", "--project", "renai-sim", "--title", "Fix"],
+    );
+    json_ok(&dir, &["run", "start", "TASK-1", "--agent", "cursor"]);
+    let stale = json_ok(&dir, &["stale", "--minutes", "30"]);
+    assert_eq!(stale["entities"].as_array().unwrap().len(), 0);
+    let out = tb_in(&dir)
+        .args(["stale", "--minutes", "0", "--json"])
+        .assert()
+        .failure()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "validation_error");
+}
+
 fn json_ok(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     let mut argv = args.to_vec();
     argv.push("--json");
