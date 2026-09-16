@@ -288,6 +288,12 @@ export function fakeTransport(): Transport {
     async sync() {
       return { sequence: 0, projects: [], tasks: [], runs: [] };
     },
+    async uiState() {
+      return { lastProjectSlug: null as string | null };
+    },
+    async uiStateSet(lastProjectSlug: string | null) {
+      return { lastProjectSlug };
+    },
   };
 
   return Object.fromEntries(

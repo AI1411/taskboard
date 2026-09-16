@@ -23,7 +23,7 @@ fn authed(s: &TestServer) -> reqwest::Client {
 async fn start_test_server() -> TestServer {
     use std::net::SocketAddr;
 
-    use taskboard_api::serve;
+    use taskboard_api::serve_with_data_dir;
     use taskboard_application::{App, SystemClock};
     use taskboard_store_sqlite::{open_db, SqliteStore};
 
@@ -32,7 +32,9 @@ async fn start_test_server() -> TestServer {
     let store = SqliteStore::new(pool, tmp.path());
     let app = App::new(store, SystemClock);
     let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let bound = serve(app, addr, false).await.unwrap();
+    let bound = serve_with_data_dir(app, addr, false, tmp.path())
+        .await
+        .unwrap();
     let base = format!("http://127.0.0.1:{}", bound.port());
 
     let res = reqwest::Client::new()
@@ -277,4 +279,35 @@ async fn inbox_returns_waiting_card() {
     assert_eq!(v["entities"][0]["displayId"], "TASK-1");
     assert_eq!(v["entities"][0]["reason"], "Need spec");
     assert_eq!(v["entities"][0]["projectSlug"], "renai-sim");
+}
+
+#[tokio::test]
+async fn ui_state_get_and_patch_round_trip() {
+    let s = start_test_server().await;
+    let client = authed(&s);
+    let empty = client
+        .get(format!("{}/api/v1/ui-state", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    assert_eq!(empty["entity"]["lastProjectSlug"], serde_json::Value::Null);
+    let patched = client
+        .patch(format!("{}/api/v1/ui-state", s.base))
+        .json(&json!({"lastProjectSlug": "taskboard"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(patched.status(), 200);
+    let after = client
+        .get(format!("{}/api/v1/ui-state", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    assert_eq!(after["entity"]["lastProjectSlug"], "taskboard");
 }

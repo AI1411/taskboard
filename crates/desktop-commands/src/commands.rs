@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use taskboard_application::{
     Actor, App, AppError, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish,
     RunStart, RunUpdate, RunWait, SyncDelta, TaskCreate, TaskUpdate, Trash, UndoResult,
@@ -5,9 +7,10 @@ use taskboard_application::{
 use taskboard_core::{
     ActorKind, Column, InboxItem, LinkKind, Project, Run, TaskDetail, TaskSummary,
 };
+use taskboard_store_sqlite::{load_ui_state, save_ui_state, UiState};
 use uuid::Uuid;
 
-use crate::dto::RunOp;
+use crate::dto::{RunOp, UiStateDto};
 use crate::error::AppErrorDto;
 
 pub fn desktop_actor() -> Actor {
@@ -427,4 +430,19 @@ pub async fn undo_inner(app: &App) -> Result<UndoResult, AppErrorDto> {
 
 pub async fn sync_inner(app: &App, after: i64) -> Result<SyncDelta, AppErrorDto> {
     app.sync(after).await.map_err(Into::into)
+}
+
+pub fn ui_state_inner(data_dir: &Path) -> UiStateDto {
+    load_ui_state(data_dir).into()
+}
+
+pub fn ui_state_set_inner(
+    data_dir: &Path,
+    last_project_slug: Option<String>,
+) -> Result<UiStateDto, AppErrorDto> {
+    let state = UiState {
+        last_project_slug: last_project_slug.filter(|slug| !slug.is_empty()),
+    };
+    save_ui_state(data_dir, &state)?;
+    Ok(state.into())
 }

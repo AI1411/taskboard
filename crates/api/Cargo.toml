@@ -14,6 +14,7 @@ serde.workspace = true
 serde_json.workspace = true
 taskboard-application = { path = "../application" }
 taskboard-core = { path = "../core" }
+taskboard-store-sqlite = { path = "../store-sqlite" }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["net", "signal", "io-util", "sync"] }
 tower = { version = "=0.4.13", default-features = false, features = ["util"] }

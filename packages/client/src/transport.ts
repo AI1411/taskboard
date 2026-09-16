@@ -13,6 +13,22 @@ import type {
   UndoResult,
 } from "@taskboard/types";
 
+export type UiState = { lastProjectSlug: string | null };
+
+export class TransportError extends Error {
+  readonly code: string;
+  readonly field?: string;
+  readonly current?: unknown;
+
+  constructor(dto: { code: string; message: string; field?: string; current?: unknown }) {
+    super(dto.message);
+    this.name = "TransportError";
+    this.code = dto.code;
+    this.field = dto.field;
+    this.current = dto.current;
+  }
+}
+
 export interface Transport {
   projectAdd(input: { name: string; repoPath?: string; slug?: string }): Promise<Project>;
   projectList(includeArchived: boolean): Promise<Project[]>;
@@ -43,4 +59,6 @@ export interface Transport {
   trashList(): Promise<Trash>;
   undo(): Promise<UndoResult>;
   sync(after: number): Promise<SyncDelta>;
+  uiState(): Promise<UiState>;
+  uiStateSet(lastProjectSlug: string | null): Promise<UiState>;
 }

@@ -41,16 +41,21 @@ async fn run(cli: Cli) -> Result<(), i32> {
         .map_err(|err| output::print_error(&err, json))?;
 
     if let Command::Serve(args) = cli.command {
-        return serve_cmd(app, args.port, args.open).await;
+        return serve_cmd(app, data_dir, args.port, args.open).await;
     }
 
     let actor = cli.actor();
     dispatch(&app, &actor, cli).await
 }
 
-async fn serve_cmd(app: App, port: Option<u16>, open_browser: bool) -> Result<(), i32> {
+async fn serve_cmd(
+    app: App,
+    data_dir: PathBuf,
+    port: Option<u16>,
+    open_browser: bool,
+) -> Result<(), i32> {
     let addr = std::net::SocketAddr::from((Ipv4Addr::LOCALHOST, port.unwrap_or(0)));
-    match taskboard_api::serve(app, addr, false).await {
+    match taskboard_api::serve_with_data_dir(app, addr, false, data_dir).await {
         Ok(bound) => {
             let url = format!("http://127.0.0.1:{}", bound.port());
             println!("{url}");

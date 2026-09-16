@@ -13,7 +13,9 @@ import type {
   UndoResult,
 } from "@taskboard/types";
 
-import type { Transport } from "./transport";
+import { TransportError, type Transport } from "./transport";
+
+export { TransportError };
 
 export type InvokeFn = <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
 
@@ -23,20 +25,6 @@ type AppErrorDto = {
   field?: string;
   current?: unknown;
 };
-
-export class TransportError extends Error {
-  readonly code: string;
-  readonly field?: string;
-  readonly current?: unknown;
-
-  constructor(dto: AppErrorDto) {
-    super(dto.message);
-    this.name = "TransportError";
-    this.code = dto.code;
-    this.field = dto.field;
-    this.current = dto.current;
-  }
-}
 
 function camelToSnake(key: string): string {
   return key.replace(/[A-Z]/g, (ch) => `_${ch.toLowerCase()}`);
@@ -180,6 +168,14 @@ export class TauriTransport implements Transport {
 
   sync(after: number): Promise<SyncDelta> {
     return this.call("sync", { after });
+  }
+
+  uiState(): Promise<{ lastProjectSlug: string | null }> {
+    return this.call("ui_state");
+  }
+
+  uiStateSet(lastProjectSlug: string | null): Promise<{ lastProjectSlug: string | null }> {
+    return this.call("ui_state_set", { lastProjectSlug });
   }
 
   private async call<T>(cmd: string, raw?: Record<string, unknown>): Promise<T> {

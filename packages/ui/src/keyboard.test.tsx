@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { fakeTransport } from "./fakeTransport";
 import { TaskboardApp } from "./index";
@@ -98,6 +98,83 @@ describe("keyboard", () => {
     await userEvent.click(await screen.findByText("Move me"));
     await userEvent.keyboard("l");
     await waitFor(() => expect(transport.taskMove).toHaveBeenCalled());
+  });
+
+  it("shift+l changes current column without moving", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Stay", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Stay"));
+    await userEvent.keyboard("{Shift>}l{/Shift}");
+    expect(transport.taskMove).not.toHaveBeenCalled();
+    await userEvent.keyboard("n");
+    await userEvent.type(screen.getByPlaceholderText("Task title"), "Next{Enter}");
+    await waitFor(() =>
+      expect(transport.taskCreate).toHaveBeenCalledWith("alpha", {
+        title: "Next",
+        column: "in-progress",
+      }),
+    );
+  });
+
+  it("l move shows undo toast", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Move me", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Move me"));
+    await userEvent.keyboard("l");
+    await waitFor(() => expect(transport.taskMove).toHaveBeenCalled());
+    expect(await screen.findByText("Moved to In Progress")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(transport.undo).toHaveBeenCalled());
+    expect(await screen.findByText("Undone")).toBeTruthy();
+  });
+
+  it("delete toast offers undo", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Drop me", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Drop me"));
+    await userEvent.keyboard("{Delete}");
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByText("Deleted TASK-1")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(transport.undo).toHaveBeenCalled());
+  });
+
+  it("opens the last live project from uiState", async () => {
+    const transport = fakeTransport();
+    await transport.projectAdd({ name: "Alpha" });
+    await transport.projectAdd({ name: "Beta" });
+    vi.mocked(transport.uiState).mockResolvedValue({ lastProjectSlug: "beta" });
+    render(<TaskboardApp transport={transport} />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Beta" }).getAttribute("aria-current")).toBe(
+        "true",
+      ),
+    );
+  });
+
+  it("persists the selected project slug", async () => {
+    const transport = fakeTransport();
+    await transport.projectAdd({ name: "Alpha" });
+    await transport.projectAdd({ name: "Beta" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Beta" }));
+    await waitFor(() => expect(transport.uiStateSet).toHaveBeenCalledWith("beta"));
+  });
+
+  it("toasts taskShow errors that are not not_found", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Broken", column: "todo" });
+    vi.mocked(transport.taskShow).mockRejectedValueOnce(new Error("nope"));
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Broken"));
+    expect(await screen.findByText("nope")).toBeTruthy();
   });
 
   it("meta+z calls undo", async () => {

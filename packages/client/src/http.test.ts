@@ -105,4 +105,22 @@ describe("HttpTransport", () => {
     assert.equal(url.searchParams.get("project"), "renai-sim");
     assert.equal(url.searchParams.get("archived"), "true");
   });
+
+  it("uiState get and set lastProjectSlug", async () => {
+    const fetches: Request[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      fetches.push(new Request(input, init));
+      return new Response(JSON.stringify({ ok: true, entity: { lastProjectSlug: "alpha" } }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    const t = new HttpTransport("http://127.0.0.1:9", "deadbeef", fetchImpl);
+    await t.uiState();
+    assert.equal(new URL(fetches[0].url).pathname, "/api/v1/ui-state");
+    assert.equal(fetches[0].method, "GET");
+    await t.uiStateSet("alpha");
+    assert.equal(fetches[1].method, "PATCH");
+    const body = (await fetches[1].json()) as Record<string, unknown>;
+    assert.equal(body.lastProjectSlug, "alpha");
+  });
 });

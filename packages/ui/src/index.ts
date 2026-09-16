@@ -10,3 +10,4 @@ export { Composer } from "./Composer";
 export { TrashPanel } from "./TrashPanel";
 export { ConfirmDialog } from "./ConfirmDialog";
 export { ShortcutLegend } from "./ShortcutLegend";
+export { Toast } from "./Toast";
