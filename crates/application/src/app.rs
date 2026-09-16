@@ -7,15 +7,16 @@ use uuid::Uuid;
 use taskboard_core::{
     card_display_status, display_id, inbox_membership, inbox_reason, next_unique_slug, parse_agent,
     parse_path_link, parse_url, place_before, place_urgent, rewrite_positions, slugify,
-    sort_column, trim_project_name, trim_title, winning_run_view, Activity, Column, DisplayKind,
-    EntityType, FieldError, InboxItem, Link, LinkKind, OrderError, OrderKey, Project, Run,
-    RunStatus, RunStatusView, SlugError, Task, TaskDetail, TaskSummary, ValidationError,
+    sort_column, trim_project_name, trim_title, winning_run_view, Activity, CardDisplayStatus,
+    Column, Comment, DisplayKind, EntityType, FieldError, InboxItem, Link, LinkKind, OrderError,
+    OrderKey, Project, Run, RunStatus, RunStatusView, SlugError, Task, TaskDetail, TaskSummary,
+    ValidationError,
 };
 
 use crate::actor::Actor;
 use crate::commands::{
-    InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery,
-    RunStart, RunUpdate, RunWait, TaskCreate, TaskListQuery, TaskUpdate,
+    CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunContinue, RunFail, RunFinish,
+    RunListQuery, RunStart, RunUpdate, RunWait, TaskCreate, TaskListQuery, TaskUpdate,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -198,7 +199,8 @@ impl App {
             let tasks = store.list_tasks(project.id).await?;
             for task in tasks {
                 let runs = store.list_runs(task.id).await?;
-                let summary = to_task_summary_from_runs(task, &runs);
+                let comments = store.list_comments(task.id).await?;
+                let summary = to_task_summary_from_runs(task, &runs, &comments);
                 if let Some(column) = query.column {
                     if summary.column != column {
                         continue;
@@ -493,6 +495,22 @@ impl App {
                 entity: "run".into(),
                 id: task_display_id.to_string(),
             })
+    }
+
+    pub async fn comment_add(&self, actor: &Actor, cmd: CommentAdd) -> Result<Comment, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = comment_add_inner(store, actor, cmd, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn comment_list(&self, task_display_id: &str) -> Result<Vec<Comment>, AppError> {
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        let task = require_live_task(store, task_display_id).await?;
+        store.list_comments(task.id).await
     }
 
     pub async fn run_by_session(&self, session_id: &str) -> Result<Run, AppError> {
@@ -1536,6 +1554,32 @@ async fn run_continue_inner(
     .await
 }
 
+async fn comment_add_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: CommentAdd,
+    now: DateTime<Utc>,
+) -> Result<Comment, AppError> {
+    let body = require_non_blank("text", &cmd.body)?;
+    if body.chars().count() > 4000 {
+        return Err(AppError::Validation {
+            field: "text".into(),
+            message: "must be at most 4000 characters".into(),
+        });
+    }
+    let task = require_live_task(store, &cmd.task_display_id).await?;
+    let comment = Comment {
+        id: Uuid::now_v7(),
+        task_id: task.id,
+        actor_kind: actor.kind,
+        actor_label: actor.label.clone(),
+        body,
+        created_at: now,
+    };
+    store.insert_comment(&comment).await?;
+    Ok(comment)
+}
+
 async fn run_fail_inner(
     store: &mut dyn Store,
     actor: &Actor,
@@ -1759,8 +1803,10 @@ async fn rewrite_live_column(
 async fn load_task_detail(store: &mut dyn Store, task: Task) -> Result<TaskDetail, AppError> {
     let links = store.list_links(task.id).await?;
     let runs = store.list_runs(task.id).await?;
+    let comments = store.list_comments(task.id).await?;
     let recent_activities = store.list_recent_activities(task.id, 20).await?;
     let (display_status, run_message, waiting_reason) = display_from_runs(&runs);
+    let reply = reply_for(display_status, &comments);
     Ok(TaskDetail {
         id: task.id,
         display_id: task.display_id,
@@ -1772,11 +1818,11 @@ async fn load_task_detail(store: &mut dyn Store, task: Task) -> Result<TaskDetai
         display_status,
         run_message,
         waiting_reason,
-        reply: None,
+        reply,
         note_markdown: task.note_markdown,
         links,
         runs,
-        comments: Vec::new(),
+        comments,
         recent_activities,
     })
 }
@@ -1794,7 +1840,7 @@ fn winning_run(runs: &[Run]) -> Option<&Run> {
     runs.iter().find(|run| run.display_id == view.display_id)
 }
 
-fn to_task_summary_from_runs(task: Task, runs: &[Run]) -> TaskSummary {
+fn to_task_summary_from_runs(task: Task, runs: &[Run], comments: &[Comment]) -> TaskSummary {
     let (display_status, run_message, waiting_reason) = display_from_runs(runs);
     TaskSummary {
         id: task.id,
@@ -1807,13 +1853,21 @@ fn to_task_summary_from_runs(task: Task, runs: &[Run]) -> TaskSummary {
         display_status,
         run_message,
         waiting_reason,
-        reply: None,
+        reply: reply_for(display_status, comments),
     }
+}
+
+fn reply_for(status: CardDisplayStatus, comments: &[Comment]) -> Option<String> {
+    if status != CardDisplayStatus::Waiting {
+        return None;
+    }
+    comments.last().map(|comment| comment.body.clone())
 }
 
 async fn to_task_summary(store: &mut dyn Store, task: Task) -> Result<TaskSummary, AppError> {
     let runs = store.list_runs(task.id).await?;
-    Ok(to_task_summary_from_runs(task, &runs))
+    let comments = store.list_comments(task.id).await?;
+    Ok(to_task_summary_from_runs(task, &runs, &comments))
 }
 
 fn display_from_runs(
