@@ -131,6 +131,8 @@ pub enum ProjectCommand {
     Delete { slug: String },
     /// Restore a deleted project
     Restore { slug: String },
+    /// Resolve the current project from cwd or TASKBOARD_PROJECT
+    Detect,
 }
 
 #[derive(Debug, Subcommand)]
@@ -155,7 +157,7 @@ pub enum TaskCommand {
     /// Create a task
     Create {
         #[arg(long)]
-        project: String,
+        project: Option<String>,
         #[arg(long)]
         title: String,
         #[arg(long, value_parser = parse_column)]
@@ -166,7 +168,7 @@ pub enum TaskCommand {
     /// List tasks in a project
     List {
         #[arg(long)]
-        project: String,
+        project: Option<String>,
         #[arg(long, value_parser = parse_column)]
         column: Option<Column>,
     },

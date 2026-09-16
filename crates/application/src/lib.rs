@@ -1,6 +1,7 @@
 mod actor;
 mod app;
 mod commands;
+mod detect;
 mod error;
 mod store;
 

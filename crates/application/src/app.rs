@@ -65,6 +65,24 @@ impl App {
         require_live_project(&mut **store, slug).await
     }
 
+    pub async fn detect_project(
+        &self,
+        cwd: &Path,
+        env_slug: Option<&str>,
+    ) -> Result<Project, AppError> {
+        let live = self.project_list(false).await?;
+        if let Some(slug) = env_slug.filter(|value| !value.is_empty()) {
+            return live
+                .into_iter()
+                .find(|project| project.slug == slug)
+                .ok_or_else(|| AppError::NotFound {
+                    entity: "project".into(),
+                    id: slug.to_string(),
+                });
+        }
+        crate::detect::pick_by_repo_path(&live, cwd).ok_or(AppError::ProjectRequired)
+    }
+
     pub async fn project_update(
         &self,
         actor: &Actor,

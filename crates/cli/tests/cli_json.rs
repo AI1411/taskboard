@@ -416,6 +416,81 @@ fn inbox_project_filter_json() {
     assert_eq!(v["entities"][0]["title"], "Pin B");
 }
 
+#[test]
+fn project_detect_json_from_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = dir.path().join("repo");
+    std::fs::create_dir_all(&repo).unwrap();
+    tb_in(&dir)
+        .args([
+            "project",
+            "add",
+            "--name",
+            "Renai",
+            "--path",
+            repo.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let out = tb_in(&dir)
+        .current_dir(&repo)
+        .args(["project", "detect", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["entity"]["slug"], "renai");
+}
+
+#[test]
+fn task_list_without_project_uses_detect() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = dir.path().join("repo");
+    std::fs::create_dir_all(&repo).unwrap();
+    tb_in(&dir)
+        .args([
+            "project",
+            "add",
+            "--name",
+            "Renai",
+            "--path",
+            repo.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "renai", "--title", "X"])
+        .assert()
+        .success();
+    let out = tb_in(&dir)
+        .current_dir(&repo)
+        .args(["task", "list", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["entities"][0]["title"], "X");
+}
+
+#[test]
+fn task_list_without_project_unlinked_is_project_required() {
+    let (mut cmd, _dir) = tb();
+    let out = cmd
+        .args(["task", "list", "--json"])
+        .assert()
+        .failure()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["error"]["code"], "project_required");
+}
+
 fn json_ok(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     let mut argv = args.to_vec();
     argv.push("--json");
