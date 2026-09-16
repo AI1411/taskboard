@@ -21,7 +21,17 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-export function TaskboardApp(props: { transport: Transport; sequence?: number }) {
+export type BoardRoute = {
+  project?: string | null;
+  task?: string | null;
+};
+
+export function TaskboardApp(props: {
+  transport: Transport;
+  sequence?: number;
+  route?: BoardRoute;
+  onRouteChange?: (route: { project: string | null; task: string | null }) => void;
+}) {
   const { transport, sequence } = props;
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -148,28 +158,6 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
     setToast({ message: "Copied" });
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const list = await transport.projectList(false);
-      if (cancelled) return;
-      setProjects(list);
-      let last: string | null = null;
-      try {
-        last = (await transport.uiState()).lastProjectSlug;
-      } catch {
-        last = null;
-      }
-      if (cancelled) return;
-      const match = last ? list.find((project) => project.slug === last) : undefined;
-      if (match) await applyProject(match);
-      else if (list[0]) await applyProject(list[0]);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [transport, applyProject]);
-
   const reloadBoard = useCallback(async () => {
     const list = await transport.projectList(includeArchivedRef.current);
     setProjects(list);
@@ -285,6 +273,43 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
     },
     [transport],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const list = await transport.projectList(false);
+      if (cancelled) return;
+      setProjects(list);
+      let last: string | null = null;
+      try {
+        last = (await transport.uiState()).lastProjectSlug;
+      } catch {
+        last = null;
+      }
+      if (cancelled) return;
+      const routedSlug = props.route?.project ?? null;
+      const routed = routedSlug ? list.find((project) => project.slug === routedSlug) : undefined;
+      const remembered = last ? list.find((project) => project.slug === last) : undefined;
+      const next = routed ?? remembered ?? list[0];
+      if (next) await applyProject(next);
+      if (cancelled) return;
+      const taskId = routed ? (props.route?.task ?? null) : null;
+      if (taskId && tasksRef.current.some((task) => task.displayId === taskId)) {
+        await selectCard(taskId);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [transport, applyProject, selectCard, props.route?.project, props.route?.task]);
+
+  useEffect(() => {
+    if (!selectedProject) return;
+    props.onRouteChange?.({
+      project: selectedProject.slug,
+      task: selectedId,
+    });
+  }, [selectedProject, selectedId, props.onRouteChange]);
 
   const createTask = useCallback(
     async (title: string) => {

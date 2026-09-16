@@ -4,6 +4,7 @@ import type { HttpTransport } from "@taskboard/client";
 import { TaskboardApp } from "@taskboard/ui";
 
 import { refetchInterval } from "./bootstrap";
+import { readBoardRoute, replaceBoardRoute } from "./route";
 
 export function App(props: {
   transport: HttpTransport;
@@ -35,5 +36,13 @@ export function App(props: {
     refetchInterval: refetchInterval(visible ? "visible" : "hidden"),
   });
 
-  return <TaskboardApp transport={transport} sequence={boardSeq} />;
+  const route = readBoardRoute();
+  return (
+    <TaskboardApp
+      transport={transport}
+      sequence={boardSeq}
+      route={route}
+      onRouteChange={replaceBoardRoute}
+    />
+  );
 }

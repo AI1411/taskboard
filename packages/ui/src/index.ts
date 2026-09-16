@@ -1,4 +1,4 @@
-export { TaskboardApp } from "./TaskboardApp";
+export { TaskboardApp, type BoardRoute } from "./TaskboardApp";
 export { Board } from "./Board";
 export { Card } from "./Card";
 export { EmptyState } from "./EmptyState";
