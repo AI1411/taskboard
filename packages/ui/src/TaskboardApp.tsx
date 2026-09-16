@@ -609,6 +609,45 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         }}
         onToggleArchived={() => void toggleArchived()}
         onProjectNoteChange={setProjectNote}
+        onRename={(name) => {
+          const current = selectedProjectRef.current;
+          if (!current) return;
+          void transport.projectUpdate(current.slug, { name }, current.revision).then((updated) => {
+            selectedProjectRef.current = updated;
+            setSelectedProject(updated);
+            setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+          });
+        }}
+        onSetPath={(path) => {
+          const current = selectedProjectRef.current;
+          if (!current) return;
+          void transport
+            .projectUpdate(current.slug, { repoPath: path || null }, current.revision)
+            .then((updated) => {
+              selectedProjectRef.current = updated;
+              setSelectedProject(updated);
+              setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+            });
+        }}
+        onArchive={(archived) => {
+          const current = selectedProjectRef.current;
+          if (!current) return;
+          void transport.projectArchive(current.slug, archived, current.revision).then(() => reloadBoard());
+        }}
+        onDeleteProject={() => {
+          const current = selectedProjectRef.current;
+          if (!current) return;
+          void transport.projectDelete(current.slug, current.revision).then(() => {
+            void refreshTrash();
+            void reloadBoard();
+          });
+        }}
+        onReorder={(slugs) => {
+          void transport.projectReorder(slugs).then((list) => {
+            setProjects(list);
+            projectsRef.current = list;
+          });
+        }}
         onTrash={() => {
           void refreshTrash().then(() => setTrashOpen(true));
         }}

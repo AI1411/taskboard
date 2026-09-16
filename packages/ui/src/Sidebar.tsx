@@ -1,7 +1,8 @@
 import type { Project } from "@taskboard/types";
-import type { Ref } from "react";
+import { useEffect, useState, type Ref } from "react";
 
 import { Composer } from "./Composer";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import styles from "./Sidebar.module.css";
 
@@ -20,7 +21,26 @@ export function Sidebar(props: {
   composerRef?: Ref<HTMLInputElement>;
   onComposerSubmit?: (name: string) => void;
   onComposerCancel?: () => void;
+  onRename?: (name: string) => void;
+  onSetPath?: (path: string) => void;
+  onArchive?: (archived: boolean) => void;
+  onDeleteProject?: () => void;
+  onReorder?: (slugs: string[]) => void;
 }) {
+  const selected = props.projects.find((p) => p.slug === props.selectedSlug);
+  const [name, setName] = useState(selected?.name ?? "");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editingPath, setEditingPath] = useState(false);
+  const [pathValue, setPathValue] = useState(selected?.repoPath ?? "");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  useEffect(() => {
+    setName(selected?.name ?? "");
+    setPathValue(selected?.repoPath ?? "");
+    setMenuOpen(false);
+    setEditingPath(false);
+    setConfirmingDelete(false);
+  }, [selected?.id, selected?.name, selected?.repoPath]);
   return (
     <aside className={styles.sidebar}>
       <div className={styles.masthead}>
@@ -64,11 +84,122 @@ export function Sidebar(props: {
           ))}
         </ul>
       )}
-      {props.selectedSlug ? (
+      {selected ? (
         <>
-          <p className={styles.selectedName}>
-            {props.projects.find((p) => p.slug === props.selectedSlug)?.name}
-          </p>
+          <div className={styles.selectedRow}>
+            <input
+              className={styles.selectedName}
+              aria-label="Project name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => {
+                const next = name.trim();
+                if (next && next !== selected.name) props.onRename?.(next);
+              }}
+            />
+            <button
+              type="button"
+              className={styles.actions}
+              aria-label="Project actions"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              ⋯
+            </button>
+          </div>
+          {menuOpen ? (
+            <div className={styles.menu}>
+              <button
+                type="button"
+                className={styles.menuItem}
+                onClick={() => {
+                  setEditingPath(true);
+                  setMenuOpen(false);
+                }}
+              >
+                Set repository path
+              </button>
+              <button
+                type="button"
+                className={styles.menuItem}
+                onClick={() => {
+                  props.onArchive?.(!selected.archived);
+                  setMenuOpen(false);
+                }}
+              >
+                {selected.archived ? "Unarchive" : "Archive"}
+              </button>
+              <button
+                type="button"
+                className={styles.menuItem}
+                onClick={() => {
+                  setConfirmingDelete(true);
+                  setMenuOpen(false);
+                }}
+              >
+                Delete project
+              </button>
+              <button
+                type="button"
+                className={styles.menuItem}
+                onClick={() => {
+                  const slugs = props.projects.map((p) => p.slug);
+                  const i = slugs.indexOf(selected.slug);
+                  if (i > 0) {
+                    [slugs[i - 1], slugs[i]] = [slugs[i], slugs[i - 1]];
+                    props.onReorder?.(slugs);
+                  }
+                  setMenuOpen(false);
+                }}
+              >
+                Move up
+              </button>
+              <button
+                type="button"
+                className={styles.menuItem}
+                onClick={() => {
+                  const slugs = props.projects.map((p) => p.slug);
+                  const i = slugs.indexOf(selected.slug);
+                  if (i >= 0 && i < slugs.length - 1) {
+                    [slugs[i], slugs[i + 1]] = [slugs[i + 1], slugs[i]];
+                    props.onReorder?.(slugs);
+                  }
+                  setMenuOpen(false);
+                }}
+              >
+                Move down
+              </button>
+            </div>
+          ) : null}
+          {editingPath ? (
+            <input
+              className={styles.pathInput}
+              placeholder="Repository path"
+              value={pathValue}
+              onChange={(e) => setPathValue(e.target.value)}
+              onBlur={() => {
+                props.onSetPath?.(pathValue.trim());
+                setEditingPath(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  props.onSetPath?.(pathValue.trim());
+                  setEditingPath(false);
+                }
+              }}
+            />
+          ) : null}
+          {confirmingDelete ? (
+            <ConfirmDialog
+              message={`Delete ${selected.name}?`}
+              onConfirm={() => {
+                setConfirmingDelete(false);
+                props.onDeleteProject?.();
+              }}
+              onCancel={() => setConfirmingDelete(false)}
+            />
+          ) : null}
           <label className={styles.note}>
             Project note
             <textarea
