@@ -698,6 +698,15 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
           const id = selectedIdRef.current;
           if (id) void restoreTask(id);
         }}
+        onLinkAdd={(value) => {
+          const id = selectedIdRef.current;
+          if (!id) return;
+          const kind = value.includes("://") ? "url" : "path";
+          void transport.linkAdd(id, { kind, value }).then(applyDetail);
+        }}
+        onLinkRemove={(linkId) => {
+          void transport.linkRemove(linkId).then(applyDetail);
+        }}
         onClose={() => {
           setSelectedId(null);
           selectedIdRef.current = null;

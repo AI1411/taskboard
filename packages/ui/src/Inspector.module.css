@@ -97,6 +97,49 @@
   color: var(--sidebar-muted);
 }
 
+.linkRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.linkAdd {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+}
+
+.linkInput {
+  flex: 1;
+  font: inherit;
+  font-weight: 400;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  background: var(--card-bg);
+  color: var(--board-fg);
+  padding: 0.4rem 0.5rem;
+}
+
+.linkButton,
+.linkRemove {
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--board-fg);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  min-height: 36px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
+
+.linkRemove {
+  background: transparent;
+  color: var(--sidebar-muted);
+}
+
 .delete {
   margin-top: auto;
   border: 0;
