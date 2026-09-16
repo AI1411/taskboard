@@ -5,17 +5,17 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use taskboard_core::{
-    card_display_status, display_id, next_unique_slug, parse_agent, parse_path_link, parse_url,
-    place_before, place_urgent, rewrite_positions, slugify, sort_column, trim_project_name,
-    trim_title, Activity, Column, DisplayKind, EntityType, FieldError, Link, LinkKind, OrderError,
-    OrderKey, Project, Run, RunStatus, RunStatusView, SlugError, Task, TaskDetail, TaskSummary,
-    ValidationError,
+    card_display_status, display_id, inbox_membership, inbox_reason, next_unique_slug, parse_agent,
+    parse_path_link, parse_url, place_before, place_urgent, rewrite_positions, slugify, sort_column,
+    trim_project_name, trim_title, Activity, Column, DisplayKind, EntityType, FieldError, InboxItem,
+    Link, LinkKind, OrderError, OrderKey, Project, Run, RunStatus, RunStatusView, SlugError, Task,
+    TaskDetail, TaskSummary, ValidationError,
 };
 
 use crate::actor::Actor;
 use crate::commands::{
-    LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunStart, RunUpdate, RunWait,
-    TaskCreate, TaskUpdate,
+    InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunStart, RunUpdate,
+    RunWait, TaskCreate, TaskUpdate,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -167,6 +167,71 @@ impl App {
             summaries.push(to_task_summary(store, task).await?);
         }
         Ok(summaries)
+    }
+
+    pub async fn inbox(&self, scope: InboxScope) -> Result<Vec<InboxItem>, AppError> {
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        let projects = if let Some(slug) = scope.project.as_deref() {
+            let project = store
+                .get_project_by_slug(slug, false)
+                .await?
+                .ok_or_else(|| project_not_found(slug))?;
+            if project.archived && !scope.include_archived {
+                return Err(project_not_found(slug));
+            }
+            vec![project]
+        } else {
+            store.list_projects(scope.include_archived).await?
+        };
+
+        let mut items = Vec::new();
+        for project in projects {
+            let tasks = store.list_tasks(project.id).await?;
+            for task in tasks {
+                if task.deleted_at.is_some() {
+                    continue;
+                }
+                let updated_at = task.updated_at;
+                let summary = to_task_summary(store, task).await?;
+                let Some(_group) =
+                    inbox_membership(summary.column, summary.urgent, summary.display_status)
+                else {
+                    continue;
+                };
+                let reason = inbox_reason(
+                    summary.waiting_reason.as_deref(),
+                    summary.run_message.as_deref(),
+                );
+                items.push(InboxItem {
+                    id: summary.id,
+                    display_id: summary.display_id,
+                    project_id: summary.project_id,
+                    project_slug: project.slug.clone(),
+                    project_name: project.name.clone(),
+                    title: summary.title,
+                    column: summary.column,
+                    urgent: summary.urgent,
+                    revision: summary.revision,
+                    display_status: summary.display_status,
+                    run_message: summary.run_message,
+                    waiting_reason: summary.waiting_reason,
+                    reason,
+                    updated_at,
+                });
+            }
+        }
+
+        items.sort_by(|left, right| {
+            let left_group = inbox_membership(left.column, left.urgent, left.display_status);
+            let right_group = inbox_membership(right.column, right.urgent, right.display_status);
+            left_group
+                .cmp(&right_group)
+                .then_with(|| right.urgent.cmp(&left.urgent))
+                .then_with(|| right.updated_at.cmp(&left.updated_at))
+                .then_with(|| left.display_id.cmp(&right.display_id))
+        });
+        Ok(items)
     }
 
     pub async fn task_show(&self, display_id: &str) -> Result<TaskDetail, AppError> {

@@ -73,3 +73,9 @@ pub struct RunFinish {
     pub summary: String,
     pub revision: Option<i64>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InboxScope {
+    pub project: Option<String>,
+    pub include_archived: bool,
+}

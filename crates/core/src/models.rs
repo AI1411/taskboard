@@ -141,3 +141,22 @@ pub struct Activity {
     pub after_json: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct InboxItem {
+    pub id: Uuid,
+    pub display_id: String,
+    pub project_id: Uuid,
+    pub project_slug: String,
+    pub project_name: String,
+    pub title: String,
+    pub column: Column,
+    pub urgent: bool,
+    pub revision: i64,
+    pub display_status: CardDisplayStatus,
+    pub run_message: Option<String>,
+    pub waiting_reason: Option<String>,
+    pub reason: String,
+    pub updated_at: DateTime<Utc>,
+}
