@@ -208,6 +208,6 @@ export function Inspector(props: {
             Delete
           </button>
         )}
-      </aside>
+    </aside>
   );
 }
