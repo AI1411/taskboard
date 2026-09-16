@@ -6,6 +6,7 @@ use taskboard_core::{
     Activity, ActorKind, CardDisplayStatus, Column, EntityType, InboxItem, Link, LinkKind, Project,
     Run, RunStatus, TaskDetail, TaskSummary,
 };
+use taskboard_store_sqlite::UiState;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
@@ -295,6 +296,20 @@ impl From<InboxItem> for InboxItemDto {
 pub struct UndoResultDto {
     pub entity_type: EntityType,
     pub entity: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UiStateDto {
+    pub last_project_slug: Option<String>,
+}
+
+impl From<UiState> for UiStateDto {
+    fn from(state: UiState) -> Self {
+        Self {
+            last_project_slug: state.last_project_slug,
+        }
+    }
 }
 
 impl From<UndoResult> for UndoResultDto {

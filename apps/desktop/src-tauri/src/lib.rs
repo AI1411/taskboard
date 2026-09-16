@@ -23,6 +23,7 @@ pub fn run() {
                     .map_err(|err| err.to_string())?;
                 handle.manage(DesktopState {
                     app: tokio::sync::Mutex::new(board),
+                    data_dir,
                 });
                 Ok::<(), String>(())
             })?;
@@ -55,6 +56,8 @@ pub fn run() {
             commands::trash_list,
             commands::undo,
             commands::sync,
+            commands::ui_state,
+            commands::ui_state_set,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Taskboard");

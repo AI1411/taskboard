@@ -13,7 +13,7 @@ import type {
   UndoResult,
 } from "@taskboard/types";
 
-import type { Transport } from "./transport";
+import { TransportError, type Transport } from "./transport";
 
 type Envelope = {
   ok?: boolean;
@@ -170,6 +170,14 @@ export class HttpTransport implements Transport {
     return this.request("GET", `/api/v1/sync?after=${after}`, { unwrap: "raw" });
   }
 
+  uiState(): Promise<{ lastProjectSlug: string | null }> {
+    return this.request("GET", "/api/v1/ui-state");
+  }
+
+  uiStateSet(lastProjectSlug: string | null): Promise<{ lastProjectSlug: string | null }> {
+    return this.request("PATCH", "/api/v1/ui-state", { body: { lastProjectSlug } });
+  }
+
   private url(path: string): string {
     return `${this.baseUrl.replace(/\/$/, "")}${path}`;
   }
@@ -200,7 +208,10 @@ export class HttpTransport implements Transport {
 
     const json = (await res.json()) as Envelope;
     if (!res.ok || json.error) {
-      throw new Error(json.error?.message ?? `HTTP ${res.status}`);
+      throw new TransportError({
+        code: json.error?.code ?? `http_${res.status}`,
+        message: json.error?.message ?? `HTTP ${res.status}`,
+      });
     }
 
     const unwrap = opts.unwrap ?? "entity";

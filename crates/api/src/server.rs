@@ -10,6 +10,7 @@ use axum::{Json, Router};
 use include_dir::{include_dir, Dir};
 use serde_json::json;
 use taskboard_application::App;
+use taskboard_store_sqlite::resolve_data_dir;
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tower::ServiceExt;
@@ -54,10 +55,26 @@ pub(crate) struct AppState {
     pub(crate) app: App,
     pub(crate) session: SessionToken,
     pub(crate) port: u16,
+    pub(crate) data_dir: PathBuf,
     web_root: WebRoot,
 }
 
 pub async fn serve(app: App, addr: SocketAddr, open: bool) -> Result<SocketAddr, ApiError> {
+    serve_with_data_dir(
+        app,
+        addr,
+        open,
+        resolve_data_dir(None, std::env::var_os("TASKBOARD_DATA_DIR").as_deref()),
+    )
+    .await
+}
+
+pub async fn serve_with_data_dir(
+    app: App,
+    addr: SocketAddr,
+    open: bool,
+    data_dir: impl Into<PathBuf>,
+) -> Result<SocketAddr, ApiError> {
     if addr.ip() != Ipv4Addr::LOCALHOST {
         return Err(ApiError::NotLocalhost);
     }
@@ -73,6 +90,7 @@ pub async fn serve(app: App, addr: SocketAddr, open: bool) -> Result<SocketAddr,
         app,
         session: generate_session(),
         port: bound.port(),
+        data_dir: data_dir.into(),
         web_root: resolve_web_root(),
     });
 

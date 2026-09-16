@@ -154,6 +154,8 @@ describe("TauriTransport", () => {
     await t.trashList();
     await t.undo();
     await t.sync(0);
+    await t.uiState();
+    await t.uiStateSet("alpha");
 
     const cmds = calls.map((c) => c.cmd);
     assert.deepEqual(cmds, [
@@ -183,6 +185,8 @@ describe("TauriTransport", () => {
       "trash_list",
       "undo",
       "sync",
+      "ui_state",
+      "ui_state_set",
     ]);
 
     assert.deepEqual(calls[1].args, { include_archived: true });

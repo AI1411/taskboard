@@ -2,12 +2,12 @@ use taskboard_core::{Column, LinkKind};
 use taskboard_desktop_commands::{
     deserialize_present_option, inbox_inner, link_add_inner, link_remove_inner, project_add_inner,
     project_archive_inner, project_delete_inner, project_list_inner, project_note_set_inner,
-    project_reorder_inner, project_restore_inner, project_update_inner, run_patch_inner,
+    project_reorder_inner,     project_restore_inner, project_update_inner, run_patch_inner,
     run_start_inner, sync_inner, task_create_inner, task_delete_inner, task_list_inner,
     task_move_inner, task_note_set_inner, task_reorder_inner, task_restore_inner, task_show_inner,
-    task_update_inner, task_urgent_inner, trash_list_inner, undo_inner, AppErrorDto, InboxItemDto,
-    ProjectDto, RunDto, RunOp, SyncDeltaDto, TaskDetailDto, TaskPatchArgs, TaskSummaryDto, TrashDto,
-    UndoResultDto,
+    task_update_inner, task_urgent_inner, trash_list_inner, ui_state_inner, ui_state_set_inner,
+    undo_inner, AppErrorDto, InboxItemDto, ProjectDto, RunDto, RunOp, SyncDeltaDto, TaskDetailDto,
+    TaskPatchArgs, TaskSummaryDto, TrashDto, UiStateDto, UndoResultDto,
 };
 
 use crate::state::DesktopState;
@@ -340,4 +340,17 @@ pub async fn sync(
 ) -> Result<SyncDeltaDto, AppErrorDto> {
     let app = state.app.lock().await;
     sync_inner(&app, after).await.map(Into::into)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn ui_state(state: tauri::State<'_, DesktopState>) -> Result<UiStateDto, AppErrorDto> {
+    Ok(ui_state_inner(&state.data_dir))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn ui_state_set(
+    state: tauri::State<'_, DesktopState>,
+    last_project_slug: Option<String>,
+) -> Result<UiStateDto, AppErrorDto> {
+    ui_state_set_inner(&state.data_dir, last_project_slug)
 }

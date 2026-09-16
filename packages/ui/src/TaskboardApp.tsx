@@ -7,8 +7,10 @@ import { InboxStrip } from "./InboxStrip";
 import { Inspector } from "./Inspector";
 import { Sidebar } from "./Sidebar";
 import { ShortcutLegend } from "./ShortcutLegend";
+import { Toast } from "./Toast";
 import { TrashPanel } from "./TrashPanel";
-import { COLUMN_IDS, neighborColumn } from "./columns";
+import { COLUMNS, COLUMN_IDS, neighborColumn } from "./columns";
+import { errorCode, errorField, errorMessage, isNotFound } from "./errors";
 import styles from "./TaskboardApp.module.css";
 import "./theme.css";
 
@@ -41,6 +43,11 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [trashedSelection, setTrashedSelection] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
+  const [toast, setToast] = useState<{
+    message: string;
+    error?: boolean;
+    action?: { label: string; onClick: () => void };
+  } | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -115,9 +122,12 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
       setCurrentColumn("todo");
       currentColumnRef.current = "todo";
       await refreshTasks(project.slug);
+      void transport.uiStateSet(project.slug);
     },
-    [refreshTasks],
+    [refreshTasks, transport],
   );
+
+  const dismissToast = useCallback(() => setToast(null), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,7 +135,16 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
       const list = await transport.projectList(false);
       if (cancelled) return;
       setProjects(list);
-      if (list[0]) await applyProject(list[0]);
+      let last: string | null = null;
+      try {
+        last = (await transport.uiState()).lastProjectSlug;
+      } catch {
+        last = null;
+      }
+      if (cancelled) return;
+      const match = last ? list.find((project) => project.slug === last) : undefined;
+      if (match) await applyProject(match);
+      else if (list[0]) await applyProject(list[0]);
     })();
     return () => {
       cancelled = true;
@@ -167,12 +186,16 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
     } else if (id) {
       try {
         applyDetail(await transport.taskShow(id));
-      } catch {
-        setSelectedId(null);
-        selectedIdRef.current = null;
-        applyDetail(null);
-        setInspectorOpen(false);
-        inspectorOpenRef.current = false;
+      } catch (err) {
+        if (isNotFound(err)) {
+          setSelectedId(null);
+          selectedIdRef.current = null;
+          applyDetail(null);
+          setInspectorOpen(false);
+          inspectorOpenRef.current = false;
+        } else {
+          setToast({ message: errorMessage(err), error: true });
+        }
       }
     }
   }, [transport, applyProject, refreshTasks]);
@@ -226,8 +249,20 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         setCurrentColumn(task.column);
         currentColumnRef.current = task.column;
       }
-      const shown = await transport.taskShow(displayId);
-      applyDetail(shown);
+      try {
+        const shown = await transport.taskShow(displayId);
+        applyDetail(shown);
+      } catch (err) {
+        if (isNotFound(err)) {
+          setSelectedId(null);
+          selectedIdRef.current = null;
+          applyDetail(null);
+          setInspectorOpen(false);
+          inspectorOpenRef.current = false;
+        } else {
+          setToast({ message: errorMessage(err), error: true });
+        }
+      }
     },
     [transport],
   );
@@ -263,23 +298,46 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   }, [transport, refreshTasks]);
 
   const moveSelected = useCallback(
-    async (column: Column) => {
+    async (column: Column): Promise<boolean> => {
       const id = selectedIdRef.current;
       if (!id) {
         setCurrentColumn(column);
         currentColumnRef.current = column;
-        return;
+        return false;
       }
       const task = tasksRef.current.find((t) => t.displayId === id);
-      const updated = await transport.taskMove(id, column, task?.revision);
-      applyDetail(updated);
-      setCurrentColumn(column);
-      currentColumnRef.current = column;
-      const project = selectedProjectRef.current;
-      if (project) await refreshTasks(project.slug);
+      try {
+        const updated = await transport.taskMove(id, column, task?.revision);
+        applyDetail(updated);
+        setCurrentColumn(column);
+        currentColumnRef.current = column;
+        const project = selectedProjectRef.current;
+        if (project) await refreshTasks(project.slug);
+        return true;
+      } catch (err) {
+        setToast({ message: errorMessage(err), error: true });
+        return false;
+      }
     },
     [transport, refreshTasks],
   );
+
+  const performUndo = useCallback(async () => {
+    try {
+      await transport.undo();
+      await reloadBoard();
+      setToast({ message: "Undone" });
+    } catch (err) {
+      if (errorCode(err) === "undo_conflict") {
+        setToast({
+          message: `Cannot undo — ${errorField(err) ?? "entity"} changed`,
+          error: true,
+        });
+      } else {
+        setToast({ message: errorMessage(err), error: true });
+      }
+    }
+  }, [transport, reloadBoard]);
 
   const selectInColumn = useCallback(
     (dir: 1 | -1) => {
@@ -331,7 +389,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
 
       if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z")) {
         e.preventDefault();
-        void transport.undo().then(() => reloadBoard());
+        void performUndo();
         return;
       }
 
@@ -416,16 +474,24 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         selectInColumn(-1);
         return;
       }
-      if (e.key === "h" || e.key === "l") {
+      if (e.key === "h" || e.key === "H" || e.key === "l" || e.key === "L") {
         e.preventDefault();
-        const dir = e.key === "l" ? 1 : -1;
+        const dir = e.key === "l" || e.key === "L" ? 1 : -1;
         const next = neighborColumn(currentColumnRef.current, dir);
         if (!next) return;
-        if (selectedIdRef.current) void moveSelected(next);
-        else {
+        if (e.shiftKey || !selectedIdRef.current) {
           setCurrentColumn(next);
           currentColumnRef.current = next;
+          return;
         }
+        void moveSelected(next).then((moved) => {
+          if (!moved) return;
+          const label = COLUMNS.find((column) => column.id === next)?.label ?? next;
+          setToast({
+            message: `Moved to ${label}`,
+            action: { label: "Undo", onClick: () => void performUndo() },
+          });
+        });
         return;
       }
       if (e.key >= "1" && e.key <= "4") {
@@ -462,6 +528,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
     createTask,
     jumpColumn,
     moveSelected,
+    performUndo,
     reloadBoard,
     selectCard,
     selectInColumn,
@@ -517,8 +584,21 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
     async (markdown: string) => {
       const id = selectedIdRef.current;
       if (!id) return;
-      const updated = await transport.taskNoteSet(id, markdown, detailRef.current?.revision);
-      applyDetail(updated);
+      try {
+        const updated = await transport.taskNoteSet(id, markdown, detailRef.current?.revision);
+        applyDetail(updated);
+      } catch (err) {
+        if (errorCode(err) === "revision_conflict") {
+          setToast({ message: "Updated elsewhere", error: true });
+          try {
+            applyDetail(await transport.taskShow(id));
+          } catch {
+            /* keep current detail */
+          }
+        } else {
+          setToast({ message: errorMessage(err), error: true });
+        }
+      }
     },
     [transport],
   );
@@ -541,10 +621,23 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
     async (title: string) => {
       const id = selectedIdRef.current;
       if (!id) return;
-      const updated = await transport.taskUpdate(id, { title }, detailRef.current?.revision);
-      applyDetail(updated);
-      const project = selectedProjectRef.current;
-      if (project) await refreshTasks(project.slug);
+      try {
+        const updated = await transport.taskUpdate(id, { title }, detailRef.current?.revision);
+        applyDetail(updated);
+        const project = selectedProjectRef.current;
+        if (project) await refreshTasks(project.slug);
+      } catch (err) {
+        if (errorCode(err) === "revision_conflict") {
+          setToast({ message: "Updated elsewhere", error: true });
+          try {
+            applyDetail(await transport.taskShow(id));
+          } catch {
+            /* keep current detail */
+          }
+        } else {
+          setToast({ message: errorMessage(err), error: true });
+        }
+      }
     },
     [transport, refreshTasks],
   );
@@ -552,18 +645,26 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   const onDelete = useCallback(async () => {
     const id = selectedIdRef.current;
     if (!id) return;
-    await transport.taskDelete(id, detailRef.current?.revision);
-    setConfirmDelete(false);
-    confirmDeleteRef.current = false;
-    setTrashedSelection(false);
-    trashedSelectionRef.current = false;
-    setSelectedId(null);
-    selectedIdRef.current = null;
-    applyDetail(null);
-    const project = selectedProjectRef.current;
-    if (project) await refreshTasks(project.slug);
-    await refreshTrash();
-  }, [transport, refreshTasks, refreshTrash]);
+    try {
+      await transport.taskDelete(id, detailRef.current?.revision);
+      setConfirmDelete(false);
+      confirmDeleteRef.current = false;
+      setTrashedSelection(false);
+      trashedSelectionRef.current = false;
+      setSelectedId(null);
+      selectedIdRef.current = null;
+      applyDetail(null);
+      const project = selectedProjectRef.current;
+      if (project) await refreshTasks(project.slug);
+      await refreshTrash();
+      setToast({
+        message: `Deleted ${id}`,
+        action: { label: "Undo", onClick: () => void performUndo() },
+      });
+    } catch (err) {
+      setToast({ message: errorMessage(err), error: true });
+    }
+  }, [transport, refreshTasks, refreshTrash, performUndo]);
 
   const restoreTask = useCallback(
     async (displayId: string) => {
@@ -775,6 +876,14 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         }}
       />
       {legendOpen ? <ShortcutLegend onClose={() => setLegendOpen(false)} /> : null}
+      {toast ? (
+        <Toast
+          message={toast.message}
+          error={toast.error}
+          action={toast.action}
+          onDismiss={dismissToast}
+        />
+      ) : null}
     </div>
   );
 }

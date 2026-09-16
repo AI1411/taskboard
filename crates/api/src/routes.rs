@@ -17,9 +17,9 @@ use uuid::Uuid;
 
 use crate::dto::{
     json_keys_to_camel, AddLinkBody, BackupBody, CreateProjectBody, CreateTaskBody, InboxItemDto,
-    InboxQuery, ListProjectsQuery, PatchProjectBody, PatchRunBody, PatchTaskBody, ProjectDto,
-    ReorderProjectsBody, RunDto, RunOp, StartRunBody, SyncDeltaDto, SyncQuery, TaskDetailDto,
-    TrashDto,
+    InboxQuery, ListProjectsQuery, PatchProjectBody, PatchRunBody, PatchTaskBody, PatchUiStateBody,
+    ProjectDto, ReorderProjectsBody, RunDto, RunOp, StartRunBody, SyncDeltaDto, SyncQuery,
+    TaskDetailDto, TrashDto, UiStateDto,
 };
 use crate::origin::origin_allowed;
 use crate::server::{
@@ -53,6 +53,7 @@ pub(crate) fn api_router() -> Router<Arc<AppState>> {
         .route("/api/v1/inbox", get(list_inbox))
         .route("/api/v1/trash", get(list_trash))
         .route("/api/v1/undo", post(undo))
+        .route("/api/v1/ui-state", get(get_ui_state).patch(patch_ui_state))
         .route("/api/v1/backups/export", post(backup_export))
         .route("/api/v1/backups/import", post(backup_import))
 }
@@ -671,6 +672,25 @@ async fn undo(State(state): State<Arc<AppState>>, headers: HeaderMap) -> ApiResu
         .and_then(Value::as_i64)
         .unwrap_or(0);
     Ok(entity(json_keys_to_camel(result.entity), revision))
+}
+
+async fn get_ui_state(State(state): State<Arc<AppState>>, headers: HeaderMap) -> ApiResult {
+    require_read(&state, &headers)?;
+    let ui = taskboard_store_sqlite::load_ui_state(&state.data_dir);
+    Ok(entity(UiStateDto::from(ui), 0))
+}
+
+async fn patch_ui_state(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(body): Json<PatchUiStateBody>,
+) -> ApiResult {
+    require_mutation(&state, &headers)?;
+    let ui = taskboard_store_sqlite::UiState {
+        last_project_slug: body.last_project_slug.filter(|slug| !slug.is_empty()),
+    };
+    taskboard_store_sqlite::save_ui_state(&state.data_dir, &ui).map_err(app_error)?;
+    Ok(entity(UiStateDto::from(ui), 0))
 }
 
 async fn backup_export(
