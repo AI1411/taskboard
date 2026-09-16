@@ -33,6 +33,7 @@ export function Sidebar(props: {
   const [editingPath, setEditingPath] = useState(false);
   const [pathValue, setPathValue] = useState(selected?.repoPath ?? "");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
 
   useEffect(() => {
     setName(selected?.name ?? "");
@@ -40,6 +41,7 @@ export function Sidebar(props: {
     setMenuOpen(false);
     setEditingPath(false);
     setConfirmingDelete(false);
+    setNoteOpen(false);
   }, [selected?.id, selected?.name, selected?.repoPath]);
   return (
     <aside className={styles.sidebar}>
@@ -63,7 +65,7 @@ export function Sidebar(props: {
       {props.projects.length === 0 ? (
         <EmptyState>Create a project to start a board</EmptyState>
       ) : (
-        <ul className={styles.list}>
+        <ul className={styles.list} aria-label="Projects" data-scroll="projects">
           {props.projects.map((project) => (
             <li key={project.id}>
               <button
@@ -200,28 +202,43 @@ export function Sidebar(props: {
               onCancel={() => setConfirmingDelete(false)}
             />
           ) : null}
-          <label className={styles.note}>
-            Project note
-            <textarea
-              value={props.projectNote}
-              onChange={(e) => props.onProjectNoteChange(e.target.value)}
-            />
-          </label>
+          <div className={styles.note}>
+            <button
+              type="button"
+              className={styles.noteToggle}
+              aria-expanded={noteOpen}
+              onClick={() => setNoteOpen((open) => !open)}
+            >
+              Project note
+              {props.projectNote.trim() ? (
+                <span className={styles.dot} data-filled="true" aria-hidden="true" />
+              ) : null}
+            </button>
+            {noteOpen ? (
+              <textarea
+                aria-label="Project note"
+                value={props.projectNote}
+                onChange={(e) => props.onProjectNoteChange(e.target.value)}
+              />
+            ) : null}
+          </div>
         </>
       ) : null}
-      <button
-        type="button"
-        className={styles.toggle}
-        aria-pressed={props.includeArchived}
-        onClick={props.onToggleArchived}
-      >
-        Archived projects
-      </button>
-      {props.onTrash ? (
-        <button type="button" className={styles.trash} onClick={props.onTrash}>
-          Trash
+      <div className={styles.dock}>
+        <button
+          type="button"
+          className={styles.toggle}
+          aria-pressed={props.includeArchived}
+          onClick={props.onToggleArchived}
+        >
+          Archived projects
         </button>
-      ) : null}
+        {props.onTrash ? (
+          <button type="button" className={styles.trash} onClick={props.onTrash}>
+            Trash
+          </button>
+        ) : null}
+      </div>
     </aside>
   );
 }
