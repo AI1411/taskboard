@@ -140,6 +140,7 @@ export function fakeTransport(): Transport {
         reply: null,
         blockedBy: [],
         blocks: [],
+        stale: false,
       };
       tasks.push(task);
       const detail = asDetail(task);

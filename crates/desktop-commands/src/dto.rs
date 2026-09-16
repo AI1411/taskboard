@@ -59,6 +59,7 @@ pub struct TaskSummaryDto {
     pub reply: Option<String>,
     pub blocked_by: Vec<String>,
     pub blocks: Vec<String>,
+    pub stale: bool,
 }
 
 impl From<TaskSummary> for TaskSummaryDto {
@@ -77,6 +78,7 @@ impl From<TaskSummary> for TaskSummaryDto {
             reply: task.reply,
             blocked_by: task.blocked_by,
             blocks: task.blocks,
+            stale: task.stale,
         }
     }
 }

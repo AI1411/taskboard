@@ -82,6 +82,11 @@ pub enum Command {
     },
     /// Undo the latest undoable activity
     Undo,
+    /// List stale running runs
+    Stale {
+        #[arg(long, default_value_t = 30)]
+        minutes: i64,
+    },
     /// List board activity
     Activity {
         #[arg(long)]

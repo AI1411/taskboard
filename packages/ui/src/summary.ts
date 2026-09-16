@@ -15,6 +15,7 @@ export function summary(overrides: Partial<TaskSummary> = {}): TaskSummary {
     reply: null,
     blockedBy: [],
     blocks: [],
+    stale: false,
     ...overrides,
   };
 }

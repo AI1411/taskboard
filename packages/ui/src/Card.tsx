@@ -17,7 +17,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   { task, selected, grabbed, lifted, className, onCopyId, ...rest },
   ref,
 ) {
-  const badge = BADGE_LABEL[task.displayStatus];
+  const badge = task.stale ? "Stale" : BADGE_LABEL[task.displayStatus];
   const faceMessage =
     task.runMessage ||
     ((task.displayStatus === "waiting" || task.displayStatus === "failed") && task.waitingReason) ||
@@ -68,7 +68,11 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
       <span className={styles.meta}>
         {task.urgent ? <span className={styles.pip} aria-label="Urgent" /> : null}
         {badge ? (
-          <span className={`${styles.badge} ${styles[task.displayStatus]}`}>{badge}</span>
+          <span
+            className={`${styles.badge} ${task.stale ? styles.stale : styles[task.displayStatus]}`}
+          >
+            {badge}
+          </span>
         ) : null}
       </span>
       {showMessage ? <span className={styles.runMessage}>{faceMessage}</span> : null}

@@ -38,6 +38,7 @@ export interface TaskSummary {
   reply: string | null;
   blockedBy: string[];
   blocks: string[];
+  stale: boolean;
 }
 
 export interface Comment {

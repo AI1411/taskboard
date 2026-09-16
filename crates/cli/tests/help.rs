@@ -9,6 +9,7 @@ fn help_lists_project_add() {
     assert!(out.contains("run"), "help missing run:\n{out}");
     assert!(out.contains("comment"), "help missing comment:\n{out}");
     assert!(out.contains("activity"), "help missing activity:\n{out}");
+    assert!(out.contains("stale"), "help missing stale:\n{out}");
     assert!(out.contains("inbox"), "help missing inbox:\n{out}");
 }
 
