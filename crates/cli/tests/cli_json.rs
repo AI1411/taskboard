@@ -303,8 +303,14 @@ fn json_commands_round_trip_board() {
 #[test]
 fn inbox_json_lists_waiting_across_projects() {
     let dir = tempfile::tempdir().unwrap();
-    tb_in(&dir).args(["project", "add", "--name", "A"]).assert().success();
-    tb_in(&dir).args(["project", "add", "--name", "B"]).assert().success();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "A"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "B"])
+        .assert()
+        .success();
     tb_in(&dir)
         .args(["task", "create", "--project", "a", "--title", "Wait A"])
         .assert()
@@ -366,14 +372,36 @@ fn inbox_empty_human() {
 #[test]
 fn inbox_project_filter_json() {
     let dir = tempfile::tempdir().unwrap();
-    tb_in(&dir).args(["project", "add", "--name", "A"]).assert().success();
-    tb_in(&dir).args(["project", "add", "--name", "B"]).assert().success();
     tb_in(&dir)
-        .args(["task", "create", "--project", "a", "--title", "Pin A", "--urgent"])
+        .args(["project", "add", "--name", "A"])
         .assert()
         .success();
     tb_in(&dir)
-        .args(["task", "create", "--project", "b", "--title", "Pin B", "--urgent"])
+        .args(["project", "add", "--name", "B"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "a",
+            "--title",
+            "Pin A",
+            "--urgent",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "b",
+            "--title",
+            "Pin B",
+            "--urgent",
+        ])
         .assert()
         .success();
     let out = tb_in(&dir)

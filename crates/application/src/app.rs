@@ -6,10 +6,10 @@ use uuid::Uuid;
 
 use taskboard_core::{
     card_display_status, display_id, inbox_membership, inbox_reason, next_unique_slug, parse_agent,
-    parse_path_link, parse_url, place_before, place_urgent, rewrite_positions, slugify, sort_column,
-    trim_project_name, trim_title, Activity, Column, DisplayKind, EntityType, FieldError, InboxItem,
-    Link, LinkKind, OrderError, OrderKey, Project, Run, RunStatus, RunStatusView, SlugError, Task,
-    TaskDetail, TaskSummary, ValidationError,
+    parse_path_link, parse_url, place_before, place_urgent, rewrite_positions, slugify,
+    sort_column, trim_project_name, trim_title, Activity, Column, DisplayKind, EntityType,
+    FieldError, InboxItem, Link, LinkKind, OrderError, OrderKey, Project, Run, RunStatus,
+    RunStatusView, SlugError, Task, TaskDetail, TaskSummary, ValidationError,
 };
 
 use crate::actor::Actor;
@@ -1656,7 +1656,11 @@ async fn to_task_summary(store: &mut dyn Store, task: Task) -> Result<TaskSummar
 
 fn display_from_runs(
     runs: &[Run],
-) -> (taskboard_core::CardDisplayStatus, Option<String>, Option<String>) {
+) -> (
+    taskboard_core::CardDisplayStatus,
+    Option<String>,
+    Option<String>,
+) {
     let views: Vec<RunStatusView> = runs
         .iter()
         .map(|run| RunStatusView {
