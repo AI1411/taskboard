@@ -36,10 +36,13 @@ export function Inspector(props: {
   onDelete: () => void;
   onCancelDelete?: () => void;
   onRestore?: () => void;
+  onLinkAdd?: (value: string) => void;
+  onLinkRemove?: (linkId: string) => void;
   onClose?: () => void;
 }) {
   const [title, setTitle] = useState(props.task?.title ?? "");
   const [note, setNote] = useState(props.task?.noteMarkdown ?? "");
+  const [linkValue, setLinkValue] = useState("");
   const lastId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -47,12 +50,14 @@ export function Inspector(props: {
       lastId.current = null;
       setTitle("");
       setNote("");
+      setLinkValue("");
       return;
     }
     if (lastId.current !== props.task.displayId) {
       lastId.current = props.task.displayId;
       setTitle(props.task.title);
       setNote(props.task.noteMarkdown);
+      setLinkValue("");
     }
   }, [props.task]);
 
@@ -132,9 +137,39 @@ export function Inspector(props: {
           <h3 className={styles.heading}>Links</h3>
           <ul className={styles.list}>
             {props.task.links.map((link) => (
-              <li key={link.id}>{link.value}</li>
+              <li key={link.id} className={styles.linkRow}>
+                <span>{link.value}</span>
+                <button
+                  type="button"
+                  className={styles.linkRemove}
+                  aria-label={`Remove ${link.value}`}
+                  onClick={() => props.onLinkRemove?.(link.id)}
+                >
+                  Remove
+                </button>
+              </li>
             ))}
           </ul>
+          <div className={styles.linkAdd}>
+            <input
+              className={styles.linkInput}
+              placeholder="https:// or /path"
+              value={linkValue}
+              onChange={(e) => setLinkValue(e.target.value)}
+            />
+            <button
+              type="button"
+              className={styles.linkButton}
+              onClick={() => {
+                const value = linkValue.trim();
+                if (!value) return;
+                props.onLinkAdd?.(value);
+                setLinkValue("");
+              }}
+            >
+              Add link
+            </button>
+          </div>
         </div>
         <div>
           <h3 className={styles.heading}>Runs</h3>
