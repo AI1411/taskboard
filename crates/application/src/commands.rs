@@ -112,6 +112,12 @@ pub struct ActivityQuery {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckAdd {
+    pub task_display_id: String,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommentAdd {
     pub task_display_id: String,
     pub body: String,

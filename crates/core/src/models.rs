@@ -81,6 +81,8 @@ pub struct TaskSummary {
     pub blocked_by: Vec<String>,
     pub blocks: Vec<String>,
     pub stale: bool,
+    pub checklist_done: i64,
+    pub checklist_total: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,6 +103,7 @@ pub struct TaskDetail {
     pub links: Vec<Link>,
     pub runs: Vec<Run>,
     pub comments: Vec<Comment>,
+    pub checks: Vec<Check>,
     pub recent_activities: Vec<Activity>,
 }
 
@@ -111,6 +114,17 @@ pub struct Link {
     pub task_id: Uuid,
     pub kind: LinkKind,
     pub value: String,
+    pub sort_order: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Check {
+    pub id: Uuid,
+    pub display_id: String,
+    pub task_id: Uuid,
+    pub text: String,
+    pub done: bool,
     pub sort_order: i64,
 }
 

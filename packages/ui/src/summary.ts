@@ -16,6 +16,8 @@ export function summary(overrides: Partial<TaskSummary> = {}): TaskSummary {
     blockedBy: [],
     blocks: [],
     stale: false,
+    checklistDone: 0,
+    checklistTotal: 0,
     ...overrides,
   };
 }

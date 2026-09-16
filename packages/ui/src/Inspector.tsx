@@ -136,6 +136,19 @@ export function Inspector(props: {
           />
         </label>
         <div>
+          <h3 className={styles.heading}>Checklist</h3>
+          <ul className={styles.list}>
+            {props.task.checks.map((check) => (
+              <li key={check.id}>
+                <label className={styles.switch}>
+                  <input type="checkbox" checked={check.done} readOnly />
+                  {check.text}
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
           <h3 className={styles.heading}>Comments</h3>
           <ul className={styles.list}>
             {props.task.comments.map((comment) => (

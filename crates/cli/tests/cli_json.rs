@@ -700,6 +700,40 @@ fn run_continue_running_is_validation_error() {
 }
 
 #[test]
+fn check_add_toggle_list_json_keeps_note() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "renai-sim", "--title", "Fix"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["note", "set", "TASK-1", "--text", "# Spec"])
+        .assert()
+        .success();
+    let added = json_ok(
+        &dir,
+        &["check", "add", "TASK-1", "--text", "Add CLI JSON contract"],
+    );
+    assert_eq!(added["entity"]["display_id"], "CHECK-1");
+    assert_eq!(added["entity"]["done"], false);
+    json_ok(&dir, &["check", "add", "TASK-1", "--text", "Write tests"]);
+    let toggled = json_ok(&dir, &["check", "toggle", "CHECK-1"]);
+    assert_eq!(toggled["entity"]["done"], true);
+    let listed = json_ok(&dir, &["check", "list", "TASK-1"]);
+    assert_eq!(listed["entities"].as_array().unwrap().len(), 2);
+    let shown = json_ok(&dir, &["task", "show", "TASK-1"]);
+    assert_eq!(shown["entity"]["note_markdown"], "# Spec");
+    assert_eq!(shown["entity"]["checks"][0]["display_id"], "CHECK-1");
+    let listed_tasks = json_ok(&dir, &["task", "list", "--project", "renai-sim"]);
+    assert_eq!(listed_tasks["entities"][0]["checklist_done"], 1);
+    assert_eq!(listed_tasks["entities"][0]["checklist_total"], 2);
+}
+
+#[test]
 fn comment_add_list_json_keeps_note() {
     let dir = tempfile::tempdir().unwrap();
     tb_in(&dir)

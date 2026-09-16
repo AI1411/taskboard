@@ -59,6 +59,42 @@ describe("Inspector links", () => {
   });
 });
 
+describe("Inspector checklists", () => {
+  it("shows checklist items as checkboxes without changing the note", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    const task = await transport.taskCreate(project.slug, { title: "DoD", column: "todo" });
+    task.noteMarkdown = "# Spec";
+    task.checks = [
+      {
+        id: "k1",
+        displayId: "CHECK-1",
+        taskId: task.id,
+        text: "Add CLI JSON contract",
+        done: true,
+        sortOrder: 0,
+      },
+      {
+        id: "k2",
+        displayId: "CHECK-2",
+        taskId: task.id,
+        text: "Write tests",
+        done: false,
+        sortOrder: 1,
+      },
+    ];
+    task.checklistDone = 1;
+    task.checklistTotal = 2;
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("DoD"));
+    const done = await screen.findByRole("checkbox", { name: "Add CLI JSON contract" });
+    const open = screen.getByRole("checkbox", { name: "Write tests" });
+    expect((done as HTMLInputElement).checked).toBe(true);
+    expect((open as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByLabelText("Note") as HTMLTextAreaElement).value).toBe("# Spec");
+  });
+});
+
 describe("Inspector comments", () => {
   it("shows a plain comment thread", async () => {
     const transport = fakeTransport();

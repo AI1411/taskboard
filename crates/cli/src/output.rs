@@ -3,7 +3,7 @@ use std::path::Path;
 use serde::Serialize;
 use taskboard_application::AppError;
 use taskboard_core::{
-    ActivityEntry, CardDisplayStatus, Column, Comment, EntityType, InboxItem, Project, Run,
+    ActivityEntry, CardDisplayStatus, Check, Column, Comment, EntityType, InboxItem, Project, Run,
     TaskDetail, TaskSummary,
 };
 
@@ -152,6 +152,18 @@ pub fn print_activity_list(rows: &[ActivityEntry]) {
             row.actor,
             row.operation,
             row.target
+        );
+    }
+}
+
+pub fn print_check_list(checks: &[Check]) {
+    println!("ID  DONE  TEXT");
+    for check in checks {
+        println!(
+            "{}  {}  {}",
+            check.display_id,
+            if check.done { "x" } else { "-" },
+            check.text
         );
     }
 }
