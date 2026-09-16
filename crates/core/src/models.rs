@@ -57,6 +57,8 @@ pub struct Task {
     pub column: Column,
     pub urgent: bool,
     pub note_markdown: String,
+    pub worktree_path: Option<String>,
+    pub branch: Option<String>,
     pub position: i64,
     pub revision: i64,
     pub created_at: DateTime<Utc>,
@@ -83,6 +85,8 @@ pub struct TaskSummary {
     pub stale: bool,
     pub checklist_done: i64,
     pub checklist_total: i64,
+    pub worktree_path: Option<String>,
+    pub branch: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,6 +108,8 @@ pub struct TaskDetail {
     pub runs: Vec<Run>,
     pub comments: Vec<Comment>,
     pub checks: Vec<Check>,
+    pub worktree_path: Option<String>,
+    pub branch: Option<String>,
     pub recent_activities: Vec<Activity>,
 }
 
@@ -156,6 +162,8 @@ pub struct Run {
     pub revision: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub worktree_path: Option<String>,
+    pub branch: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -405,13 +405,20 @@ async fn task_cmd(
                 );
             });
         }
-        TaskCommand::Update { display_id, title } => {
+        TaskCommand::Update {
+            display_id,
+            title,
+            worktree,
+            branch,
+        } => {
             let task = app
                 .task_update(
                     actor,
                     TaskUpdate {
                         display_id,
                         title,
+                        worktree_path: worktree.map(empty_to_none),
+                        branch: branch.map(empty_to_none),
                         revision,
                     },
                 )
@@ -815,6 +822,15 @@ async fn backup_cmd(app: &App, json: bool, cmd: BackupCommand) -> Result<(), i32
         }
     }
     Ok(())
+}
+
+fn empty_to_none(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
 
 fn load_body(text: Option<String>, file: Option<PathBuf>) -> Result<String, AppError> {

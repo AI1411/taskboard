@@ -407,6 +407,7 @@ async fn patch_task(
                     display_id: display_id.clone(),
                     title: body.title,
                     revision,
+                    ..Default::default()
                 },
             )
             .await

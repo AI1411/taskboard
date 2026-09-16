@@ -31,6 +31,8 @@ CREATE TABLE tasks (
     column TEXT NOT NULL,
     urgent INTEGER NOT NULL DEFAULT 0,
     note_markdown TEXT NOT NULL DEFAULT '',
+    worktree_path TEXT,
+    branch TEXT,
     position INTEGER NOT NULL,
     revision INTEGER NOT NULL,
     created_at TEXT NOT NULL,

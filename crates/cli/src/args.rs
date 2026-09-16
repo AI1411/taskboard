@@ -205,11 +205,15 @@ pub enum TaskCommand {
     },
     /// Show one task
     Show { display_id: String },
-    /// Update a task title
+    /// Update a task title, worktree, or branch
     Update {
         display_id: String,
         #[arg(long)]
         title: Option<String>,
+        #[arg(long)]
+        worktree: Option<String>,
+        #[arg(long)]
+        branch: Option<String>,
     },
     /// Move a task to a column
     Move {

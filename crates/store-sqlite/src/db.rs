@@ -9,7 +9,7 @@ use sqlx::SqlitePool;
 use taskboard_application::AppError;
 
 use crate::config::load_config;
-use crate::migrations::{CHECKS_SQL, COMMENTS_SQL, INIT_SQL};
+use crate::migrations::{CHECKS_SQL, COMMENTS_SQL, INIT_SQL, TASK_WORKSPACE_SQL};
 
 /// Opens `{data_dir}/taskboard.sqlite3`, applying `0001_init.sql` when `projects` is missing.
 pub async fn open_db(data_dir: &Path) -> Result<SqlitePool, AppError> {
@@ -75,6 +75,19 @@ pub async fn open_db(data_dir: &Path) -> Result<SqlitePool, AppError> {
         );
     }
 
+    if !task_worktree_column_exists(&pool).await? {
+        sqlx::raw_sql(TASK_WORKSPACE_SQL)
+            .execute(&pool)
+            .await
+            .map_err(map_sqlx)?;
+        write_log(
+            &log_path,
+            &cfg.log_level,
+            "info",
+            "applied migration 0004_task_workspace",
+        );
+    }
+
     Ok(pool)
 }
 
@@ -86,6 +99,16 @@ async fn apply_init_migration(pool: &SqlitePool) -> Result<(), AppError> {
         .map_err(map_sqlx)?;
     tx.commit().await.map_err(map_sqlx)?;
     Ok(())
+}
+
+async fn task_worktree_column_exists(pool: &SqlitePool) -> Result<bool, AppError> {
+    let name: Option<String> = sqlx::query_scalar(
+        "SELECT name FROM pragma_table_info('tasks') WHERE name = 'worktree_path'",
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(map_sqlx)?;
+    Ok(name.is_some())
 }
 
 async fn checks_table_exists(pool: &SqlitePool) -> Result<bool, AppError> {
@@ -318,6 +341,30 @@ mod tests {
                 "tasks",
             ]
         );
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn open_db_adds_worktree_columns_to_existing_schema() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pool = open_db(tmp.path()).await.unwrap();
+        sqlx::query("ALTER TABLE tasks DROP COLUMN worktree_path")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("ALTER TABLE tasks DROP COLUMN branch")
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool.close().await;
+        let pool = open_db(tmp.path()).await.unwrap();
+        let name: Option<String> = sqlx::query_scalar(
+            "SELECT name FROM pragma_table_info('tasks') WHERE name = 'worktree_path'",
+        )
+        .fetch_optional(&pool)
+        .await
+        .unwrap();
+        assert_eq!(name.as_deref(), Some("worktree_path"));
         pool.close().await;
     }
 

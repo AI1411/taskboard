@@ -106,6 +106,11 @@ export function Inspector(props: {
         >
           {props.task.displayId}
         </button>
+        {props.task.worktreePath || props.task.branch ? (
+          <p className={styles.list}>
+            {[props.task.worktreePath, props.task.branch].filter(Boolean).join(" · ")}
+          </p>
+        ) : null}
         <label className={styles.field}>
           Column
           <select

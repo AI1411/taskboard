@@ -72,6 +72,7 @@ async fn stale_revision_does_not_write() {
                 display_id: "TASK-1".into(),
                 title: Some("Nope".into()),
                 revision: Some(0),
+                ..Default::default()
             },
         )
         .await
@@ -115,6 +116,7 @@ async fn undo_restores_title_then_conflict_on_second_change() {
             display_id: "TASK-1".into(),
             title: Some("B".into()),
             revision: None,
+            ..Default::default()
         },
     )
     .await
@@ -135,6 +137,7 @@ async fn second_undo_is_conflict() {
             display_id: "TASK-1".into(),
             title: Some("B".into()),
             revision: None,
+            ..Default::default()
         },
     )
     .await
@@ -201,6 +204,7 @@ async fn activity_head_and_sync_see_task_update() {
             display_id: "TASK-1".into(),
             title: Some("Renamed".into()),
             revision: None,
+            ..Default::default()
         },
     )
     .await
@@ -226,6 +230,7 @@ async fn backup_export_import_round_trip() {
             display_id: "TASK-1".into(),
             title: Some("Changed".into()),
             revision: None,
+            ..Default::default()
         },
     )
     .await
@@ -349,6 +354,7 @@ async fn undo_of_title_update_increments_revision_past_pre_undo_current() {
             display_id: "TASK-1".into(),
             title: Some("B".into()),
             revision: None,
+            ..Default::default()
         },
     )
     .await
@@ -381,6 +387,7 @@ async fn undo_of_title_update_increments_revision_past_pre_undo_current() {
                 display_id: "TASK-1".into(),
                 title: Some("C".into()),
                 revision: Some(shown.revision),
+                ..Default::default()
             },
         )
         .await

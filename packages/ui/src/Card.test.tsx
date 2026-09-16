@@ -115,6 +115,17 @@ describe("Card", () => {
     expect(queryByText("Waiting")).toBeNull();
   });
 
+  it("shows recorded worktree and branch", () => {
+    const { getByText } = render(
+      <Card
+        task={summary({ worktreePath: "/tmp/wt", branch: "cursor/foo-88ba" })}
+        selected={false}
+      />,
+    );
+    expect(getByText("/tmp/wt")).toBeTruthy();
+    expect(getByText("cursor/foo-88ba")).toBeTruthy();
+  });
+
   it("shows checklist progress on the card face", () => {
     const { getByText, rerender, queryByText } = render(
       <Card task={summary({ checklistDone: 2, checklistTotal: 5 })} selected={false} />,

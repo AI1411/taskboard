@@ -18,7 +18,7 @@ Use this CLI only. Do not call the localhost HTTP API. Do not identify tasks by 
 
 Do this **before the first edit** when the user asked you to implement, fix, or change something:
 
-1. `tb project detect --json` — if `project_required`, `project list --json` then `project add --name taskboard --path <repo-root> --json`
+1. `tb project detect --json` — if `project_required`, `project list --json` then `project add --name taskboard --path <repo-root> --json`. If `task show` has `worktree_path`, `cd` there before the first edit.
 2. `task list --project taskboard --json` — reuse a matching `TASK-n`, or `task create --project taskboard --title "<short title>" --json`
 3. `task move TASK-n in-progress --json`
 4. `run start TASK-n --agent cursor --json` — keep `RUN-n`

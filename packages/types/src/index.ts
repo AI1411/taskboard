@@ -41,6 +41,8 @@ export interface TaskSummary {
   stale: boolean;
   checklistDone: number;
   checklistTotal: number;
+  worktreePath: string | null;
+  branch: string | null;
 }
 
 export interface Check {
@@ -84,6 +86,8 @@ export interface Run {
   revision: number;
   createdAt: string;
   updatedAt: string;
+  worktreePath: string | null;
+  branch: string | null;
 }
 
 export interface Activity {

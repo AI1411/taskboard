@@ -269,6 +269,7 @@ async fn task_update_trims_title_and_checks_revision() {
                 display_id: "TASK-1".into(),
                 title: Some("  Trimmed title  ".into()),
                 revision: Some(1),
+                ..Default::default()
             },
         )
         .await
@@ -284,6 +285,7 @@ async fn task_update_trims_title_and_checks_revision() {
                 display_id: "TASK-1".into(),
                 title: Some("Nope".into()),
                 revision: Some(1),
+                ..Default::default()
             },
         )
         .await
@@ -302,6 +304,7 @@ async fn task_update_blank_title_is_validation_error() {
                 display_id: "TASK-1".into(),
                 title: Some("   ".into()),
                 revision: None,
+                ..Default::default()
             },
         )
         .await

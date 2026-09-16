@@ -502,7 +502,16 @@ impl App {
 
     pub async fn run_show(&self, display_id: &str) -> Result<Run, AppError> {
         let mut store = self.store.lock().await;
-        require_run(&mut **store, display_id).await
+        let store = &mut **store;
+        let run = require_run(store, display_id).await?;
+        let task = store
+            .get_task(run.task_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "task".into(),
+                id: run.task_id.to_string(),
+            })?;
+        Ok(with_task_workspace(run, &task))
     }
 
     pub async fn run_current(&self, task_display_id: &str) -> Result<Run, AppError> {
@@ -512,6 +521,7 @@ impl App {
         let runs = store.list_runs(task.id).await?;
         winning_run(&runs)
             .cloned()
+            .map(|run| with_task_workspace(run, &task))
             .ok_or_else(|| AppError::NotFound {
                 entity: "run".into(),
                 id: task_display_id.to_string(),
@@ -1084,6 +1094,8 @@ async fn task_create_inner(
         column,
         urgent: cmd.urgent,
         note_markdown: String::new(),
+        worktree_path: None,
+        branch: None,
         position: column_tasks.len() as i64,
         revision: 1,
         created_at: now,
@@ -1123,6 +1135,12 @@ async fn task_update_inner(
     let before = task.clone();
     if let Some(title) = cmd.title {
         task.title = trim_title(&title).map_err(map_validation)?;
+    }
+    if let Some(worktree_path) = cmd.worktree_path {
+        task.worktree_path = optional_workspace_value("worktree", worktree_path)?;
+    }
+    if let Some(branch) = cmd.branch {
+        task.branch = optional_workspace_value("branch", branch)?;
     }
     task.revision += 1;
     task.updated_at = now;
@@ -1559,6 +1577,8 @@ async fn run_start_inner(
         revision: 1,
         created_at: now,
         updated_at: now,
+        worktree_path: task.worktree_path.clone(),
+        branch: task.branch.clone(),
     };
     store.insert_run(&run).await?;
     record_activity(
@@ -1939,7 +1959,12 @@ async fn rewrite_live_column(
 
 async fn load_task_detail(store: &mut dyn Store, task: Task) -> Result<TaskDetail, AppError> {
     let links = store.list_links(task.id).await?;
-    let runs = store.list_runs(task.id).await?;
+    let runs = store
+        .list_runs(task.id)
+        .await?
+        .into_iter()
+        .map(|run| with_task_workspace(run, &task))
+        .collect::<Vec<_>>();
     let comments = store.list_comments(task.id).await?;
     let checks = store.list_checks(task.id).await?;
     let recent_activities = store.list_recent_activities(task.id, 20).await?;
@@ -1962,6 +1987,8 @@ async fn load_task_detail(store: &mut dyn Store, task: Task) -> Result<TaskDetai
         runs,
         comments,
         checks,
+        worktree_path: task.worktree_path,
+        branch: task.branch,
         recent_activities,
     })
 }
@@ -2011,11 +2038,29 @@ fn to_task_summary_from_runs(
         stale,
         checklist_done,
         checklist_total,
+        worktree_path: task.worktree_path,
+        branch: task.branch,
     }
 }
 
 fn is_stale(run: &Run, now: DateTime<Utc>, minutes: i64) -> bool {
     run.status == RunStatus::Running && now - run.updated_at >= chrono::Duration::minutes(minutes)
+}
+
+fn with_task_workspace(mut run: Run, task: &Task) -> Run {
+    run.worktree_path = task.worktree_path.clone();
+    run.branch = task.branch.clone();
+    run
+}
+
+fn optional_workspace_value(
+    field: &str,
+    value: Option<String>,
+) -> Result<Option<String>, AppError> {
+    match value {
+        None => Ok(None),
+        Some(raw) => Ok(Some(require_non_blank(field, &raw)?)),
+    }
 }
 
 fn reply_for(status: CardDisplayStatus, comments: &[Comment]) -> Option<String> {
