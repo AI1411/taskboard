@@ -29,8 +29,14 @@ function slugify(name: string, existing: Project[]): string {
   return slug;
 }
 
-function inboxMember(column: Column, urgent: boolean, status: DisplayStatus): boolean {
+function inboxMember(
+  column: Column,
+  urgent: boolean,
+  status: DisplayStatus,
+  stale: boolean,
+): boolean {
   if (status === "waiting" || status === "failed") return true;
+  if (stale) return true;
   return urgent && column !== "done";
 }
 
@@ -335,7 +341,8 @@ export function fakeTransport(): Transport {
         const column = detail?.column ?? task.column;
         const waitingReason = detail?.waitingReason ?? task.waitingReason;
         const runMessage = detail?.runMessage ?? task.runMessage;
-        if (!inboxMember(column, urgent, status)) continue;
+        const stale = detail?.stale ?? task.stale;
+        if (!inboxMember(column, urgent, status, stale)) continue;
         items.push({
           id: task.id,
           displayId: task.displayId,
@@ -349,7 +356,10 @@ export function fakeTransport(): Transport {
           displayStatus: status,
           runMessage,
           waitingReason,
-          reason: (waitingReason && waitingReason.trim()) || (runMessage && runMessage.trim()) || "",
+          reason: stale
+            ? "stale · last update 2026-09-16T12:00:00Z"
+            : (waitingReason && waitingReason.trim()) || (runMessage && runMessage.trim()) || "",
+          stale,
           updatedAt: project.updatedAt,
         });
       }

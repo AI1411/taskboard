@@ -345,6 +345,7 @@ pub struct InboxItemDto {
     pub run_message: Option<String>,
     pub waiting_reason: Option<String>,
     pub reason: String,
+    pub stale: bool,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -364,6 +365,7 @@ impl From<InboxItem> for InboxItemDto {
             run_message: item.run_message,
             waiting_reason: item.waiting_reason,
             reason: item.reason,
+            stale: item.stale,
             updated_at: item.updated_at,
         }
     }

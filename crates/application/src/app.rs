@@ -6,12 +6,12 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use taskboard_core::{
-    card_display_status, display_id, inbox_membership, inbox_reason, next_unique_slug, parse_agent,
-    parse_path_link, parse_url, place_before, place_urgent, rewrite_positions, slugify,
-    sort_column, trim_project_name, trim_title, winning_run_view, Activity, ActivityEntry,
-    CardDisplayStatus, Check, Column, Comment, DisplayKind, EntityType, FieldError, InboxItem,
-    Link, LinkKind, OrderError, OrderKey, Project, Run, RunStatus, RunStatusView, SlugError, Task,
-    TaskDetail, TaskSummary, ValidationError,
+    card_display_status, display_id, inbox_membership, inbox_reason, inbox_stale_reason,
+    next_unique_slug, parse_agent, parse_path_link, parse_url, place_before, place_urgent,
+    rewrite_positions, slugify, sort_column, trim_project_name, trim_title, winning_run_view,
+    Activity, ActivityEntry, CardDisplayStatus, Check, Column, Comment, DisplayKind, EntityType,
+    FieldError, InboxItem, Link, LinkKind, OrderError, OrderKey, Project, Run, RunStatus,
+    RunStatusView, SlugError, Task, TaskDetail, TaskSummary, ValidationError,
 };
 
 use crate::actor::Actor;
@@ -269,15 +269,26 @@ impl App {
                 }
                 let updated_at = task.updated_at;
                 let summary = to_task_summary(store, task, now).await?;
-                let Some(_group) =
-                    inbox_membership(summary.column, summary.urgent, summary.display_status)
-                else {
+                let Some(_group) = inbox_membership(
+                    summary.column,
+                    summary.urgent,
+                    summary.display_status,
+                    summary.stale,
+                ) else {
                     continue;
                 };
-                let reason = inbox_reason(
-                    summary.waiting_reason.as_deref(),
-                    summary.run_message.as_deref(),
-                );
+                let reason = if summary.stale {
+                    let runs = store.list_runs(summary.id).await?;
+                    let last = winning_run(&runs)
+                        .map(|run| run.updated_at)
+                        .unwrap_or(updated_at);
+                    inbox_stale_reason(last)
+                } else {
+                    inbox_reason(
+                        summary.waiting_reason.as_deref(),
+                        summary.run_message.as_deref(),
+                    )
+                };
                 items.push(InboxItem {
                     id: summary.id,
                     display_id: summary.display_id,
@@ -292,14 +303,21 @@ impl App {
                     run_message: summary.run_message,
                     waiting_reason: summary.waiting_reason,
                     reason,
+                    stale: summary.stale,
                     updated_at,
                 });
             }
         }
 
         items.sort_by(|left, right| {
-            let left_group = inbox_membership(left.column, left.urgent, left.display_status);
-            let right_group = inbox_membership(right.column, right.urgent, right.display_status);
+            let left_group =
+                inbox_membership(left.column, left.urgent, left.display_status, left.stale);
+            let right_group = inbox_membership(
+                right.column,
+                right.urgent,
+                right.display_status,
+                right.stale,
+            );
             left_group
                 .cmp(&right_group)
                 .then_with(|| right.urgent.cmp(&left.urgent))

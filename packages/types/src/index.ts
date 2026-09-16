@@ -128,6 +128,7 @@ export interface InboxItem {
   runMessage: string | null;
   waitingReason: string | null;
   reason: string;
+  stale: boolean;
   updatedAt: string;
 }
 
