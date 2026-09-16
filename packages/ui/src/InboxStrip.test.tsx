@@ -34,6 +34,27 @@ describe("InboxStrip", () => {
     expect(await screen.findByDisplayValue("Wait B")).toBeTruthy();
   });
 
+  it("lists stale running cards between failed and urgent", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    const stale = await transport.taskCreate(project.slug, { title: "Stuck", column: "in-progress" });
+    stale.displayStatus = "running";
+    stale.stale = true;
+    const urgent = await transport.taskCreate(project.slug, {
+      title: "Pin",
+      column: "todo",
+      urgent: true,
+    });
+    urgent.urgent = true;
+    render(<TaskboardApp transport={transport} />);
+    expect(await screen.findByText(/Inbox · 2/)).toBeTruthy();
+    expect(screen.getByText(/Stale 1/)).toBeTruthy();
+    expect(screen.getByText(/Urgent 1/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: /Inbox/ }));
+    expect(await screen.findByRole("button", { name: /Stuck/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /stale · last update/ })).toBeTruthy();
+  });
+
   it("i toggles the inbox strip expanded", async () => {
     const transport = fakeTransport();
     const project = await transport.projectAdd({ name: "Alpha" });
