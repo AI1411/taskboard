@@ -82,6 +82,15 @@ pub enum Command {
     },
     /// Undo the latest undoable activity
     Undo,
+    /// List board activity
+    Activity {
+        #[arg(long)]
+        after: Option<i64>,
+        #[arg(long)]
+        project: Option<String>,
+        #[arg(long)]
+        task: Option<String>,
+    },
     /// Database backup
     #[command(subcommand)]
     Backup(BackupCommand),
