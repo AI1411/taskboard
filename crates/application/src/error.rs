@@ -12,6 +12,8 @@ pub enum AppError {
     RevisionConflict { current: serde_json::Value },
     #[error("cannot reorder across columns {left} and {right}")]
     DifferentColumn { left: String, right: String },
+    #[error("{entity} {id} already has an open run")]
+    Conflict { entity: String, id: String },
     #[error("undo conflict")]
     UndoConflict { current: serde_json::Value },
     #[error("database busy")]
@@ -30,6 +32,7 @@ impl AppError {
             AppError::DuplicateSlug { .. } => "duplicate_slug",
             AppError::RevisionConflict { .. } => "revision_conflict",
             AppError::DifferentColumn { .. } => "different_column",
+            AppError::Conflict { .. } => "conflict",
             AppError::UndoConflict { .. } => "undo_conflict",
             AppError::DatabaseBusy => "database_busy",
             AppError::Io(_) => "io_error",
@@ -74,6 +77,16 @@ mod tests {
             slug: "renai-sim".into(),
         };
         assert_eq!(err.code(), "duplicate_slug");
+    }
+
+    #[test]
+    fn conflict_code() {
+        let err = AppError::Conflict {
+            entity: "task".into(),
+            id: "TASK-1".into(),
+        };
+        assert_eq!(err.code(), "conflict");
+        assert_eq!(err.to_string(), "task TASK-1 already has an open run");
     }
 
     #[test]
