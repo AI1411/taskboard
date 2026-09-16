@@ -3,7 +3,6 @@ import type { Column, TaskDetail } from "@taskboard/types";
 
 import { COLUMNS } from "./columns";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { EmptyState } from "./EmptyState";
 import styles from "./Inspector.module.css";
 
 const ACTIVITY_LABELS: Record<string, string> = {
@@ -44,6 +43,7 @@ export function Inspector(props: {
   const [note, setNote] = useState(props.task?.noteMarkdown ?? "");
   const [linkValue, setLinkValue] = useState("");
   const lastId = useRef<string | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!props.task) {
@@ -70,30 +70,23 @@ export function Inspector(props: {
     return () => window.clearTimeout(handle);
   }, [note, props.task, props.onNoteChange]);
 
-  if (!props.open) return null;
+  useEffect(() => {
+    if (!props.open || !props.task) return;
+    panelRef.current?.focus();
+  }, [props.open, props.task?.displayId]);
 
-  if (!props.task) {
-    return (
-      <aside className={`${styles.panel} ${styles.hidden}`}>
-        <div className={styles.empty}>
-          <EmptyState>Select a card</EmptyState>
-        </div>
-      </aside>
-    );
-  }
+  if (!props.open || !props.task) return null;
 
   const runs = [...props.task.runs].sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
   const activities = [...props.task.recentActivities].sort((a, b) => b.sequence - a.sequence);
 
   return (
-    <>
-      <button
-        type="button"
-        className={styles.backdrop}
-        aria-label="Dismiss details"
-        onClick={() => props.onClose?.()}
-      />
-      <aside className={styles.panel} aria-label="Task details">
+    <aside
+      ref={panelRef}
+      className={styles.panel}
+      aria-label="Task details"
+      tabIndex={-1}
+    >
         <label className={styles.field}>
           Title
           <input
@@ -215,7 +208,6 @@ export function Inspector(props: {
             Delete
           </button>
         )}
-      </aside>
-    </>
+    </aside>
   );
 }

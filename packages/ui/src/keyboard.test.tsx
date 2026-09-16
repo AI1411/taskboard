@@ -221,6 +221,21 @@ describe("keyboard", () => {
     expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).toBeNull();
   });
 
+  it("Escape closes the inspector and clears the selection", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Untitled" });
+    await transport.taskCreate(project.slug, { title: "Inspect me", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByRole("listitem", { name: /Inspect me/ }));
+    expect(await screen.findByLabelText("Title")).toBeTruthy();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByLabelText("Title")).toBeNull();
+    expect(screen.queryByText("Select a card")).toBeNull();
+    expect(screen.getByRole("listitem", { name: /Inspect me/ }).getAttribute("aria-selected")).toBe(
+      "false",
+    );
+  });
+
   it("Enter opens the inspector for the selected card", async () => {
     const transport = fakeTransport();
     const project = await transport.projectAdd({ name: "Untitled" });

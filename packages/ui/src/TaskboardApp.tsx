@@ -29,7 +29,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [currentColumn, setCurrentColumn] = useState<Column>("todo");
   const [query, setQuery] = useState("");
-  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [includeArchived, setIncludeArchived] = useState(false);
   const [projectNote, setProjectNote] = useState("");
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
@@ -50,6 +50,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   } | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
+  const boardRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const taskComposerRef = useRef<HTMLInputElement>(null);
   const projectComposerRef = useRef<HTMLInputElement>(null);
@@ -58,7 +59,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   const tasksRef = useRef<TaskSummary[]>([]);
   const currentColumnRef = useRef<Column>("todo");
   const queryRef = useRef("");
-  const inspectorOpenRef = useRef(true);
+  const inspectorOpenRef = useRef(false);
   const projectsRef = useRef<Project[]>([]);
   const detailRef = useRef<TaskDetail | null>(null);
   const includeArchivedRef = useRef(false);
@@ -86,6 +87,18 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
     detailRef.current = updated;
     setDetail(updated);
   };
+
+  const closeInspector = useCallback(() => {
+    setSelectedId(null);
+    selectedIdRef.current = null;
+    applyDetail(null);
+    setConfirmDelete(false);
+    confirmDeleteRef.current = false;
+    setTrashedSelection(false);
+    setInspectorOpen(false);
+    inspectorOpenRef.current = false;
+    boardRef.current?.focus();
+  }, []);
 
   const refreshInbox = useCallback(async () => {
     const all = await transport.inbox();
@@ -117,8 +130,8 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
       setSelectedId(null);
       selectedIdRef.current = null;
       applyDetail(null);
-      setInspectorOpen(true);
-      inspectorOpenRef.current = true;
+      setInspectorOpen(false);
+      inspectorOpenRef.current = false;
       setCurrentColumn("todo");
       currentColumnRef.current = "todo";
       await refreshTasks(project.slug);
@@ -217,8 +230,8 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
       setSelectedProject(project);
       setSelectedId(null);
       applyDetail(null);
-      setInspectorOpen(true);
-      inspectorOpenRef.current = true;
+      setInspectorOpen(false);
+      inspectorOpenRef.current = false;
       setProjectNote(project.noteMarkdown);
       setProjects((prev) => {
         const next = prev.some((p) => p.id === project.id) ? prev : [...prev, project];
@@ -426,8 +439,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
           queryRef.current = "";
           return;
         }
-        setInspectorOpen(false);
-        inspectorOpenRef.current = false;
+        closeInspector();
         return;
       }
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -527,6 +539,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
     addProject,
     createTask,
     jumpColumn,
+    closeInspector,
     moveSelected,
     performUndo,
     reloadBoard,
@@ -799,6 +812,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
             currentColumn={currentColumn}
             query={query}
             searchRef={searchRef}
+            boardRef={boardRef}
             onQueryChange={(value) => {
               setQuery(value);
               queryRef.current = value;
@@ -806,6 +820,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
             onSelectCard={(id) => void selectCard(id)}
             onMove={(id, column) => void onMove(id, column)}
             onReorder={(id, beforeId) => void onReorder(id, beforeId)}
+            onBackgroundClick={closeInspector}
             composing={composingTask}
             composerRef={taskComposerRef}
             onComposerSubmit={(title) => void createTask(title)}
@@ -864,16 +879,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         onLinkRemove={(linkId) => {
           void transport.linkRemove(linkId).then(applyDetail);
         }}
-        onClose={() => {
-          setSelectedId(null);
-          selectedIdRef.current = null;
-          applyDetail(null);
-          setConfirmDelete(false);
-          confirmDeleteRef.current = false;
-          setTrashedSelection(false);
-          setInspectorOpen(true);
-          inspectorOpenRef.current = true;
-        }}
+        onClose={closeInspector}
       />
       {legendOpen ? <ShortcutLegend onClose={() => setLegendOpen(false)} /> : null}
       {toast ? (

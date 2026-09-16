@@ -29,10 +29,12 @@ export function Board(props: {
   currentColumn: Column;
   query: string;
   searchRef?: Ref<HTMLInputElement>;
+  boardRef?: Ref<HTMLElement>;
   onQueryChange: (value: string) => void;
   onSelectCard: (displayId: string) => void;
   onMove: (displayId: string, column: Column) => void;
   onReorder: (displayId: string, beforeId: string) => void;
+  onBackgroundClick?: () => void;
   onNewTask?: () => void;
   composing?: boolean;
   composerRef?: Ref<HTMLInputElement>;
@@ -72,7 +74,12 @@ export function Board(props: {
   }
 
   return (
-    <section className={styles.board}>
+    <section
+      ref={props.boardRef}
+      className={styles.board}
+      aria-label="Board"
+      tabIndex={-1}
+    >
       <div className={styles.toolbar}>
         <div className={styles.searchWrap}>
           <Search value={props.query} onChange={props.onQueryChange} inputRef={props.searchRef} />
@@ -103,6 +110,7 @@ export function Board(props: {
                 label={col.label}
                 count={columnTasks.length}
                 current={props.currentColumn === col.id}
+                onBackgroundClick={props.onBackgroundClick}
               >
                 <SortableContext
                   items={columnTasks.map((t) => t.displayId)}
@@ -150,11 +158,20 @@ function ColumnDrop(props: {
   label: string;
   count: number;
   current: boolean;
+  onBackgroundClick?: () => void;
   children: ReactNode;
 }) {
   const { setNodeRef } = useDroppable({ id: props.column });
   return (
-    <div className={`${styles.column} ${props.current ? styles.columnCurrent : ""}`}>
+    <div
+      className={`${styles.column} ${props.current ? styles.columnCurrent : ""}`}
+      onClick={(event) => {
+        const target = event.target as HTMLElement;
+        if (target.closest('[role="listitem"]')) return;
+        if (target.closest("input, textarea, select, button, [contenteditable='true']")) return;
+        props.onBackgroundClick?.();
+      }}
+    >
       <h2 className={styles.header}>
         {props.label}
         <span className={styles.count}>{props.count}</span>
