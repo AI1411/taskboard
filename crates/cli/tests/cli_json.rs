@@ -993,11 +993,25 @@ fn next_json_claims_first_ready() {
         .assert()
         .success();
     tb_in(&dir)
-        .args(["task", "create", "--project", "renai-sim", "--title", "First"])
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "First",
+        ])
         .assert()
         .success();
     tb_in(&dir)
-        .args(["task", "create", "--project", "renai-sim", "--title", "Second"])
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Second",
+        ])
         .assert()
         .success();
     let v = json_ok(
