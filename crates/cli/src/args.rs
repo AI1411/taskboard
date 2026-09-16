@@ -165,12 +165,19 @@ pub enum TaskCommand {
         #[arg(long)]
         urgent: bool,
     },
-    /// List tasks in a project
+    /// List tasks in a project or across all live projects
     List {
-        #[arg(long)]
+        #[arg(long, conflicts_with = "all")]
         project: Option<String>,
+        /// List every live project instead of detecting one
+        #[arg(long)]
+        all: bool,
+        #[arg(long, value_delimiter = ',', value_parser = parse_status)]
+        status: Vec<taskboard_core::CardDisplayStatus>,
         #[arg(long, value_parser = parse_column)]
         column: Option<Column>,
+        #[arg(long)]
+        agent: Option<String>,
     },
     /// Show one task
     Show { display_id: String },
@@ -258,6 +265,29 @@ pub enum LinkCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum RunCommand {
+    /// List runs
+    List {
+        /// Only running and waiting
+        #[arg(long)]
+        open: bool,
+        #[arg(long = "session")]
+        session_id: Option<String>,
+        #[arg(long)]
+        agent: Option<String>,
+    },
+    /// Show one run by RUN-n or session
+    #[command(group(
+        clap::ArgGroup::new("target")
+            .required(true)
+            .args(["run_id", "session_id"])
+    ))]
+    Show {
+        run_id: Option<String>,
+        #[arg(long = "session")]
+        session_id: Option<String>,
+    },
+    /// Show the run that drives a card's display status
+    Current { display_id: String },
     /// Start a run on a task
     Start {
         display_id: String,
@@ -340,4 +370,13 @@ impl FromStr for OnOff {
 
 fn parse_column(s: &str) -> Result<Column, String> {
     s.parse::<Column>().map_err(|err| err.to_string())
+}
+
+fn parse_status(s: &str) -> Result<taskboard_core::CardDisplayStatus, String> {
+    let part = s.trim();
+    if part.is_empty() {
+        return Err("status must not be empty".into());
+    }
+    part.parse::<taskboard_core::CardDisplayStatus>()
+        .map_err(|err| err.to_string())
 }

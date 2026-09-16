@@ -3,7 +3,7 @@ use std::path::Path;
 use serde::Serialize;
 use taskboard_application::AppError;
 use taskboard_core::{
-    CardDisplayStatus, Column, EntityType, InboxItem, Project, TaskDetail, TaskSummary,
+    CardDisplayStatus, Column, EntityType, InboxItem, Project, Run, TaskDetail, TaskSummary,
 };
 
 pub fn print_error(err: &AppError, json: bool) -> i32 {
@@ -117,6 +117,28 @@ pub fn print_inbox(items: &[InboxItem]) {
             item.reason
         );
     }
+}
+
+pub fn print_run_list(runs: &[Run]) {
+    println!("ID  AGENT  STATUS  SESSION");
+    for run in runs {
+        println!(
+            "{}  {}  {}  {}",
+            run.display_id,
+            run.agent,
+            run.status.as_str(),
+            run.session_id.as_deref().unwrap_or("-")
+        );
+    }
+}
+
+pub fn print_run(run: &Run) {
+    println!(
+        "{}  {}  [{}]",
+        run.display_id,
+        run.agent,
+        run.status.as_str()
+    );
 }
 
 pub fn print_task_list(tasks: &[TaskSummary]) {

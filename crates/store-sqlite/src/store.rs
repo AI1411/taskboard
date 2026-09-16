@@ -640,6 +640,41 @@ impl Store for SqliteStore {
         rows.iter().map(run_from_row).collect()
     }
 
+    async fn list_all_runs(&mut self) -> Result<Vec<Run>, AppError> {
+        let sql = format!(
+            "SELECT {RUN_COLUMNS} FROM runs
+             WHERE task_id IN (
+               SELECT tasks.id FROM tasks
+               JOIN projects ON projects.id = tasks.project_id
+               WHERE tasks.deleted_at IS NULL
+                 AND projects.deleted_at IS NULL
+                 AND projects.archived = 0
+             )
+             ORDER BY started_at DESC, display_id DESC"
+        );
+        let query = sqlx::query(&sql);
+        let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
+        rows.iter().map(run_from_row).collect()
+    }
+
+    async fn list_runs_by_session_id(&mut self, session_id: &str) -> Result<Vec<Run>, AppError> {
+        let sql = format!(
+            "SELECT {RUN_COLUMNS} FROM runs
+             WHERE session_id = ?
+               AND task_id IN (
+                 SELECT tasks.id FROM tasks
+                 JOIN projects ON projects.id = tasks.project_id
+                 WHERE tasks.deleted_at IS NULL
+                   AND projects.deleted_at IS NULL
+                   AND projects.archived = 0
+               )
+             ORDER BY started_at DESC, display_id DESC"
+        );
+        let query = sqlx::query(&sql).bind(session_id);
+        let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
+        rows.iter().map(run_from_row).collect()
+    }
+
     async fn insert_run(&mut self, run: &Run) -> Result<(), AppError> {
         let query = sqlx::query(
             "INSERT INTO runs (id, display_id, task_id, agent, session_id, status, message, waiting_reason, summary, started_at, ended_at, revision, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",

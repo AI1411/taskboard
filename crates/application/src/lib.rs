@@ -8,8 +8,8 @@ mod store;
 pub use actor::Actor;
 pub use app::{App, Clock, SystemClock};
 pub use commands::{
-    InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunStart, RunUpdate,
-    RunWait, TaskCreate, TaskUpdate,
+    InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunListQuery, RunStart,
+    RunUpdate, RunWait, TaskCreate, TaskListQuery, TaskUpdate,
 };
 pub use error::AppError;
 pub use store::{NewActivity, Store, SyncDelta, Trash, UndoResult};

@@ -14,7 +14,10 @@ mod slug;
 mod validation;
 
 pub use column::{Column, ParseColumnError};
-pub use display_status::{card_display_status, CardDisplayStatus, RunStatusView};
+pub use display_status::{
+    card_display_status, winning_run_view, CardDisplayStatus, ParseCardDisplayStatusError,
+    RunStatusView,
+};
 pub use error::{FieldError, ValidationError};
 pub use ids::{display_id, parse_display_id, DisplayKind, ParseDisplayIdError};
 pub use inbox::{inbox_membership, inbox_reason, InboxGroup};

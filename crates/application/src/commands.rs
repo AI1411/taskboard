@@ -1,4 +1,4 @@
-use taskboard_core::{Column, LinkKind};
+use taskboard_core::{CardDisplayStatus, Column, LinkKind};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectAdd {
@@ -78,4 +78,19 @@ pub struct RunFinish {
 pub struct InboxScope {
     pub project: Option<String>,
     pub include_archived: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TaskListQuery {
+    pub project: Option<String>,
+    pub statuses: Vec<CardDisplayStatus>,
+    pub column: Option<Column>,
+    pub agent: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct RunListQuery {
+    pub open: bool,
+    pub session_id: Option<String>,
+    pub agent: Option<String>,
 }

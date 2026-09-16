@@ -10,7 +10,7 @@ use chrono::Utc;
 use clap::Parser;
 use taskboard_application::{
     Actor, App, AppError, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish,
-    RunStart, RunUpdate, RunWait, SystemClock, TaskCreate, TaskUpdate,
+    RunListQuery, RunStart, RunUpdate, RunWait, SystemClock, TaskCreate, TaskListQuery, TaskUpdate,
 };
 use taskboard_core::LinkKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
@@ -328,17 +328,31 @@ async fn task_cmd(
                 output::created_task(&task);
             });
         }
-        TaskCommand::List { project, column } => {
-            let project = resolve_project(app, project)
+        TaskCommand::List {
+            project,
+            all,
+            status,
+            column,
+            agent,
+        } => {
+            let project = if all {
+                None
+            } else {
+                Some(
+                    resolve_project(app, project)
+                        .await
+                        .map_err(|err| output::print_error(&err, json))?,
+                )
+            };
+            let tasks = app
+                .task_query(TaskListQuery {
+                    project,
+                    statuses: status,
+                    column,
+                    agent,
+                })
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
-            let mut tasks = app
-                .task_list(&project)
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
-            if let Some(column) = column {
-                tasks.retain(|task| task.column == column);
-            }
             output::print_entities(json, &tasks, || output::print_task_list(&tasks));
         }
         TaskCommand::Show { display_id } => {
@@ -527,6 +541,42 @@ async fn run_cmd(
     cmd: RunCommand,
 ) -> Result<(), i32> {
     match cmd {
+        RunCommand::List {
+            open,
+            session_id,
+            agent,
+        } => {
+            let runs = app
+                .run_list(RunListQuery {
+                    open,
+                    session_id,
+                    agent,
+                })
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entities(json, &runs, || output::print_run_list(&runs));
+        }
+        RunCommand::Show { run_id, session_id } => {
+            let run = if let Some(run_id) = run_id {
+                app.run_show(&run_id).await
+            } else {
+                app.run_by_session(session_id.as_deref().unwrap_or(""))
+                    .await
+            }
+            .map_err(|err| output::print_error(&err, json))?;
+            output::print_entity(json, &run, run.revision, || {
+                output::print_run(&run);
+            });
+        }
+        RunCommand::Current { display_id } => {
+            let run = app
+                .run_current(&display_id)
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entity(json, &run, run.revision, || {
+                output::print_run(&run);
+            });
+        }
         RunCommand::Start {
             display_id,
             agent,

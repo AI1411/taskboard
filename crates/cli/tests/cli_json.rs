@@ -491,6 +491,141 @@ fn task_list_without_project_unlinked_is_project_required() {
     assert_eq!(v["error"]["code"], "project_required");
 }
 
+#[test]
+fn task_list_all_filters_status_column_agent() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Alpha"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Beta"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "alpha",
+            "--title",
+            "Review me",
+            "--column",
+            "in-review",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "beta",
+            "--title",
+            "Other",
+            "--column",
+            "in-review",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "run",
+            "start",
+            "TASK-1",
+            "--agent",
+            "cursor",
+            "--session",
+            "s1",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-2", "--agent", "codex"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "wait", "RUN-2", "--reason", "need spec"])
+        .assert()
+        .success();
+    let v = json_ok(
+        &dir,
+        &[
+            "task",
+            "list",
+            "--all",
+            "--status",
+            "running,waiting",
+            "--column",
+            "in-review",
+            "--agent",
+            "cursor",
+        ],
+    );
+    assert!(v.get("entity").is_none());
+    assert_eq!(v["entities"].as_array().unwrap().len(), 1);
+    assert_eq!(v["entities"][0]["display_id"], "TASK-1");
+    assert_eq!(v["entities"][0]["display_status"], "running");
+}
+
+#[test]
+fn run_list_show_current_and_session() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Fix login",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "run",
+            "start",
+            "TASK-1",
+            "--agent",
+            "cursor",
+            "--session",
+            "abc123",
+        ])
+        .assert()
+        .success();
+    let listed = json_ok(&dir, &["run", "list", "--open"]);
+    assert_eq!(listed["entities"][0]["display_id"], "RUN-1");
+    assert_eq!(listed["entities"][0]["status"], "running");
+    let shown = json_ok(&dir, &["run", "show", "RUN-1"]);
+    assert_eq!(shown["entity"]["display_id"], "RUN-1");
+    assert_eq!(shown["revision"], 1);
+    let current = json_ok(&dir, &["run", "current", "TASK-1"]);
+    assert_eq!(current["entity"]["display_id"], "RUN-1");
+    let by_session = json_ok(&dir, &["run", "show", "--session", "abc123"]);
+    assert_eq!(by_session["entity"]["session_id"], "abc123");
+}
+
+#[test]
+fn run_show_missing_is_not_found() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = tb_in(&dir)
+        .args(["run", "show", "RUN-9", "--json"])
+        .assert()
+        .failure()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "not_found");
+}
+
 fn json_ok(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     let mut argv = args.to_vec();
     argv.push("--json");
