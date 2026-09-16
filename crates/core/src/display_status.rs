@@ -177,7 +177,10 @@ mod tests {
             CardDisplayStatus::Failed,
             CardDisplayStatus::Completed,
         ] {
-            assert_eq!(status.as_str().parse::<CardDisplayStatus>().unwrap(), status);
+            assert_eq!(
+                status.as_str().parse::<CardDisplayStatus>().unwrap(),
+                status
+            );
         }
         assert!("active".parse::<CardDisplayStatus>().is_err());
     }

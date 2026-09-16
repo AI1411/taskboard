@@ -204,8 +204,7 @@ impl App {
                         continue;
                     }
                 }
-                if !query.statuses.is_empty() && !query.statuses.contains(&summary.display_status)
-                {
+                if !query.statuses.is_empty() && !query.statuses.contains(&summary.display_status) {
                     continue;
                 }
                 if let Some(agent) = query.agent.as_deref() {
