@@ -40,6 +40,7 @@ function asDetail(task: TaskSummary, extras?: Partial<TaskDetail>): TaskDetail {
     noteMarkdown: "",
     links: [],
     runs: [],
+    comments: [],
     recentActivities: [],
     ...extras,
   };
@@ -136,6 +137,7 @@ export function fakeTransport(): Transport {
         displayStatus: "idle",
         runMessage: null,
         waitingReason: null,
+        reply: null,
       };
       tasks.push(task);
       const detail = asDetail(task);
@@ -150,7 +152,13 @@ export function fakeTransport(): Transport {
     async taskShow(displayId) {
       const detail = details.get(displayId);
       if (!detail) throw new Error("not found");
-      return { ...detail, links: [...detail.links], runs: [...detail.runs], recentActivities: [...detail.recentActivities] };
+      return {
+        ...detail,
+        links: [...detail.links],
+        runs: [...detail.runs],
+        comments: [...detail.comments],
+        recentActivities: [...detail.recentActivities],
+      };
     },
     async taskUpdate(displayId, patch, revision) {
       const task = tasks.find((t) => t.displayId === displayId);

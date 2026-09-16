@@ -35,6 +35,16 @@ export interface TaskSummary {
   displayStatus: DisplayStatus;
   runMessage: string | null;
   waitingReason: string | null;
+  reply: string | null;
+}
+
+export interface Comment {
+  id: string;
+  taskId: string;
+  actorKind: ActorKind;
+  actorLabel: string;
+  body: string;
+  createdAt: string;
 }
 
 export interface Link {
@@ -81,6 +91,7 @@ export interface TaskDetail extends TaskSummary {
   noteMarkdown: string;
   links: Link[];
   runs: Run[];
+  comments: Comment[];
   recentActivities: Activity[];
 }
 

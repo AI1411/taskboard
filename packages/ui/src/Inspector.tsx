@@ -134,6 +134,16 @@ export function Inspector(props: {
           />
         </label>
         <div>
+          <h3 className={styles.heading}>Comments</h3>
+          <ul className={styles.list}>
+            {props.task.comments.map((comment) => (
+              <li key={comment.id}>
+                {comment.createdAt} · {comment.actorLabel} · {comment.body}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
           <h3 className={styles.heading}>Links</h3>
           <ul className={styles.list}>
             {props.task.links.map((link) => (
