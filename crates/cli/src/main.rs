@@ -9,8 +9,8 @@ use std::path::PathBuf;
 use chrono::Utc;
 use clap::Parser;
 use taskboard_application::{
-    Actor, App, AppError, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunStart,
-    RunUpdate, RunWait, SystemClock, TaskCreate, TaskUpdate,
+    Actor, App, AppError, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish,
+    RunStart, RunUpdate, RunWait, SystemClock, TaskCreate, TaskUpdate,
 };
 use taskboard_core::LinkKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
@@ -111,6 +111,17 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
                 .unwrap_or(0);
             let human = output::undo_human(result.entity_type, &result.entity);
             output::print_entity(json, &result.entity, revision, || println!("{human}"));
+            Ok(())
+        }
+        Command::Inbox { project, archived } => {
+            let items = app
+                .inbox(InboxScope {
+                    project,
+                    include_archived: archived,
+                })
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entities(json, &items, || output::print_inbox(&items));
             Ok(())
         }
         Command::Backup(cmd) => backup_cmd(app, json, cmd).await,

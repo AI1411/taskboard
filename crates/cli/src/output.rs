@@ -2,7 +2,9 @@ use std::path::Path;
 
 use serde::Serialize;
 use taskboard_application::AppError;
-use taskboard_core::{CardDisplayStatus, Column, EntityType, Project, TaskDetail, TaskSummary};
+use taskboard_core::{
+    CardDisplayStatus, Column, EntityType, InboxItem, Project, TaskDetail, TaskSummary,
+};
 
 pub fn print_error(err: &AppError, json: bool) -> i32 {
     if json {
@@ -95,6 +97,26 @@ pub fn created_task(task: &TaskDetail) {
         task.title,
         task.column.as_str()
     );
+}
+
+pub fn print_inbox(items: &[InboxItem]) {
+    if items.is_empty() {
+        println!("inbox is empty");
+        return;
+    }
+    println!("ID  PROJECT  COLUMN  URGENT  RUN  TITLE  REASON");
+    for item in items {
+        println!(
+            "{}  {}  {}  {}  {}  {}  {}",
+            item.display_id,
+            item.project_slug,
+            item.column.as_str(),
+            if item.urgent { "U" } else { "-" },
+            run_badge(item.display_status),
+            item.title,
+            item.reason
+        );
+    }
 }
 
 pub fn print_task_list(tasks: &[TaskSummary]) {
