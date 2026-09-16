@@ -92,8 +92,8 @@ export function Sidebar(props: {
               aria-label="Project name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              onBlur={() => {
-                const next = name.trim();
+              onBlur={(e) => {
+                const next = e.currentTarget.value.trim();
                 if (next && next !== selected.name) props.onRename?.(next);
               }}
             />
