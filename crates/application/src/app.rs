@@ -18,7 +18,7 @@ use crate::actor::Actor;
 use crate::commands::{
     ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope, LinkAdd, NextClaim,
     ProjectAdd, ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate,
-    RunWait, StatusLine, TaskCreate, TaskListQuery, TaskUpdate, STATUS_HEAD,
+    RunWait, StatusLine, TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate, STATUS_HEAD,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -175,6 +175,19 @@ impl App {
         let store = &mut **store;
         store.begin().await?;
         let result = task_create_inner(store, actor, cmd, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn task_spawn(
+        &self,
+        actor: &Actor,
+        cmd: TaskSpawn,
+    ) -> Result<Vec<TaskDetail>, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = task_spawn_inner(store, actor, cmd, now).await;
         commit_or_rollback(store, result).await
     }
 
@@ -1153,6 +1166,57 @@ async fn project_note_set_inner(
     )
     .await?;
     Ok(project)
+}
+
+async fn task_spawn_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: TaskSpawn,
+    now: DateTime<Utc>,
+) -> Result<Vec<TaskDetail>, AppError> {
+    if cmd.titles.is_empty() {
+        return Err(AppError::Validation {
+            field: "title".into(),
+            message: "must not be empty".into(),
+        });
+    }
+    let parent = require_live_task(store, &cmd.parent_display_id).await?;
+    let project = store
+        .get_project(parent.project_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound {
+            entity: "project".into(),
+            id: parent.project_id.to_string(),
+        })?;
+    let mut children = Vec::new();
+    for title in cmd.titles {
+        let child = task_create_inner(
+            store,
+            actor,
+            TaskCreate {
+                project_slug: project.slug.clone(),
+                title,
+                column: None,
+                urgent: false,
+            },
+            now,
+        )
+        .await?;
+        link_add_inner(
+            store,
+            actor,
+            LinkAdd {
+                task_display_id: parent.display_id.clone(),
+                kind: LinkKind::BlockedBy,
+                value: child.display_id.clone(),
+                revision: None,
+            },
+            now,
+        )
+        .await?;
+        children.push(child);
+    }
+    Ok(children)
 }
 
 async fn task_create_inner(
