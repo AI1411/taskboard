@@ -693,12 +693,7 @@ async fn run_cmd(
     Ok(())
 }
 
-async fn comment_cmd(
-    app: &App,
-    actor: &Actor,
-    json: bool,
-    cmd: CommentCommand,
-) -> Result<(), i32> {
+async fn comment_cmd(app: &App, actor: &Actor, json: bool, cmd: CommentCommand) -> Result<(), i32> {
     match cmd {
         CommentCommand::Add { display_id, text } => {
             let comment = app

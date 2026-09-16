@@ -8,8 +8,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, S
 use sqlx::{Row, SqlitePool};
 use taskboard_application::{AppError, NewActivity, Store};
 use taskboard_core::{
-    Activity, ActorKind, Column, Comment, EntityType, Link, LinkKind, Project, Run, RunStatus,
-    Task,
+    Activity, ActorKind, Column, Comment, EntityType, Link, LinkKind, Project, Run, RunStatus, Task,
 };
 use uuid::Uuid;
 

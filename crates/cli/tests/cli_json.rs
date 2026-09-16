@@ -743,7 +743,10 @@ fn comment_reply_on_waiting_task_show() {
         .args(["run", "wait", "RUN-1", "--reason", "need spec"])
         .assert()
         .success();
-    json_ok(&dir, &["comment", "add", "TASK-1", "--text", "here is spec"]);
+    json_ok(
+        &dir,
+        &["comment", "add", "TASK-1", "--text", "here is spec"],
+    );
     let shown = json_ok(&dir, &["task", "show", "TASK-1"]);
     assert_eq!(shown["entity"]["reply"], "here is spec");
 }
