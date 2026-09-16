@@ -9,15 +9,15 @@ use axum::{Json, Router};
 use serde::Serialize;
 use serde_json::{json, Value};
 use taskboard_application::{
-    Actor, AppError, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunStart, RunUpdate,
-    RunWait, TaskCreate, TaskUpdate,
+    Actor, AppError, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunStart,
+    RunUpdate, RunWait, TaskCreate, TaskUpdate,
 };
 use taskboard_core::ActorKind;
 use uuid::Uuid;
 
 use crate::dto::{
-    json_keys_to_camel, AddLinkBody, BackupBody, CreateProjectBody, CreateTaskBody,
-    ListProjectsQuery, PatchProjectBody, PatchRunBody, PatchTaskBody, ProjectDto,
+    json_keys_to_camel, AddLinkBody, BackupBody, CreateProjectBody, CreateTaskBody, InboxItemDto,
+    InboxQuery, ListProjectsQuery, PatchProjectBody, PatchRunBody, PatchTaskBody, ProjectDto,
     ReorderProjectsBody, RunDto, RunOp, StartRunBody, SyncDeltaDto, SyncQuery, TaskDetailDto,
     TrashDto,
 };
@@ -50,6 +50,7 @@ pub(crate) fn api_router() -> Router<Arc<AppState>> {
         )
         .route("/api/v1/links/:id", delete(remove_link))
         .route("/api/v1/runs/:display_id", patch(patch_run))
+        .route("/api/v1/inbox", get(list_inbox))
         .route("/api/v1/trash", get(list_trash))
         .route("/api/v1/undo", post(undo))
         .route("/api/v1/backups/export", post(backup_export))
@@ -627,6 +628,28 @@ async fn patch_run(
     let dto = RunDto::from(run);
     let revision = dto.revision;
     Ok(entity(dto, revision))
+}
+
+async fn list_inbox(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(query): Query<InboxQuery>,
+) -> ApiResult {
+    require_read(&state, &headers)?;
+    let items = state
+        .app
+        .inbox(InboxScope {
+            project: query.project,
+            include_archived: query.archived.unwrap_or(false),
+        })
+        .await
+        .map_err(app_error)?;
+    Ok(entities(
+        items
+            .into_iter()
+            .map(InboxItemDto::from)
+            .collect::<Vec<_>>(),
+    ))
 }
 
 async fn list_trash(State(state): State<Arc<AppState>>, headers: HeaderMap) -> ApiResult {

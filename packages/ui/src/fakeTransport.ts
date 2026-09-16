@@ -228,6 +228,9 @@ export function fakeTransport(): Transport {
     async runPatch() {
       throw new Error("not implemented");
     },
+    async inbox() {
+      return [];
+    },
     async trashList() {
       return { projects: [], tasks: [] };
     },

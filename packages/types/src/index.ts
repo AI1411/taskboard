@@ -84,6 +84,23 @@ export interface TaskDetail extends TaskSummary {
   recentActivities: Activity[];
 }
 
+export interface InboxItem {
+  id: string;
+  displayId: string;
+  projectId: string;
+  projectSlug: string;
+  projectName: string;
+  title: string;
+  column: Column;
+  urgent: boolean;
+  revision: number;
+  displayStatus: DisplayStatus;
+  runMessage: string | null;
+  waitingReason: string | null;
+  reason: string;
+  updatedAt: string;
+}
+
 export interface Trash {
   projects: Project[];
   tasks: TaskSummary[];

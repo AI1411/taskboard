@@ -150,6 +150,7 @@ describe("TauriTransport", () => {
     await t.linkRemove("link-id", 1);
     await t.runStart("TASK-1", { agent: "codex", sessionId: "sess" });
     await t.runPatch("RUN-1", { op: "fail", summary: "boom" }, 1);
+    await t.inbox({ project: "a", includeArchived: false });
     await t.trashList();
     await t.undo();
     await t.sync(0);
@@ -178,6 +179,7 @@ describe("TauriTransport", () => {
       "link_remove",
       "run_start",
       "run_patch",
+      "inbox",
       "trash_list",
       "undo",
       "sync",
@@ -215,8 +217,17 @@ describe("TauriTransport", () => {
       summary: "boom",
       revision: 1,
     });
-    assert.equal(calls[22].args, undefined);
+    assert.deepEqual(calls[22].args, { project: "a", include_archived: false });
     assert.equal(calls[23].args, undefined);
-    assert.deepEqual(calls[24].args, { after: 0 });
+    assert.equal(calls[24].args, undefined);
+    assert.deepEqual(calls[25].args, { after: 0 });
+  });
+
+  it("inbox invokes inbox with project and include_archived", async () => {
+    const { calls, invoke } = recordingInvoke([]);
+    const t = new TauriTransport(invoke);
+    await t.inbox({ project: "renai-sim", includeArchived: true });
+    assert.equal(calls[0].cmd, "inbox");
+    assert.deepEqual(calls[0].args, { project: "renai-sim", include_archived: true });
   });
 });

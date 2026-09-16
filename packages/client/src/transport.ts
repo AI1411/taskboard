@@ -8,6 +8,7 @@ import type {
   TaskDetail,
   TaskPatch,
   TaskSummary,
+  InboxItem,
   Trash,
   UndoResult,
 } from "@taskboard/types";
@@ -38,6 +39,7 @@ export interface Transport {
   linkRemove(linkId: string, revision?: number): Promise<TaskDetail>;
   runStart(displayId: string, input: { agent: string; sessionId?: string }): Promise<Run>;
   runPatch(runDisplayId: string, op: RunOp, revision?: number): Promise<Run>;
+  inbox(opts?: { project?: string; includeArchived?: boolean }): Promise<InboxItem[]>;
   trashList(): Promise<Trash>;
   undo(): Promise<UndoResult>;
   sync(after: number): Promise<SyncDelta>;

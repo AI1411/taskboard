@@ -3,8 +3,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use taskboard_application::{SyncDelta, Trash, UndoResult};
 use taskboard_core::{
-    Activity, ActorKind, CardDisplayStatus, Column, EntityType, Link, LinkKind, Project, Run,
-    RunStatus, TaskDetail, TaskSummary,
+    Activity, ActorKind, CardDisplayStatus, Column, EntityType, InboxItem, Link, LinkKind, Project,
+    Run, RunStatus, TaskDetail, TaskSummary,
 };
 use uuid::Uuid;
 
@@ -246,6 +246,46 @@ impl From<Trash> for TrashDto {
         Self {
             projects: trash.projects.into_iter().map(ProjectDto::from).collect(),
             tasks: trash.tasks.into_iter().map(TaskSummaryDto::from).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InboxItemDto {
+    pub id: Uuid,
+    pub display_id: String,
+    pub project_id: Uuid,
+    pub project_slug: String,
+    pub project_name: String,
+    pub title: String,
+    pub column: Column,
+    pub urgent: bool,
+    pub revision: i64,
+    pub display_status: CardDisplayStatus,
+    pub run_message: Option<String>,
+    pub waiting_reason: Option<String>,
+    pub reason: String,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<InboxItem> for InboxItemDto {
+    fn from(item: InboxItem) -> Self {
+        Self {
+            id: item.id,
+            display_id: item.display_id,
+            project_id: item.project_id,
+            project_slug: item.project_slug,
+            project_name: item.project_name,
+            title: item.title,
+            column: item.column,
+            urgent: item.urgent,
+            revision: item.revision,
+            display_status: item.display_status,
+            run_message: item.run_message,
+            waiting_reason: item.waiting_reason,
+            reason: item.reason,
+            updated_at: item.updated_at,
         }
     }
 }
