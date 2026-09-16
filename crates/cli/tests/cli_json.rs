@@ -300,6 +300,122 @@ fn json_commands_round_trip_board() {
     json_ok(&dir, &["project", "restore", "renai-sim"]);
 }
 
+#[test]
+fn inbox_json_lists_waiting_across_projects() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "A"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "B"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "a", "--title", "Wait A"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "b", "--title", "Wait B"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "codex"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "wait", "RUN-1", "--reason", "Need spec"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-2", "--agent", "codex"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "wait", "RUN-2", "--reason", "Need B"])
+        .assert()
+        .success();
+    let out = tb_in(&dir)
+        .args(["inbox", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    let entities = v["entities"].as_array().unwrap();
+    assert_eq!(entities.len(), 2);
+    let reasons: Vec<&str> = entities
+        .iter()
+        .map(|item| item["reason"].as_str().unwrap())
+        .collect();
+    let slugs: Vec<&str> = entities
+        .iter()
+        .map(|item| item["project_slug"].as_str().unwrap())
+        .collect();
+    assert!(reasons.contains(&"Need spec"));
+    assert!(reasons.contains(&"Need B"));
+    assert!(slugs.contains(&"a"));
+    assert!(slugs.contains(&"b"));
+}
+
+#[test]
+fn inbox_empty_human() {
+    let (mut cmd, _dir) = tb();
+    cmd.args(["inbox"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("inbox is empty"));
+}
+
+#[test]
+fn inbox_project_filter_json() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "A"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "B"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "a",
+            "--title",
+            "Pin A",
+            "--urgent",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "b",
+            "--title",
+            "Pin B",
+            "--urgent",
+        ])
+        .assert()
+        .success();
+    let out = tb_in(&dir)
+        .args(["inbox", "--project", "b", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["entities"].as_array().unwrap().len(), 1);
+    assert_eq!(v["entities"][0]["title"], "Pin B");
+}
+
 fn json_ok(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     let mut argv = args.to_vec();
     argv.push("--json");

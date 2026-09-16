@@ -250,3 +250,31 @@ async fn patch_task_chains_if_match_across_fields() {
     assert_eq!(shown["entity"]["title"], "Updated title");
     assert_eq!(shown["entity"]["urgent"], true);
 }
+
+#[tokio::test]
+async fn inbox_returns_waiting_card() {
+    let s = seeded_task_server().await;
+    let client = authed(&s);
+    client
+        .post(format!("{}/api/v1/tasks/TASK-1/runs", s.base))
+        .json(&json!({"agent": "codex"}))
+        .send()
+        .await
+        .unwrap();
+    client
+        .patch(format!("{}/api/v1/runs/RUN-1", s.base))
+        .json(&json!({"op": "wait", "reason": "Need spec"}))
+        .send()
+        .await
+        .unwrap();
+    let res = client
+        .get(format!("{}/api/v1/inbox", s.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let v: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(v["entities"][0]["displayId"], "TASK-1");
+    assert_eq!(v["entities"][0]["reason"], "Need spec");
+    assert_eq!(v["entities"][0]["projectSlug"], "renai-sim");
+}

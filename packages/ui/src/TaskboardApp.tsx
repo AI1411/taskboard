@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Transport } from "@taskboard/client";
-import type { Column, Project, TaskDetail, TaskSummary } from "@taskboard/types";
+import type { Column, InboxItem, Project, TaskDetail, TaskSummary } from "@taskboard/types";
 
 import { Board } from "./Board";
+import { InboxStrip } from "./InboxStrip";
 import { Inspector } from "./Inspector";
 import { Sidebar } from "./Sidebar";
 import { COLUMN_IDS, neighborColumn } from "./columns";
@@ -27,6 +28,10 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [includeArchived, setIncludeArchived] = useState(false);
   const [projectNote, setProjectNote] = useState("");
+  const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
+  const [inboxAll, setInboxAll] = useState<InboxItem[]>([]);
+  const [inboxExpanded, setInboxExpanded] = useState(false);
+  const [inboxScope, setInboxScope] = useState<"this" | "all">("this");
 
   const searchRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -40,6 +45,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   const projectsRef = useRef<Project[]>([]);
   const detailRef = useRef<TaskDetail | null>(null);
   const includeArchivedRef = useRef(false);
+  const inboxScopeRef = useRef<"this" | "all">("this");
 
   selectedProjectRef.current = selectedProject;
   selectedIdRef.current = selectedId;
@@ -49,20 +55,33 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   inspectorOpenRef.current = inspectorOpen;
   projectsRef.current = projects;
   includeArchivedRef.current = includeArchived;
+  inboxScopeRef.current = inboxScope;
 
   const applyDetail = (updated: TaskDetail | null) => {
     detailRef.current = updated;
     setDetail(updated);
   };
 
+  const refreshInbox = useCallback(async () => {
+    const all = await transport.inbox();
+    setInboxAll(all);
+    const slug = selectedProjectRef.current?.slug;
+    if (inboxScopeRef.current === "this" && slug) {
+      setInboxItems(await transport.inbox({ project: slug }));
+    } else {
+      setInboxItems(all);
+    }
+  }, [transport]);
+
   const refreshTasks = useCallback(
     async (slug: string) => {
       const list = await transport.taskList(slug);
       setTasks(list);
       tasksRef.current = list;
+      await refreshInbox();
       return list;
     },
-    [transport],
+    [transport, refreshInbox],
   );
 
   const applyProject = useCallback(
@@ -366,6 +385,11 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         switchProject(1);
         return;
       }
+      if (e.key === "i") {
+        e.preventDefault();
+        setInboxExpanded((open) => !open);
+        return;
+      }
       if (e.key === "e") {
         e.preventDefault();
         setInspectorOpen(true);
@@ -499,6 +523,10 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         selectedSlug={selectedProject?.slug ?? null}
         includeArchived={includeArchived}
         projectNote={projectNote}
+        inboxCounts={inboxAll.reduce<Record<string, number>>((counts, item) => {
+          counts[item.projectSlug] = (counts[item.projectSlug] ?? 0) + 1;
+          return counts;
+        }, {})}
         onNewProject={() => void addProject()}
         onSelectProject={(slug) => {
           const project = projectsRef.current.find((p) => p.slug === slug);
@@ -510,6 +538,27 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
       />
       <main className={styles.main}>
         {selectedProject ? (
+          <>
+          <InboxStrip
+            items={inboxItems}
+            expanded={inboxExpanded}
+            scope={inboxScope}
+            onToggle={() => setInboxExpanded((open) => !open)}
+            onScope={(scope) => {
+              inboxScopeRef.current = scope;
+              setInboxScope(scope);
+              void refreshInbox();
+            }}
+            onSelect={(item) => {
+              void (async () => {
+                const project = projectsRef.current.find((p) => p.slug === item.projectSlug);
+                if (project && project.slug !== selectedProjectRef.current?.slug) {
+                  await applyProject(project);
+                }
+                await selectCard(item.displayId);
+              })();
+            }}
+          />
           <Board
             tasks={tasks}
             selectedId={selectedId}
@@ -525,6 +574,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
             onReorder={(id, beforeId) => void onReorder(id, beforeId)}
             onNewTask={() => void createTask()}
           />
+          </>
         ) : null}
       </main>
       <Inspector

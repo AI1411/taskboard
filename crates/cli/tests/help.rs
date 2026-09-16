@@ -7,4 +7,5 @@ fn help_lists_project_add() {
     assert!(out.contains("project"), "help missing project:\n{out}");
     assert!(out.contains("task"), "help missing task:\n{out}");
     assert!(out.contains("run"), "help missing run:\n{out}");
+    assert!(out.contains("inbox"), "help missing inbox:\n{out}");
 }

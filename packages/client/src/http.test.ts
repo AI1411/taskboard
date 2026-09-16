@@ -89,4 +89,20 @@ describe("HttpTransport", () => {
     assert.equal(url.pathname, "/api/v1/projects");
     assert.equal(url.searchParams.get("archived"), "false");
   });
+
+  it("inbox sends project and archived query", async () => {
+    const fetches: Request[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      fetches.push(new Request(input, init));
+      return new Response(JSON.stringify({ ok: true, entities: [] }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    const t = new HttpTransport("http://127.0.0.1:9", "deadbeef", fetchImpl);
+    await t.inbox({ project: "renai-sim", includeArchived: true });
+    const url = new URL(fetches[0].url);
+    assert.equal(url.pathname, "/api/v1/inbox");
+    assert.equal(url.searchParams.get("project"), "renai-sim");
+    assert.equal(url.searchParams.get("archived"), "true");
+  });
 });

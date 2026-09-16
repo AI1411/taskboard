@@ -34,6 +34,7 @@ export interface TaskSummary {
   revision: number;
   displayStatus: DisplayStatus;
   runMessage: string | null;
+  waitingReason: string | null;
 }
 
 export interface Link {
@@ -81,6 +82,23 @@ export interface TaskDetail extends TaskSummary {
   links: Link[];
   runs: Run[];
   recentActivities: Activity[];
+}
+
+export interface InboxItem {
+  id: string;
+  displayId: string;
+  projectId: string;
+  projectSlug: string;
+  projectName: string;
+  title: string;
+  column: Column;
+  urgent: boolean;
+  revision: number;
+  displayStatus: DisplayStatus;
+  runMessage: string | null;
+  waitingReason: string | null;
+  reason: string;
+  updatedAt: string;
 }
 
 export interface Trash {

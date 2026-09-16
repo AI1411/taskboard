@@ -70,6 +70,13 @@ pub enum Command {
     /// Soft-deleted entities
     #[command(subcommand)]
     Trash(TrashCommand),
+    /// Cards that need a person
+    Inbox {
+        #[arg(long)]
+        project: Option<String>,
+        #[arg(long)]
+        archived: bool,
+    },
     /// Undo the latest undoable activity
     Undo,
     /// Database backup

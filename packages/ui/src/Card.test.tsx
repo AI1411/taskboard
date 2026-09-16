@@ -56,4 +56,14 @@ describe("Card", () => {
     expect(overlay.getAttribute("aria-hidden")).toBe("true");
     expect(overlay.getAttribute("data-placeholder")).toBeNull();
   });
+
+  it("shows waitingReason when runMessage is empty", () => {
+    const { getByText } = render(
+      <Card
+        task={summary({ displayStatus: "waiting", runMessage: null, waitingReason: "Need spec" })}
+        selected={false}
+      />,
+    );
+    expect(getByText("Need spec")).toBeTruthy();
+  });
 });

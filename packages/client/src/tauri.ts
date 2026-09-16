@@ -8,6 +8,7 @@ import type {
   TaskDetail,
   TaskPatch,
   TaskSummary,
+  InboxItem,
   Trash,
   UndoResult,
 } from "@taskboard/types";
@@ -160,6 +161,13 @@ export class TauriTransport implements Transport {
 
   runPatch(runDisplayId: string, op: RunOp, revision?: number): Promise<Run> {
     return this.call("run_patch", { runDisplayId, ...op, revision });
+  }
+
+  inbox(opts?: { project?: string; includeArchived?: boolean }): Promise<InboxItem[]> {
+    return this.call("inbox", {
+      project: opts?.project,
+      includeArchived: opts?.includeArchived ?? false,
+    });
   }
 
   trashList(): Promise<Trash> {

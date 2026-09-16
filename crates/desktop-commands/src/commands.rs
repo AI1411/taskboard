@@ -1,8 +1,10 @@
 use taskboard_application::{
-    Actor, App, AppError, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunStart,
-    RunUpdate, RunWait, SyncDelta, TaskCreate, TaskUpdate, Trash, UndoResult,
+    Actor, App, AppError, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish,
+    RunStart, RunUpdate, RunWait, SyncDelta, TaskCreate, TaskUpdate, Trash, UndoResult,
 };
-use taskboard_core::{ActorKind, Column, LinkKind, Project, Run, TaskDetail, TaskSummary};
+use taskboard_core::{
+    ActorKind, Column, InboxItem, LinkKind, Project, Run, TaskDetail, TaskSummary,
+};
 use uuid::Uuid;
 
 use crate::dto::RunOp;
@@ -400,6 +402,19 @@ pub async fn run_patch_inner(
             .map_err(Into::into)
         }
     }
+}
+
+pub async fn inbox_inner(
+    app: &App,
+    project: Option<String>,
+    include_archived: bool,
+) -> Result<Vec<InboxItem>, AppErrorDto> {
+    app.inbox(InboxScope {
+        project,
+        include_archived,
+    })
+    .await
+    .map_err(Into::into)
 }
 
 pub async fn trash_list_inner(app: &App) -> Result<Trash, AppErrorDto> {

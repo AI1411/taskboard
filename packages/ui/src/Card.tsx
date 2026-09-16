@@ -17,8 +17,15 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   ref,
 ) {
   const badge = BADGE_LABEL[task.displayStatus];
+  const faceMessage =
+    task.runMessage ||
+    ((task.displayStatus === "waiting" || task.displayStatus === "failed") && task.waitingReason) ||
+    null;
   const showMessage =
-    (task.displayStatus === "running" || task.displayStatus === "waiting") && task.runMessage;
+    (task.displayStatus === "running" ||
+      task.displayStatus === "waiting" ||
+      task.displayStatus === "failed") &&
+    faceMessage;
   const label = [task.title, task.displayId, task.urgent ? "Urgent" : null, badge]
     .filter(Boolean)
     .join(" ");
@@ -52,7 +59,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
           <span className={`${styles.badge} ${styles[task.displayStatus]}`}>{badge}</span>
         ) : null}
       </span>
-      {showMessage ? <span className={styles.runMessage}>{task.runMessage}</span> : null}
+      {showMessage ? <span className={styles.runMessage}>{faceMessage}</span> : null}
     </div>
   );
 });

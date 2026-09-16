@@ -139,6 +139,7 @@ export function Inspector(props: {
               <li key={run.id}>
                 {run.displayId} {run.status}
                 {run.message ? ` — ${run.message}` : ""}
+                {run.waitingReason ? ` — wait: ${run.waitingReason}` : ""}
               </li>
             ))}
           </ul>

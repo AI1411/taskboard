@@ -51,6 +51,7 @@ pub fn run() {
             commands::link_remove,
             commands::run_start,
             commands::run_patch,
+            commands::inbox,
             commands::trash_list,
             commands::undo,
             commands::sync,

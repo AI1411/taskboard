@@ -8,6 +8,7 @@ import type {
   TaskDetail,
   TaskPatch,
   TaskSummary,
+  InboxItem,
   Trash,
   UndoResult,
 } from "@taskboard/types";
@@ -146,6 +147,15 @@ export class HttpTransport implements Transport {
 
   runPatch(runDisplayId: string, op: RunOp, revision?: number): Promise<Run> {
     return this.request("PATCH", `/api/v1/runs/${enc(runDisplayId)}`, { body: op, revision });
+  }
+
+  inbox(opts?: { project?: string; includeArchived?: boolean }): Promise<InboxItem[]> {
+    const archived = opts?.includeArchived ?? false;
+    const params = new URLSearchParams({ archived: String(archived) });
+    if (opts?.project) params.set("project", opts.project);
+    return this.request("GET", `/api/v1/inbox?${params.toString()}`, {
+      unwrap: "entities",
+    });
   }
 
   trashList(): Promise<Trash> {
