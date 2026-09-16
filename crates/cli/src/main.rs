@@ -9,9 +9,9 @@ use std::path::PathBuf;
 use chrono::Utc;
 use clap::Parser;
 use taskboard_application::{
-    Actor, App, AppError, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunContinue,
-    RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, SystemClock, TaskCreate,
-    TaskListQuery, TaskUpdate,
+    ActivityQuery, Actor, App, AppError, CommentAdd, InboxScope, LinkAdd, ProjectAdd,
+    ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait,
+    SystemClock, TaskCreate, TaskListQuery, TaskUpdate,
 };
 use taskboard_core::LinkKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
@@ -104,6 +104,22 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
                     println!("{}  {}", task.display_id, task.title);
                 }
             });
+            Ok(())
+        }
+        Command::Activity {
+            after,
+            project,
+            task,
+        } => {
+            let rows = app
+                .activity_list(ActivityQuery {
+                    after: after.unwrap_or(0),
+                    project,
+                    task_display_id: task,
+                })
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entities(json, &rows, || output::print_activity_list(&rows));
             Ok(())
         }
         Command::Undo => {

@@ -161,6 +161,16 @@ pub struct Activity {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub struct ActivityEntry {
+    pub sequence: i64,
+    pub created_at: DateTime<Utc>,
+    pub actor: String,
+    pub operation: String,
+    pub target: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct InboxItem {
     pub id: Uuid,
     pub display_id: String,

@@ -831,6 +831,26 @@ fn link_add_blocked_by_cycle_is_validation_error() {
     assert_eq!(v["error"]["code"], "validation_error");
 }
 
+#[test]
+fn activity_json_lists_and_filters() {
+    let dir = tempfile::tempdir().unwrap();
+    json_ok(&dir, &["project", "add", "--name", "Renai Sim"]);
+    json_ok(
+        &dir,
+        &["task", "create", "--project", "renai-sim", "--title", "Fix"],
+    );
+    let all = json_ok(&dir, &["activity"]);
+    let entities = all["entities"].as_array().unwrap();
+    assert!(entities.iter().any(|row| row["operation"] == "task.create"));
+    assert!(entities.iter().any(|row| row["target"] == "TASK-1"));
+    let filtered = json_ok(&dir, &["activity", "--task", "TASK-1"]);
+    assert!(filtered["entities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|row| row["target"] == "TASK-1"));
+}
+
 fn json_ok(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     let mut argv = args.to_vec();
     argv.push("--json");

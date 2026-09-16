@@ -104,6 +104,13 @@ pub struct RunListQuery {
     pub agent: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ActivityQuery {
+    pub after: i64,
+    pub project: Option<String>,
+    pub task_display_id: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommentAdd {
     pub task_display_id: String,
