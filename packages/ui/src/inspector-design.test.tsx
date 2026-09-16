@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { fakeTransport } from "./fakeTransport";
 import { TaskboardApp } from "./index";
@@ -138,5 +138,25 @@ describe("design-review regressions", () => {
     const inbox = screen.getByRole("region", { name: "Inbox" });
     await userEvent.click(screen.getByRole("button", { name: /Inbox/ }));
     expect(inbox.textContent).toMatch(/Blocked/);
+  });
+
+  it("copies TASK-n from the card and inspector and toasts Copied", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Copy me", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Copy TASK-1" }));
+    expect(writeText).toHaveBeenCalledWith("TASK-1");
+    expect(await screen.findByText("Copied")).toBeTruthy();
+    expect(screen.getByRole("listitem", { name: /Copy me/ }).getAttribute("aria-selected")).toBe(
+      "false",
+    );
+    await userEvent.click(screen.getByRole("listitem", { name: /Copy me/ }));
+    const panel = await screen.findByRole("complementary", { name: "Task details" });
+    await userEvent.click(within(panel).getByRole("button", { name: "Copy TASK-1" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Copied")).toBeTruthy();
   });
 });

@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import { Card } from "./Card";
 import { summary } from "./summary";
@@ -65,5 +66,21 @@ describe("Card", () => {
       />,
     );
     expect(getByText("Need spec")).toBeTruthy();
+  });
+
+  it("copy button calls onCopyId and does not require a card click", async () => {
+    const onCopyId = vi.fn();
+    const onClick = vi.fn();
+    const { getByRole } = render(
+      <Card
+        task={summary({ title: "Fix login", displayId: "TASK-7" })}
+        selected={false}
+        onCopyId={onCopyId}
+        onClick={onClick}
+      />,
+    );
+    await userEvent.click(getByRole("button", { name: "Copy TASK-7" }));
+    expect(onCopyId).toHaveBeenCalledWith("TASK-7");
+    expect(onClick).not.toHaveBeenCalled();
   });
 });

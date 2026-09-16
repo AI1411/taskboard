@@ -142,6 +142,11 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
 
   const dismissToast = useCallback(() => setToast(null), []);
 
+  const copyId = useCallback(async (displayId: string) => {
+    await navigator.clipboard.writeText(displayId);
+    setToast({ message: "Copied" });
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -821,6 +826,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
             onMove={(id, column) => void onMove(id, column)}
             onReorder={(id, beforeId) => void onReorder(id, beforeId)}
             onBackgroundClick={closeInspector}
+            onCopyId={copyId}
             composing={composingTask}
             composerRef={taskComposerRef}
             onComposerSubmit={(title) => void createTask(title)}
@@ -879,6 +885,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         onLinkRemove={(linkId) => {
           void transport.linkRemove(linkId).then(applyDetail);
         }}
+        onCopyId={copyId}
         onClose={closeInspector}
       />
       {legendOpen ? <ShortcutLegend onClose={() => setLegendOpen(false)} /> : null}

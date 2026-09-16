@@ -35,6 +35,7 @@ export function Board(props: {
   onMove: (displayId: string, column: Column) => void;
   onReorder: (displayId: string, beforeId: string) => void;
   onBackgroundClick?: () => void;
+  onCopyId?: (displayId: string) => void;
   onNewTask?: () => void;
   composing?: boolean;
   composerRef?: Ref<HTMLInputElement>;
@@ -130,6 +131,7 @@ export function Board(props: {
                       task={task}
                       selected={props.selectedId === task.displayId}
                       onSelect={() => props.onSelectCard(task.displayId)}
+                      onCopyId={props.onCopyId}
                     />
                   ))}
                   {columnTasks.length === 0 ? <div className={styles.slot} /> : null}
@@ -144,6 +146,7 @@ export function Board(props: {
               task={activeTask}
               selected={props.selectedId === activeTask.displayId}
               lifted
+              onCopyId={props.onCopyId}
               style={overlayWidth ? { width: overlayWidth } : undefined}
             />
           ) : null}
@@ -187,6 +190,7 @@ function SortableCard(props: {
   task: TaskSummary;
   selected: boolean;
   onSelect: () => void;
+  onCopyId?: (displayId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({
     id: props.task.displayId,
@@ -199,6 +203,7 @@ function SortableCard(props: {
       selected={props.selected}
       grabbed={isDragging}
       onClick={props.onSelect}
+      onCopyId={props.onCopyId}
       style={{
         transform: isDragging ? undefined : CSS.Transform.toString(transform),
         transition: undefined,
