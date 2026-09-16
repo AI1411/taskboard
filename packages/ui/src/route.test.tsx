@@ -19,8 +19,7 @@ describe("TaskboardApp route", () => {
         onRouteChange={onRouteChange}
       />,
     );
-    expect(await screen.findByLabelText("Title")).toBeTruthy();
-    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Routed");
+    expect(await screen.findByDisplayValue("Routed")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Alpha" }).getAttribute("aria-current")).toBe("true");
     await waitFor(() =>
       expect(onRouteChange).toHaveBeenCalledWith({ project: "alpha", task: "TASK-1" }),
