@@ -108,6 +108,73 @@ describe("Inspector checklists", () => {
   });
 });
 
+describe("Inspector history", () => {
+  it("shows readable run and activity rows", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    const task = await transport.taskCreate(project.slug, { title: "History", column: "todo" });
+    const startedAt = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    task.runs = [
+      {
+        id: "r1",
+        displayId: "RUN-3",
+        taskId: task.id,
+        agent: "cursor",
+        sessionId: null,
+        status: "running",
+        message: "implementing",
+        waitingReason: "Need spec",
+        summary: "halfway",
+        startedAt,
+        endedAt: null,
+        revision: 1,
+        createdAt: startedAt,
+        updatedAt: startedAt,
+      },
+    ];
+    task.recentActivities = [
+      {
+        id: "a1",
+        sequence: 2,
+        actorKind: "cli",
+        actorLabel: "cursor",
+        operation: "task.move",
+        entityType: "task",
+        entityId: task.id,
+        previousRevision: 1,
+        beforeJson: null,
+        afterJson: null,
+        createdAt: startedAt,
+      },
+      {
+        id: "a2",
+        sequence: 1,
+        actorKind: "cli",
+        actorLabel: "cursor",
+        operation: "mystery.zap",
+        entityType: "task",
+        entityId: task.id,
+        previousRevision: null,
+        beforeJson: null,
+        afterJson: null,
+        createdAt: startedAt,
+      },
+    ];
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("History"));
+    const runId = await screen.findByText(/RUN-3/);
+    expect(runId.parentElement?.textContent?.replace(/\s+/g, " ")).toMatch(
+      /RUN-3 · cursor · Running · 2m ago/,
+    );
+    expect(screen.getByText("implementing")).toBeTruthy();
+    expect(screen.getByText("Need spec")).toBeTruthy();
+    expect(screen.getByText("halfway")).toBeTruthy();
+    expect(screen.getByText(/Moved · cursor · 2m ago/)).toBeTruthy();
+    expect(screen.getByText(/Zap · cursor · 2m ago/)).toBeTruthy();
+    expect(screen.queryByText("mystery.zap")).toBeNull();
+  });
+});
+
 describe("Inspector comments", () => {
   it("shows a plain comment thread", async () => {
     const transport = fakeTransport();
