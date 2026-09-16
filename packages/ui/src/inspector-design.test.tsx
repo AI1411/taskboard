@@ -25,7 +25,8 @@ describe("design-review regressions", () => {
     await userEvent.click(await screen.findByRole("listitem", { name: /Keep me/ }));
     await userEvent.click(await screen.findByRole("button", { name: "Delete" }));
     expect(transport.taskDelete).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: "Move to Trash" }));
+    expect(screen.getByText("Delete Keep me?")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(transport.taskDelete).toHaveBeenCalled());
   });
 

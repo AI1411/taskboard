@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type Ref } from "react";
 import type { Column, TaskDetail } from "@taskboard/types";
 
 import { COLUMNS } from "./columns";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import styles from "./Inspector.module.css";
 
@@ -25,16 +26,20 @@ export function Inspector(props: {
   task: TaskDetail | null;
   open: boolean;
   titleRef?: Ref<HTMLInputElement>;
+  trashed?: boolean;
+  confirming?: boolean;
   onTitleCommit: (title: string) => void;
   onColumnChange: (column: Column) => void;
   onUrgentChange: (urgent: boolean) => void;
   onNoteChange: (markdown: string) => void;
+  onDeleteRequest?: () => void;
   onDelete: () => void;
+  onCancelDelete?: () => void;
+  onRestore?: () => void;
   onClose?: () => void;
 }) {
   const [title, setTitle] = useState(props.task?.title ?? "");
   const [note, setNote] = useState(props.task?.noteMarkdown ?? "");
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const lastId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -48,7 +53,6 @@ export function Inspector(props: {
       lastId.current = props.task.displayId;
       setTitle(props.task.title);
       setNote(props.task.noteMarkdown);
-      setConfirmDelete(false);
     }
   }, [props.task]);
 
@@ -154,21 +158,25 @@ export function Inspector(props: {
             ))}
           </ul>
         </div>
-        {confirmDelete ? (
-          <div className={styles.deleteRow}>
-            <button type="button" className={styles.delete} onClick={props.onDelete}>
-              Move to Trash
-            </button>
-            <button
-              type="button"
-              className={styles.cancel}
-              onClick={() => setConfirmDelete(false)}
-            >
-              Cancel
-            </button>
-          </div>
+        {props.trashed ? (
+          <button type="button" className={styles.delete} onClick={() => props.onRestore?.()}>
+            Restore
+          </button>
+        ) : props.confirming ? (
+          <ConfirmDialog
+            message={`Delete ${props.task.title}?`}
+            onConfirm={props.onDelete}
+            onCancel={() => props.onCancelDelete?.()}
+          />
         ) : (
-          <button type="button" className={styles.delete} onClick={() => setConfirmDelete(true)}>
+          <button
+            type="button"
+            className={styles.delete}
+            onClick={() => {
+              if (props.onDeleteRequest) props.onDeleteRequest();
+              else props.onDelete();
+            }}
+          >
             Delete
           </button>
         )}

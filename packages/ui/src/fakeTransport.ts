@@ -48,6 +48,7 @@ function asDetail(task: TaskSummary, extras?: Partial<TaskDetail>): TaskDetail {
 export function fakeTransport(): Transport {
   const projects: Project[] = [];
   const tasks: TaskSummary[] = [];
+  const deletedTasks: TaskSummary[] = [];
   const details = new Map<string, TaskDetail>();
   let projectSeq = 0;
   let taskSeq = 0;
@@ -72,7 +73,7 @@ export function fakeTransport(): Transport {
       return project;
     },
     async projectList(includeArchived) {
-      return projects.filter((p) => includeArchived || !p.archived);
+      return projects.filter((p) => !p.deletedAt && (includeArchived || !p.archived));
     },
     async projectUpdate(slug, patch, revision) {
       const p = projects.find((x) => x.slug === slug);
@@ -189,17 +190,22 @@ export function fakeTransport(): Transport {
       return impl.taskUpdate(displayId, { urgent }, revision);
     },
     async taskDelete(displayId, revision) {
-      const task = tasks.find((t) => t.displayId === displayId);
-      if (!task) throw new Error("not found");
-      task.revision = (revision ?? task.revision) + 1;
       const idx = tasks.findIndex((t) => t.displayId === displayId);
+      if (idx < 0) throw new Error("not found");
+      const task = tasks[idx];
+      task.revision = (revision ?? task.revision) + 1;
       tasks.splice(idx, 1);
+      deletedTasks.push({ ...task });
       return details.get(displayId)!;
     },
     async taskRestore(displayId) {
       const detail = details.get(displayId);
       if (!detail) throw new Error("not found");
-      if (!tasks.some((t) => t.displayId === displayId)) {
+      const i = deletedTasks.findIndex((t) => t.displayId === displayId);
+      if (i >= 0) {
+        const [task] = deletedTasks.splice(i, 1);
+        if (!tasks.some((t) => t.displayId === displayId)) tasks.push(task);
+      } else if (!tasks.some((t) => t.displayId === displayId)) {
         tasks.push(detail);
       }
       return { ...detail };
@@ -271,7 +277,10 @@ export function fakeTransport(): Transport {
       return items;
     },
     async trashList() {
-      return { projects: [], tasks: [] };
+      return {
+        projects: projects.filter((p) => p.deletedAt).map((p) => ({ ...p })),
+        tasks: deletedTasks.map((t) => ({ ...t })),
+      };
     },
     async undo() {
       return {};
