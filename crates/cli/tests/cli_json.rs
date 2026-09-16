@@ -950,6 +950,64 @@ fn stale_json_skips_fresh_running_run() {
 }
 
 #[test]
+fn task_spawn_json_creates_children_and_blocks() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Parent",
+        ])
+        .assert()
+        .success();
+    let v = json_ok(
+        &dir,
+        &["task", "spawn", "TASK-1", "--title", "API", "--title", "UI"],
+    );
+    assert_eq!(v["entities"].as_array().unwrap().len(), 2);
+    assert_eq!(v["entities"][0]["display_id"], "TASK-2");
+    assert_eq!(v["entities"][0]["column"], "todo");
+    assert_eq!(v["entities"][0]["worktree_path"], serde_json::Value::Null);
+    let parent = json_ok(&dir, &["task", "show", "TASK-1"]);
+    let kinds: Vec<_> = parent["entity"]["links"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|link| {
+            (
+                link["kind"].as_str().unwrap().to_string(),
+                link["value"].as_str().unwrap().to_string(),
+            )
+        })
+        .collect();
+    assert!(kinds.contains(&("blocked_by".into(), "TASK-2".into())));
+    assert!(kinds.contains(&("blocked_by".into(), "TASK-3".into())));
+    assert_eq!(parent["entity"]["column"], "todo");
+    let listed = json_ok(&dir, &["task", "list", "--project", "renai-sim"]);
+    let parent_row = listed["entities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|task| task["display_id"] == "TASK-1")
+        .unwrap();
+    let blocked_by: Vec<_> = parent_row["blocked_by"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|id| id.as_str().unwrap().to_string())
+        .collect();
+    assert!(blocked_by.contains(&"TASK-2".to_string()));
+    assert!(blocked_by.contains(&"TASK-3".to_string()));
+}
+
+#[test]
 fn run_start_exclusive_conflicts_when_open() {
     let dir = tempfile::tempdir().unwrap();
     tb_in(&dir)
