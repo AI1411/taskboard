@@ -88,6 +88,15 @@ pub enum Command {
         #[arg(long)]
         project: Option<String>,
     },
+    /// Claim the first ready card and start a run
+    Next {
+        #[arg(long)]
+        project: Option<String>,
+        #[arg(long)]
+        agent: Option<String>,
+        #[arg(long = "move")]
+        move_to: bool,
+    },
     /// Undo the latest undoable activity
     Undo,
     /// List stale running runs
@@ -332,6 +341,8 @@ pub enum RunCommand {
         agent: String,
         #[arg(long = "session")]
         session_id: Option<String>,
+        #[arg(long)]
+        exclusive: bool,
     },
     /// Update a running or waiting run
     Update {

@@ -950,6 +950,72 @@ fn stale_json_skips_fresh_running_run() {
 }
 
 #[test]
+fn run_start_exclusive_conflicts_when_open() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "renai-sim", "--title", "One"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "codex"])
+        .assert()
+        .success();
+    let out = tb_in(&dir)
+        .args([
+            "run",
+            "start",
+            "TASK-1",
+            "--agent",
+            "cursor",
+            "--exclusive",
+            "--json",
+        ])
+        .assert()
+        .failure()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "conflict");
+}
+
+#[test]
+fn next_json_claims_first_ready() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "renai-sim", "--title", "First"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "renai-sim", "--title", "Second"])
+        .assert()
+        .success();
+    let v = json_ok(
+        &dir,
+        &["next", "--project", "renai-sim", "--agent", "cursor"],
+    );
+    assert_eq!(v["entity"]["display_id"], "RUN-1");
+    assert_eq!(v["entity"]["agent"], "cursor");
+    assert_eq!(v["entity"]["status"], "running");
+    let shown = json_ok(&dir, &["task", "show", "TASK-1"]);
+    assert_eq!(shown["entity"]["column"], "todo");
+    let second = json_ok(&dir, &["next", "--move"]);
+    assert_eq!(second["entity"]["display_id"], "RUN-2");
+    let moved = json_ok(&dir, &["task", "show", "TASK-2"]);
+    assert_eq!(moved["entity"]["column"], "in-progress");
+}
+
+#[test]
 fn status_json_counts_and_heads() {
     let dir = tempfile::tempdir().unwrap();
     tb_in(&dir)

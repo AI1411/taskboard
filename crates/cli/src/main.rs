@@ -10,9 +10,9 @@ use std::path::PathBuf;
 use chrono::Utc;
 use clap::Parser;
 use taskboard_application::{
-    ActivityQuery, Actor, App, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd,
-    ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait,
-    SystemClock, TaskCreate, TaskListQuery, TaskUpdate,
+    ActivityQuery, Actor, App, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, NextClaim,
+    ProjectAdd, ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate,
+    RunWait, SystemClock, TaskCreate, TaskListQuery, TaskUpdate,
 };
 use taskboard_core::LinkKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
@@ -167,6 +167,33 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &snap, 0, || output::print_status(&snap));
+            Ok(())
+        }
+        Command::Next {
+            project,
+            agent,
+            move_to,
+        } => {
+            let run = app
+                .next(
+                    actor,
+                    NextClaim {
+                        project,
+                        agent: agent.unwrap_or_else(|| "cursor".into()),
+                        session_id: None,
+                        move_to_in_progress: move_to,
+                    },
+                )
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entity(json, &run, run.revision, || {
+                println!(
+                    "Started {}  {}  [{}]",
+                    run.display_id,
+                    run.agent,
+                    run.status.as_str()
+                );
+            });
             Ok(())
         }
         Command::Backup(cmd) => backup_cmd(app, json, cmd).await,
@@ -643,18 +670,19 @@ async fn run_cmd(
             display_id,
             agent,
             session_id,
+            exclusive,
         } => {
-            let run = app
-                .run_start(
-                    actor,
-                    RunStart {
-                        task_display_id: display_id,
-                        agent,
-                        session_id,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+            let cmd = RunStart {
+                task_display_id: display_id,
+                agent,
+                session_id,
+            };
+            let run = if exclusive {
+                app.run_start_exclusive(actor, cmd).await
+            } else {
+                app.run_start(actor, cmd).await
+            }
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &run, run.revision, || {
                 println!(
                     "Started {}  {}  [{}]",
