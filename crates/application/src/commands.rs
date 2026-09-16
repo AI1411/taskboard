@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use taskboard_core::{CardDisplayStatus, Column, LinkKind};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,4 +124,42 @@ pub struct CheckAdd {
 pub struct CommentAdd {
     pub task_display_id: String,
     pub body: String,
+}
+
+pub const STATUS_HEAD: usize = 3;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct StatusLine {
+    pub display_id: String,
+    pub status: String,
+    pub agent: Option<String>,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub struct InboxCounts {
+    pub total: usize,
+    pub waiting: usize,
+    pub failed: usize,
+    pub stale: usize,
+    pub urgent: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct BoardStatus {
+    pub inbox: InboxCounts,
+    pub inbox_head: Vec<StatusLine>,
+    pub open_runs: usize,
+    pub open_run_head: Vec<StatusLine>,
+    pub stale: usize,
+    pub stale_head: Vec<StatusLine>,
+    pub ready: usize,
+    pub ready_head: Vec<StatusLine>,
+    pub in_review: usize,
+    pub in_review_head: Vec<StatusLine>,
+    pub blocked: usize,
+    pub blocked_head: Vec<StatusLine>,
 }
