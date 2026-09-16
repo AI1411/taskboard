@@ -28,7 +28,7 @@ Do this **before the first edit** when the user asked you to implement, fix, or 
 3. `task move TASK-n in-progress --json`
 4. `run start TASK-n --agent <agent> --json` — keep `RUN-n`
 
-While working, optionally `run update RUN-n --message "<status>" --json`. If blocked: `run wait RUN-n --reason "<why>" --json`. Replies go on the comment thread, not the spec note: `comment add TASK-n --text "..."` / `comment list TASK-n`. Waiting cards expose the latest comment as `reply` on `task show` / `task list`. When unblocked, `run continue RUN-n [--message "..."]` instead of starting a new run.
+While working, optionally `run update RUN-n --message "<status>" --json`. If blocked: `run wait RUN-n --reason "<why>" --json`. Replies go on the comment thread, not the spec note: `comment add TASK-n --text "..."` / `comment list TASK-n`. Waiting cards expose the latest comment as `reply` on `task show` / `task list`. When unblocked, `run continue RUN-n [--message "..."]` instead of starting a new run. Definition-of-done items live on `check add` / `check toggle` / `check list` (`CHECK-n`), not the spec note, and do not block `run finish` or Done.
 
 When the work is done or failed, **before the final reply**:
 

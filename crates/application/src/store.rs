@@ -3,7 +3,7 @@ use std::path::Path;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use taskboard_core::{
-    Activity, ActorKind, Column, Comment, EntityType, Link, Project, Run, Task, TaskDetail,
+    Activity, ActorKind, Check, Column, Comment, EntityType, Link, Project, Run, Task, TaskDetail,
     TaskSummary,
 };
 use uuid::Uuid;
@@ -113,6 +113,14 @@ pub trait Store: Send + Sync {
 
     async fn insert_comment(&mut self, comment: &Comment) -> Result<(), AppError>;
     async fn list_comments(&mut self, task_id: Uuid) -> Result<Vec<Comment>, AppError>;
+
+    async fn insert_check(&mut self, check: &Check) -> Result<(), AppError>;
+    async fn update_check(&mut self, check: &Check) -> Result<(), AppError>;
+    async fn get_check_by_display_id(
+        &mut self,
+        display_id: &str,
+    ) -> Result<Option<Check>, AppError>;
+    async fn list_checks(&mut self, task_id: Uuid) -> Result<Vec<Check>, AppError>;
 
     async fn get_run(&mut self, id: Uuid) -> Result<Option<Run>, AppError>;
     async fn get_run_by_display_id(&mut self, display_id: &str) -> Result<Option<Run>, AppError>;

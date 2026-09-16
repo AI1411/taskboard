@@ -3,8 +3,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use taskboard_application::{SyncDelta, Trash, UndoResult};
 use taskboard_core::{
-    Activity, ActorKind, CardDisplayStatus, Column, Comment, EntityType, InboxItem, Link, LinkKind,
-    Project, Run, RunStatus, TaskDetail, TaskSummary,
+    Activity, ActorKind, CardDisplayStatus, Check, Column, Comment, EntityType, InboxItem, Link,
+    LinkKind, Project, Run, RunStatus, TaskDetail, TaskSummary,
 };
 use taskboard_store_sqlite::UiState;
 use uuid::Uuid;
@@ -60,6 +60,8 @@ pub struct TaskSummaryDto {
     pub blocked_by: Vec<String>,
     pub blocks: Vec<String>,
     pub stale: bool,
+    pub checklist_done: i64,
+    pub checklist_total: i64,
 }
 
 impl From<TaskSummary> for TaskSummaryDto {
@@ -79,6 +81,8 @@ impl From<TaskSummary> for TaskSummaryDto {
             blocked_by: task.blocked_by,
             blocks: task.blocks,
             stale: task.stale,
+            checklist_done: task.checklist_done,
+            checklist_total: task.checklist_total,
         }
     }
 }
@@ -113,6 +117,30 @@ impl From<Comment> for CommentDto {
             actor_label: comment.actor_label,
             body: comment.body,
             created_at: comment.created_at,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckDto {
+    pub id: Uuid,
+    pub display_id: String,
+    pub task_id: Uuid,
+    pub text: String,
+    pub done: bool,
+    pub sort_order: i64,
+}
+
+impl From<Check> for CheckDto {
+    fn from(check: Check) -> Self {
+        Self {
+            id: check.id,
+            display_id: check.display_id,
+            task_id: check.task_id,
+            text: check.text,
+            done: check.done,
+            sort_order: check.sort_order,
         }
     }
 }
@@ -221,6 +249,7 @@ pub struct TaskDetailDto {
     pub links: Vec<LinkDto>,
     pub runs: Vec<RunDto>,
     pub comments: Vec<CommentDto>,
+    pub checks: Vec<CheckDto>,
     pub recent_activities: Vec<ActivityDto>,
 }
 
@@ -242,6 +271,7 @@ impl From<TaskDetail> for TaskDetailDto {
             links: task.links.into_iter().map(LinkDto::from).collect(),
             runs: task.runs.into_iter().map(RunDto::from).collect(),
             comments: task.comments.into_iter().map(CommentDto::from).collect(),
+            checks: task.checks.into_iter().map(CheckDto::from).collect(),
             recent_activities: task
                 .recent_activities
                 .into_iter()

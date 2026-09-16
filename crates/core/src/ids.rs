@@ -4,6 +4,7 @@ use thiserror::Error;
 pub enum DisplayKind {
     Task,
     Run,
+    Check,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -18,6 +19,7 @@ pub fn display_id(kind: DisplayKind, n: i64) -> String {
     let prefix = match kind {
         DisplayKind::Task => "TASK",
         DisplayKind::Run => "RUN",
+        DisplayKind::Check => "CHECK",
     };
     format!("{prefix}-{n}")
 }
@@ -30,6 +32,7 @@ pub fn parse_display_id(raw: &str) -> Result<(DisplayKind, i64), ParseDisplayIdE
     let kind = match prefix {
         "TASK" => DisplayKind::Task,
         "RUN" => DisplayKind::Run,
+        "CHECK" => DisplayKind::Check,
         _ => return Err(ParseDisplayIdError::InvalidFormat),
     };
 

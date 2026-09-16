@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use chrono::Utc;
 use clap::Parser;
 use taskboard_application::{
-    ActivityQuery, Actor, App, AppError, CommentAdd, InboxScope, LinkAdd, ProjectAdd,
+    ActivityQuery, Actor, App, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd,
     ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait,
     SystemClock, TaskCreate, TaskListQuery, TaskUpdate,
 };
@@ -17,8 +17,8 @@ use taskboard_core::LinkKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
 
 use args::{
-    BackupCommand, Cli, Command, CommentCommand, LinkCommand, NoteCommand, ProjectCommand,
-    ProjectNoteCommand, RunCommand, TaskCommand, TrashCommand,
+    BackupCommand, CheckCommand, Cli, Command, CommentCommand, LinkCommand, NoteCommand,
+    ProjectCommand, ProjectNoteCommand, RunCommand, TaskCommand, TrashCommand,
 };
 
 #[tokio::main]
@@ -89,6 +89,7 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
         Command::Link(cmd) => link_cmd(app, actor, json, revision, cmd).await,
         Command::Run(cmd) => run_cmd(app, actor, json, revision, cmd).await,
         Command::Comment(cmd) => comment_cmd(app, actor, json, cmd).await,
+        Command::Check(cmd) => check_cmd(app, actor, json, cmd).await,
         Command::Trash(TrashCommand::List) => {
             let trash = app
                 .trash_list()
@@ -721,6 +722,45 @@ async fn run_cmd(
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &run, run.revision, || {
                 println!("Finished {}", run.display_id);
+            });
+        }
+    }
+    Ok(())
+}
+
+async fn check_cmd(app: &App, actor: &Actor, json: bool, cmd: CheckCommand) -> Result<(), i32> {
+    match cmd {
+        CheckCommand::Add { display_id, text } => {
+            let check = app
+                .check_add(
+                    actor,
+                    CheckAdd {
+                        task_display_id: display_id.clone(),
+                        text,
+                    },
+                )
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entity(json, &check, 0, || {
+                println!("Added {}", check.display_id);
+            });
+        }
+        CheckCommand::Toggle { display_id } => {
+            let check = app
+                .check_toggle(actor, &display_id)
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entity(json, &check, 0, || {
+                println!("Toggled {}", check.display_id);
+            });
+        }
+        CheckCommand::List { display_id } => {
+            let checks = app
+                .check_list(&display_id)
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entities(json, &checks, || {
+                output::print_check_list(&checks);
             });
         }
     }

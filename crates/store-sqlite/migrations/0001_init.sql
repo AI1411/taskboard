@@ -3,7 +3,7 @@ CREATE TABLE counters (
     value INTEGER NOT NULL
 );
 
-INSERT INTO counters (name, value) VALUES ('task', 0), ('run', 0), ('activity', 0);
+INSERT INTO counters (name, value) VALUES ('task', 0), ('run', 0), ('activity', 0), ('check', 0);
 
 CREATE TABLE projects (
     id BLOB NOT NULL PRIMARY KEY,
@@ -93,3 +93,14 @@ CREATE TABLE comments (
 );
 
 CREATE INDEX idx_comments_task_created ON comments (task_id, created_at, id);
+
+CREATE TABLE checks (
+    id BLOB NOT NULL PRIMARY KEY,
+    display_id TEXT NOT NULL UNIQUE,
+    task_id BLOB NOT NULL REFERENCES tasks (id),
+    text TEXT NOT NULL,
+    done INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL
+);
+
+CREATE INDEX idx_checks_task_sort ON checks (task_id, sort_order, id);

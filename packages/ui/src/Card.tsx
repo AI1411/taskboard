@@ -100,6 +100,11 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
       {task.blocks.length > 0 ? (
         <span className={styles.runMessage}>Blocks {task.blocks.join(", ")}</span>
       ) : null}
+      {task.checklistTotal > 0 ? (
+        <span className={styles.runMessage}>
+          {task.checklistDone}/{task.checklistTotal}
+        </span>
+      ) : null}
     </div>
   );
 });

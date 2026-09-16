@@ -70,6 +70,9 @@ pub enum Command {
     /// Card comment thread
     #[command(subcommand)]
     Comment(CommentCommand),
+    /// Card definition-of-done checklist
+    #[command(subcommand)]
+    Check(CheckCommand),
     /// Soft-deleted entities
     #[command(subcommand)]
     Trash(TrashCommand),
@@ -360,6 +363,20 @@ pub enum CommentCommand {
         text: String,
     },
     /// List comments on a task
+    List { display_id: String },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CheckCommand {
+    /// Add a checklist item without changing the note
+    Add {
+        display_id: String,
+        #[arg(long)]
+        text: String,
+    },
+    /// Toggle a checklist item
+    Toggle { display_id: String },
+    /// List checklist items on a task
     List { display_id: String },
 }
 

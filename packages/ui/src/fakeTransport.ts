@@ -41,6 +41,7 @@ function asDetail(task: TaskSummary, extras?: Partial<TaskDetail>): TaskDetail {
     links: [],
     runs: [],
     comments: [],
+    checks: [],
     recentActivities: [],
     ...extras,
   };
@@ -141,6 +142,8 @@ export function fakeTransport(): Transport {
         blockedBy: [],
         blocks: [],
         stale: false,
+        checklistDone: 0,
+        checklistTotal: 0,
       };
       tasks.push(task);
       const detail = asDetail(task);
@@ -160,6 +163,7 @@ export function fakeTransport(): Transport {
         links: [...detail.links],
         runs: [...detail.runs],
         comments: [...detail.comments],
+        checks: [...detail.checks],
         recentActivities: [...detail.recentActivities],
       };
     },

@@ -9,7 +9,7 @@ use sqlx::SqlitePool;
 use taskboard_application::AppError;
 
 use crate::config::load_config;
-use crate::migrations::{COMMENTS_SQL, INIT_SQL};
+use crate::migrations::{CHECKS_SQL, COMMENTS_SQL, INIT_SQL};
 
 /// Opens `{data_dir}/taskboard.sqlite3`, applying `0001_init.sql` when `projects` is missing.
 pub async fn open_db(data_dir: &Path) -> Result<SqlitePool, AppError> {
@@ -62,6 +62,19 @@ pub async fn open_db(data_dir: &Path) -> Result<SqlitePool, AppError> {
         );
     }
 
+    if !checks_table_exists(&pool).await? {
+        sqlx::raw_sql(CHECKS_SQL)
+            .execute(&pool)
+            .await
+            .map_err(map_sqlx)?;
+        write_log(
+            &log_path,
+            &cfg.log_level,
+            "info",
+            "applied migration 0003_checks",
+        );
+    }
+
     Ok(pool)
 }
 
@@ -73,6 +86,16 @@ async fn apply_init_migration(pool: &SqlitePool) -> Result<(), AppError> {
         .map_err(map_sqlx)?;
     tx.commit().await.map_err(map_sqlx)?;
     Ok(())
+}
+
+async fn checks_table_exists(pool: &SqlitePool) -> Result<bool, AppError> {
+    let name: Option<String> = sqlx::query_scalar(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'checks'",
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(map_sqlx)?;
+    Ok(name.is_some())
 }
 
 async fn comments_table_exists(pool: &SqlitePool) -> Result<bool, AppError> {
@@ -183,7 +206,7 @@ mod tests {
             .fetch_one(&pool)
             .await
             .unwrap();
-        assert_eq!(n, 3);
+        assert_eq!(n, 4);
         pool.close().await;
     }
 
@@ -227,7 +250,7 @@ mod tests {
             .fetch_one(&pool)
             .await
             .unwrap();
-        assert_eq!(n, 3);
+        assert_eq!(n, 4);
         pool.close().await;
     }
 
@@ -286,6 +309,7 @@ mod tests {
             tables,
             [
                 "activities",
+                "checks",
                 "comments",
                 "counters",
                 "links",
@@ -294,6 +318,26 @@ mod tests {
                 "tasks",
             ]
         );
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn open_db_adds_checks_to_existing_schema() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pool = open_db(tmp.path()).await.unwrap();
+        sqlx::query("DROP TABLE checks")
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool.close().await;
+        let pool = open_db(tmp.path()).await.unwrap();
+        let name: Option<String> = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'checks'",
+        )
+        .fetch_optional(&pool)
+        .await
+        .unwrap();
+        assert_eq!(name.as_deref(), Some("checks"));
         pool.close().await;
     }
 

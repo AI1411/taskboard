@@ -8,7 +8,8 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, S
 use sqlx::{Row, SqlitePool};
 use taskboard_application::{AppError, NewActivity, Store};
 use taskboard_core::{
-    Activity, ActorKind, Column, Comment, EntityType, Link, LinkKind, Project, Run, RunStatus, Task,
+    Activity, ActorKind, Check, Column, Comment, EntityType, Link, LinkKind, Project, Run,
+    RunStatus, Task,
 };
 use uuid::Uuid;
 
@@ -18,6 +19,7 @@ const PROJECT_COLUMNS: &str = "id, slug, name, repo_path, archived, note_markdow
 const TASK_COLUMNS: &str = "id, display_id, project_id, title, column, urgent, note_markdown, position, revision, created_at, updated_at, deleted_at";
 const LINK_COLUMNS: &str = "id, task_id, kind, value, sort_order";
 const COMMENT_COLUMNS: &str = "id, task_id, actor_kind, actor_label, body, created_at";
+const CHECK_COLUMNS: &str = "id, display_id, task_id, text, done, sort_order";
 const RUN_COLUMNS: &str = "id, display_id, task_id, agent, session_id, status, message, waiting_reason, summary, started_at, ended_at, revision, created_at, updated_at";
 const ACTIVITY_COLUMNS: &str = "id, sequence, actor_kind, actor_label, operation, entity_type, entity_id, previous_revision, before_json, after_json, created_at";
 
@@ -263,6 +265,20 @@ fn task_from_row(row: &SqliteRow) -> Result<Task, AppError> {
         created_at: parse_dt(&created_at)?,
         updated_at: parse_dt(&updated_at)?,
         deleted_at: deleted_at.as_deref().map(parse_dt).transpose()?,
+    })
+}
+
+fn check_from_row(row: &SqliteRow) -> Result<Check, AppError> {
+    let id: Vec<u8> = row.try_get("id").map_err(map_sqlx)?;
+    let task_id: Vec<u8> = row.try_get("task_id").map_err(map_sqlx)?;
+    let done: i64 = row.try_get("done").map_err(map_sqlx)?;
+    Ok(Check {
+        id: uuid_from_blob(&id)?,
+        display_id: row.try_get("display_id").map_err(map_sqlx)?,
+        task_id: uuid_from_blob(&task_id)?,
+        text: row.try_get("text").map_err(map_sqlx)?,
+        done: done != 0,
+        sort_order: row.try_get("sort_order").map_err(map_sqlx)?,
     })
 }
 
@@ -663,6 +679,53 @@ impl Store for SqliteStore {
         let query = sqlx::query(&sql).bind(uuid_bytes(task_id));
         let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
         rows.iter().map(comment_from_row).collect()
+    }
+
+    async fn insert_check(&mut self, check: &Check) -> Result<(), AppError> {
+        let query = sqlx::query(
+            "INSERT INTO checks (id, display_id, task_id, text, done, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(uuid_bytes(check.id))
+        .bind(&check.display_id)
+        .bind(uuid_bytes(check.task_id))
+        .bind(&check.text)
+        .bind(if check.done { 1i64 } else { 0 })
+        .bind(check.sort_order);
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
+    }
+
+    async fn update_check(&mut self, check: &Check) -> Result<(), AppError> {
+        let query = sqlx::query(
+            "UPDATE checks SET display_id = ?, task_id = ?, text = ?, done = ?, sort_order = ? WHERE id = ?",
+        )
+        .bind(&check.display_id)
+        .bind(uuid_bytes(check.task_id))
+        .bind(&check.text)
+        .bind(if check.done { 1i64 } else { 0 })
+        .bind(check.sort_order)
+        .bind(uuid_bytes(check.id));
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
+    }
+
+    async fn get_check_by_display_id(
+        &mut self,
+        display_id: &str,
+    ) -> Result<Option<Check>, AppError> {
+        let sql = format!("SELECT {CHECK_COLUMNS} FROM checks WHERE display_id = ?");
+        let query = sqlx::query(&sql).bind(display_id);
+        let row = run!(self, query, fetch_optional).map_err(map_sqlx)?;
+        row.as_ref().map(check_from_row).transpose()
+    }
+
+    async fn list_checks(&mut self, task_id: Uuid) -> Result<Vec<Check>, AppError> {
+        let sql = format!(
+            "SELECT {CHECK_COLUMNS} FROM checks WHERE task_id = ? ORDER BY sort_order ASC, id ASC"
+        );
+        let query = sqlx::query(&sql).bind(uuid_bytes(task_id));
+        let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
+        rows.iter().map(check_from_row).collect()
     }
 
     async fn get_run(&mut self, id: Uuid) -> Result<Option<Run>, AppError> {

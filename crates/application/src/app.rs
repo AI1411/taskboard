@@ -9,16 +9,16 @@ use taskboard_core::{
     card_display_status, display_id, inbox_membership, inbox_reason, next_unique_slug, parse_agent,
     parse_path_link, parse_url, place_before, place_urgent, rewrite_positions, slugify,
     sort_column, trim_project_name, trim_title, winning_run_view, Activity, ActivityEntry,
-    CardDisplayStatus, Column, Comment, DisplayKind, EntityType, FieldError, InboxItem, Link,
-    LinkKind, OrderError, OrderKey, Project, Run, RunStatus, RunStatusView, SlugError, Task,
+    CardDisplayStatus, Check, Column, Comment, DisplayKind, EntityType, FieldError, InboxItem,
+    Link, LinkKind, OrderError, OrderKey, Project, Run, RunStatus, RunStatusView, SlugError, Task,
     TaskDetail, TaskSummary, ValidationError,
 };
 
 use crate::actor::Actor;
 use crate::commands::{
-    ActivityQuery, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunContinue,
-    RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, TaskCreate, TaskListQuery,
-    TaskUpdate,
+    ActivityQuery, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate,
+    RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, TaskCreate,
+    TaskListQuery, TaskUpdate,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -206,9 +206,11 @@ impl App {
             for task in tasks {
                 let runs = store.list_runs(task.id).await?;
                 let comments = store.list_comments(task.id).await?;
+                let checks = store.list_checks(task.id).await?;
                 let (blocked_by, blocks) = block_lists(&task, &index);
-                let summary =
-                    to_task_summary_from_runs(task, &runs, &comments, blocked_by, blocks, now);
+                let summary = to_task_summary_from_runs(
+                    task, &runs, &comments, &checks, blocked_by, blocks, now,
+                );
                 if let Some(column) = query.column {
                     if summary.column != column {
                         continue;
@@ -514,6 +516,29 @@ impl App {
                 entity: "run".into(),
                 id: task_display_id.to_string(),
             })
+    }
+
+    pub async fn check_add(&self, _actor: &Actor, cmd: CheckAdd) -> Result<Check, AppError> {
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = check_add_inner(store, cmd).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn check_toggle(&self, _actor: &Actor, display_id: &str) -> Result<Check, AppError> {
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = check_toggle_inner(store, display_id).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn check_list(&self, task_display_id: &str) -> Result<Vec<Check>, AppError> {
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        let task = require_live_task(store, task_display_id).await?;
+        store.list_checks(task.id).await
     }
 
     pub async fn comment_add(&self, actor: &Actor, cmd: CommentAdd) -> Result<Comment, AppError> {
@@ -1630,6 +1655,42 @@ async fn run_continue_inner(
     .await
 }
 
+async fn check_add_inner(store: &mut dyn Store, cmd: CheckAdd) -> Result<Check, AppError> {
+    let text = require_non_blank("text", &cmd.text)?;
+    let task = require_live_task(store, &cmd.task_display_id).await?;
+    let existing = store.list_checks(task.id).await?;
+    let sort_order = existing
+        .iter()
+        .map(|check| check.sort_order)
+        .max()
+        .map(|max| max + 1)
+        .unwrap_or(0);
+    let n = store.next_display_n("check").await?;
+    let check = Check {
+        id: Uuid::now_v7(),
+        display_id: display_id(DisplayKind::Check, n),
+        task_id: task.id,
+        text,
+        done: false,
+        sort_order,
+    };
+    store.insert_check(&check).await?;
+    Ok(check)
+}
+
+async fn check_toggle_inner(store: &mut dyn Store, display_id: &str) -> Result<Check, AppError> {
+    let mut check = store
+        .get_check_by_display_id(display_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound {
+            entity: "check".into(),
+            id: display_id.to_string(),
+        })?;
+    check.done = !check.done;
+    store.update_check(&check).await?;
+    Ok(check)
+}
+
 async fn comment_add_inner(
     store: &mut dyn Store,
     actor: &Actor,
@@ -1880,6 +1941,7 @@ async fn load_task_detail(store: &mut dyn Store, task: Task) -> Result<TaskDetai
     let links = store.list_links(task.id).await?;
     let runs = store.list_runs(task.id).await?;
     let comments = store.list_comments(task.id).await?;
+    let checks = store.list_checks(task.id).await?;
     let recent_activities = store.list_recent_activities(task.id, 20).await?;
     let (display_status, run_message, waiting_reason) = display_from_runs(&runs);
     let reply = reply_for(display_status, &comments);
@@ -1899,6 +1961,7 @@ async fn load_task_detail(store: &mut dyn Store, task: Task) -> Result<TaskDetai
         links,
         runs,
         comments,
+        checks,
         recent_activities,
     })
 }
@@ -1920,6 +1983,7 @@ fn to_task_summary_from_runs(
     task: Task,
     runs: &[Run],
     comments: &[Comment],
+    checks: &[Check],
     blocked_by: Vec<String>,
     blocks: Vec<String>,
     now: DateTime<Utc>,
@@ -1928,6 +1992,8 @@ fn to_task_summary_from_runs(
     let stale = winning_run(runs)
         .map(|run| is_stale(run, now, 30))
         .unwrap_or(false);
+    let checklist_total = checks.len() as i64;
+    let checklist_done = checks.iter().filter(|check| check.done).count() as i64;
     TaskSummary {
         id: task.id,
         display_id: task.display_id,
@@ -1943,6 +2009,8 @@ fn to_task_summary_from_runs(
         blocked_by,
         blocks,
         stale,
+        checklist_done,
+        checklist_total,
     }
 }
 
@@ -2064,10 +2132,11 @@ async fn to_task_summary(
 ) -> Result<TaskSummary, AppError> {
     let runs = store.list_runs(task.id).await?;
     let comments = store.list_comments(task.id).await?;
+    let checks = store.list_checks(task.id).await?;
     let index = load_block_index(store).await?;
     let (blocked_by, blocks) = block_lists(&task, &index);
     Ok(to_task_summary_from_runs(
-        task, &runs, &comments, blocked_by, blocks, now,
+        task, &runs, &comments, &checks, blocked_by, blocks, now,
     ))
 }
 

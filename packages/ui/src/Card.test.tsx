@@ -115,6 +115,15 @@ describe("Card", () => {
     expect(queryByText("Waiting")).toBeNull();
   });
 
+  it("shows checklist progress on the card face", () => {
+    const { getByText, rerender, queryByText } = render(
+      <Card task={summary({ checklistDone: 2, checklistTotal: 5 })} selected={false} />,
+    );
+    expect(getByText("2/5")).toBeTruthy();
+    rerender(<Card task={summary({ checklistDone: 0, checklistTotal: 0 })} selected={false} />);
+    expect(queryByText("0/0")).toBeNull();
+  });
+
   it("shows Blocked by and Blocks labels", () => {
     const { getByText, rerender } = render(
       <Card task={summary({ blockedBy: ["TASK-8"] })} selected={false} />,

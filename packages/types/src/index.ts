@@ -39,6 +39,17 @@ export interface TaskSummary {
   blockedBy: string[];
   blocks: string[];
   stale: boolean;
+  checklistDone: number;
+  checklistTotal: number;
+}
+
+export interface Check {
+  id: string;
+  displayId: string;
+  taskId: string;
+  text: string;
+  done: boolean;
+  sortOrder: number;
 }
 
 export interface Comment {
@@ -95,6 +106,7 @@ export interface TaskDetail extends TaskSummary {
   links: Link[];
   runs: Run[];
   comments: Comment[];
+  checks: Check[];
   recentActivities: Activity[];
 }
 
