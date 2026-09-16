@@ -112,6 +112,8 @@ pub trait Store: Send + Sync {
     async fn get_run(&mut self, id: Uuid) -> Result<Option<Run>, AppError>;
     async fn get_run_by_display_id(&mut self, display_id: &str) -> Result<Option<Run>, AppError>;
     async fn list_runs(&mut self, task_id: Uuid) -> Result<Vec<Run>, AppError>;
+    async fn list_all_runs(&mut self) -> Result<Vec<Run>, AppError>;
+    async fn list_runs_by_session_id(&mut self, session_id: &str) -> Result<Vec<Run>, AppError>;
     async fn insert_run(&mut self, run: &Run) -> Result<(), AppError>;
     async fn update_run(&mut self, run: &Run) -> Result<(), AppError>;
     async fn delete_run(&mut self, id: Uuid) -> Result<(), AppError>;

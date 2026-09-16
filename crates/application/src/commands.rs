@@ -87,3 +87,10 @@ pub struct TaskListQuery {
     pub column: Option<Column>,
     pub agent: Option<String>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct RunListQuery {
+    pub open: bool,
+    pub session_id: Option<String>,
+    pub agent: Option<String>,
+}

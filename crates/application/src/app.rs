@@ -14,8 +14,8 @@ use taskboard_core::{
 
 use crate::actor::Actor;
 use crate::commands::{
-    InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunStart, RunUpdate,
-    RunWait, TaskCreate, TaskListQuery, TaskUpdate,
+    InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunListQuery, RunStart,
+    RunUpdate, RunWait, TaskCreate, TaskListQuery, TaskUpdate,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -449,6 +449,56 @@ impl App {
         store.begin().await?;
         let result = run_finish_inner(store, actor, cmd, now).await;
         commit_or_rollback(store, result).await
+    }
+
+    pub async fn run_list(&self, query: RunListQuery) -> Result<Vec<Run>, AppError> {
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        let mut runs = if let Some(session_id) = query.session_id.as_deref() {
+            let session_id = require_non_blank("session_id", session_id)?;
+            store.list_runs_by_session_id(&session_id).await?
+        } else {
+            store.list_all_runs().await?
+        };
+        if query.open {
+            runs.retain(|run| matches!(run.status, RunStatus::Running | RunStatus::Waiting));
+        }
+        if let Some(agent) = query.agent.as_deref() {
+            runs.retain(|run| run.agent == agent);
+        }
+        Ok(runs)
+    }
+
+    pub async fn run_show(&self, display_id: &str) -> Result<Run, AppError> {
+        let mut store = self.store.lock().await;
+        require_run(&mut **store, display_id).await
+    }
+
+    pub async fn run_current(&self, task_display_id: &str) -> Result<Run, AppError> {
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        let task = require_live_task(store, task_display_id).await?;
+        let runs = store.list_runs(task.id).await?;
+        winning_run(&runs)
+            .cloned()
+            .ok_or_else(|| AppError::NotFound {
+                entity: "run".into(),
+                id: task_display_id.to_string(),
+            })
+    }
+
+    pub async fn run_by_session(&self, session_id: &str) -> Result<Run, AppError> {
+        let session_id = require_non_blank("session_id", session_id)?;
+        let mut store = self.store.lock().await;
+        store
+            .list_runs_by_session_id(&session_id)
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::NotFound {
+                entity: "run".into(),
+                id: session_id,
+            })
     }
 
     pub async fn task_delete(
