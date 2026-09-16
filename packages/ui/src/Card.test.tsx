@@ -84,6 +84,28 @@ describe("Card", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it("marks attention faces and mutes the completed badge", () => {
+    const { getByRole, getByText, rerender } = render(
+      <Card task={summary({ displayStatus: "waiting" })} selected={false} />,
+    );
+    expect(getByRole("listitem").getAttribute("data-face")).toBe("waiting");
+    rerender(
+      <Card
+        task={summary({ displayStatus: "failed", waitingReason: "boom" })}
+        selected={false}
+      />,
+    );
+    expect(getByRole("listitem").getAttribute("data-face")).toBe("failed");
+    expect(getByText("boom")).toBeTruthy();
+    rerender(<Card task={summary({ displayStatus: "running" })} selected={false} />);
+    expect(getByRole("listitem").getAttribute("data-face")).toBe("running");
+    rerender(<Card task={summary({ displayStatus: "running", stale: true })} selected={false} />);
+    expect(getByRole("listitem").getAttribute("data-face")).toBeNull();
+    rerender(<Card task={summary({ displayStatus: "completed" })} selected={false} />);
+    expect(getByRole("listitem").getAttribute("data-face")).toBe("completed");
+    expect(getByText("Done").className).toMatch(/muted/);
+  });
+
   it("shows a Stale badge instead of Running", () => {
     const { getByText, queryByText } = render(
       <Card task={summary({ displayStatus: "running", stale: true })} selected={false} />,

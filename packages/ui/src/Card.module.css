@@ -35,12 +35,35 @@
 
 .card[aria-selected="true"] {
   border-color: var(--accent);
-  box-shadow: none;
 }
 
 .card.lifted[aria-selected="true"] {
   border-color: var(--accent);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.waitingFace[aria-selected="true"] {
+  box-shadow: inset 2px 0 0 var(--waiting);
+}
+
+.failedFace[aria-selected="true"] {
+  box-shadow: inset 2px 0 0 var(--failed);
+}
+
+.runningFace[aria-selected="true"] {
+  box-shadow: inset 2px 0 0 var(--running);
+}
+
+.waitingFace.lifted[aria-selected="true"] {
+  box-shadow: inset 2px 0 0 var(--waiting), 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.failedFace.lifted[aria-selected="true"] {
+  box-shadow: inset 2px 0 0 var(--failed), 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.runningFace.lifted[aria-selected="true"] {
+  box-shadow: inset 2px 0 0 var(--running), 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 
 .title {
@@ -109,12 +132,41 @@
   background: var(--failed);
 }
 
-.completed {
-  background: var(--completed);
+.completed,
+.muted {
+  background: transparent;
+  color: var(--sidebar-muted);
+  padding: 0;
+  font-weight: 500;
 }
 
 .stale {
   background: var(--sidebar-muted);
+}
+
+.waitingFace {
+  box-shadow: inset 2px 0 0 var(--waiting);
+}
+
+.failedFace {
+  box-shadow: inset 2px 0 0 var(--failed);
+}
+
+.runningFace {
+  box-shadow: inset 2px 0 0 var(--running);
+  animation: facePulse 1.4s ease-in-out infinite;
+}
+
+@keyframes facePulse {
+  50% {
+    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--running) 45%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runningFace {
+    animation: none;
+  }
 }
 
 .runMessage {

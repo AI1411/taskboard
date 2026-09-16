@@ -18,6 +18,14 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   ref,
 ) {
   const badge = task.stale ? "Stale" : BADGE_LABEL[task.displayStatus];
+  const face =
+    task.stale ||
+    (task.displayStatus !== "waiting" &&
+      task.displayStatus !== "failed" &&
+      task.displayStatus !== "running" &&
+      task.displayStatus !== "completed")
+      ? null
+      : task.displayStatus;
   const faceMessage =
     task.runMessage ||
     ((task.displayStatus === "waiting" || task.displayStatus === "failed") && task.waitingReason) ||
@@ -39,12 +47,16 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
         styles.card,
         placeholder ? styles.placeholder : null,
         lifted ? styles.lifted : null,
+        face === "waiting" ? styles.waitingFace : null,
+        face === "failed" ? styles.failedFace : null,
+        face === "running" ? styles.runningFace : null,
         className,
       ]
         .filter(Boolean)
         .join(" ")}
       data-placeholder={placeholder || undefined}
       data-lifted={lifted || undefined}
+      data-face={face ?? undefined}
       {...rest}
       role="listitem"
       aria-label={label}
@@ -69,7 +81,13 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
         {task.urgent ? <span className={styles.pip} aria-label="Urgent" /> : null}
         {badge ? (
           <span
-            className={`${styles.badge} ${task.stale ? styles.stale : styles[task.displayStatus]}`}
+            className={[
+              styles.badge,
+              task.stale ? styles.stale : styles[task.displayStatus],
+              !task.stale && task.displayStatus === "completed" ? styles.muted : null,
+            ]
+              .filter(Boolean)
+              .join(" ")}
           >
             {badge}
           </span>
