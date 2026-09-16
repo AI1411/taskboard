@@ -148,6 +148,9 @@ describe("TauriTransport", () => {
     await t.taskNoteSet("TASK-1", "note", 1);
     await t.linkAdd("TASK-1", { kind: "url", value: "https://example.com" });
     await t.linkRemove("link-id", 1);
+    await t.commentAdd("TASK-1", "hi");
+    await t.checkAdd("TASK-1", "Write tests");
+    await t.checkToggle("CHECK-1");
     await t.runStart("TASK-1", { agent: "codex", sessionId: "sess" });
     await t.runPatch("RUN-1", { op: "fail", summary: "boom" }, 1);
     await t.inbox({ project: "a", includeArchived: false });
@@ -179,6 +182,9 @@ describe("TauriTransport", () => {
       "task_note_set",
       "link_add",
       "link_remove",
+      "comment_add",
+      "check_add",
+      "check_toggle",
       "run_start",
       "run_patch",
       "inbox",
@@ -210,21 +216,21 @@ describe("TauriTransport", () => {
       note_markdown: "md",
       revision: 1,
     });
-    assert.deepEqual(calls[20].args, {
+    assert.deepEqual(calls[23].args, {
       display_id: "TASK-1",
       agent: "codex",
       session_id: "sess",
     });
-    assert.deepEqual(calls[21].args, {
+    assert.deepEqual(calls[24].args, {
       run_display_id: "RUN-1",
       op: "fail",
       summary: "boom",
       revision: 1,
     });
-    assert.deepEqual(calls[22].args, { project: "a", include_archived: false });
-    assert.equal(calls[23].args, undefined);
-    assert.equal(calls[24].args, undefined);
-    assert.deepEqual(calls[25].args, { after: 0 });
+    assert.deepEqual(calls[25].args, { project: "a", include_archived: false });
+    assert.equal(calls[26].args, undefined);
+    assert.equal(calls[27].args, undefined);
+    assert.deepEqual(calls[28].args, { after: 0 });
   });
 
   it("inbox invokes inbox with project and include_archived", async () => {

@@ -1,5 +1,8 @@
 import type {
+  Check,
   Column,
+  Comment,
+  LinkKind,
   Project,
   ProjectPatch,
   Run,
@@ -133,8 +136,20 @@ export class HttpTransport implements Transport {
     });
   }
 
-  linkAdd(displayId: string, input: { kind: "url" | "path"; value: string }): Promise<TaskDetail> {
+  linkAdd(displayId: string, input: { kind: LinkKind; value: string }): Promise<TaskDetail> {
     return this.request("POST", `/api/v1/tasks/${enc(displayId)}/links`, { body: input });
+  }
+
+  commentAdd(displayId: string, body: string): Promise<Comment> {
+    return this.request("POST", `/api/v1/tasks/${enc(displayId)}/comments`, { body: { body } });
+  }
+
+  checkAdd(displayId: string, text: string): Promise<Check> {
+    return this.request("POST", `/api/v1/tasks/${enc(displayId)}/checks`, { body: { text } });
+  }
+
+  checkToggle(displayId: string): Promise<Check> {
+    return this.request("PATCH", `/api/v1/checks/${enc(displayId)}`, { body: {} });
   }
 
   linkRemove(linkId: string, revision?: number): Promise<TaskDetail> {

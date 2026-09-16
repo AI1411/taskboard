@@ -4,7 +4,7 @@ export type DisplayStatus = "idle" | "running" | "waiting" | "failed" | "complet
 
 export type RunStatus = "running" | "waiting" | "failed" | "completed";
 
-export type LinkKind = "url" | "path";
+export type LinkKind = "url" | "path" | "blocked_by";
 
 export type ActorKind = "cli" | "desktop" | "web";
 
