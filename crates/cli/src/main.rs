@@ -9,8 +9,9 @@ use std::path::PathBuf;
 use chrono::Utc;
 use clap::Parser;
 use taskboard_application::{
-    Actor, App, AppError, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish,
-    RunListQuery, RunStart, RunUpdate, RunWait, SystemClock, TaskCreate, TaskListQuery, TaskUpdate,
+    Actor, App, AppError, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunContinue, RunFail,
+    RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, SystemClock, TaskCreate, TaskListQuery,
+    TaskUpdate,
 };
 use taskboard_core::LinkKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
@@ -632,6 +633,22 @@ async fn run_cmd(
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &run, run.revision, || {
                 println!("Waiting {}", run.display_id);
+            });
+        }
+        RunCommand::Continue { run_id, message } => {
+            let run = app
+                .run_continue(
+                    actor,
+                    RunContinue {
+                        run_display_id: run_id,
+                        message,
+                        revision,
+                    },
+                )
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entity(json, &run, run.revision, || {
+                println!("Continued {}", run.display_id);
             });
         }
         RunCommand::Fail { run_id, summary } => {

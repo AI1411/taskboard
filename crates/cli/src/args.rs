@@ -308,6 +308,12 @@ pub enum RunCommand {
         #[arg(long)]
         reason: String,
     },
+    /// Resume a waiting run
+    Continue {
+        run_id: String,
+        #[arg(long)]
+        message: Option<String>,
+    },
     /// Mark a run as failed
     Fail {
         run_id: String,

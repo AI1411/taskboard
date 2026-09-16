@@ -23,7 +23,7 @@ Do this **before the first edit** when the user asked you to implement, fix, or 
 3. `task move TASK-n in-progress --json`
 4. `run start TASK-n --agent cursor --json` — keep `RUN-n`
 
-While working, optionally `run update RUN-n --message "<status>" --json`. If blocked: `run wait RUN-n --reason "<why>" --json`.
+While working, optionally `run update RUN-n --message "<status>" --json`. If blocked: `run wait RUN-n --reason "<why>" --json`. When unblocked, `run continue RUN-n [--message "..."]` instead of starting a new run.
 
 When the work is done or failed, **before the final reply**:
 
