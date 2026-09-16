@@ -15,7 +15,7 @@
 - Do not add a command palette
 - Do not change inspector section order
 - Do not change link add/remove (#56)
-- Do not push a UI PR until usability epic #51 is closed
+- Usability epic #51 is closed; this PR may land on main
 - Desktop and web share `packages/ui`; no URL state here (#74)
 - Inbox, Trash, composers, project admin stay as they landed on `origin/main`
 - Tests: `pnpm --filter @taskboard/ui test`

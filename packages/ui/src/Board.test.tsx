@@ -58,11 +58,13 @@ describe("Board", () => {
     await waitFor(() => expect(transport.taskList).toHaveBeenCalledWith(project.slug));
   });
 
-  it("shows inspector empty copy until a card is selected", async () => {
+  it("does not show inspector empty copy until a card is selected", async () => {
     const transport = fakeTransport();
     await transport.projectAdd({ name: "Untitled" });
     render(<TaskboardApp transport={transport} />);
-    expect(await screen.findByText("Select a card")).toBeTruthy();
+    await screen.findByRole("list", { name: "Todo" });
+    expect(screen.queryByText("Select a card")).toBeNull();
+    expect(screen.queryByLabelText("Title")).toBeNull();
   });
 
   it("filters cards by title substring", async () => {
