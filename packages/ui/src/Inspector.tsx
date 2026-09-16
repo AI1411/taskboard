@@ -37,6 +37,7 @@ export function Inspector(props: {
   onRestore?: () => void;
   onLinkAdd?: (value: string) => void;
   onLinkRemove?: (linkId: string) => void;
+  onCopyId?: (displayId: string) => void;
   onClose?: () => void;
 }) {
   const [title, setTitle] = useState(props.task?.title ?? "");
@@ -96,7 +97,14 @@ export function Inspector(props: {
             onBlur={() => props.onTitleCommit(title)}
           />
         </label>
-        <p className={styles.displayId}>{props.task.displayId}</p>
+        <button
+          type="button"
+          className={styles.displayId}
+          aria-label={`Copy ${props.task.displayId}`}
+          onClick={() => props.onCopyId?.(props.task.displayId)}
+        >
+          {props.task.displayId}
+        </button>
         <label className={styles.field}>
           Column
           <select

@@ -10,10 +10,11 @@ export type CardProps = {
   grabbed?: boolean;
   /** Visual pickup clone that follows the pointer. */
   lifted?: boolean;
+  onCopyId?: (displayId: string) => void;
 } & HTMLAttributes<HTMLDivElement>;
 
 export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
-  { task, selected, grabbed, lifted, className, ...rest },
+  { task, selected, grabbed, lifted, className, onCopyId, ...rest },
   ref,
 ) {
   const badge = BADGE_LABEL[task.displayStatus];
@@ -52,7 +53,18 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
       aria-hidden={lifted || undefined}
     >
       <span className={styles.title}>{task.title}</span>
-      <span className={styles.displayId}>{task.displayId}</span>
+      <button
+        type="button"
+        className={styles.displayId}
+        aria-label={`Copy ${task.displayId}`}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          onCopyId?.(task.displayId);
+        }}
+      >
+        {task.displayId}
+      </button>
       <span className={styles.meta}>
         {task.urgent ? <span className={styles.pip} aria-label="Urgent" /> : null}
         {badge ? (

@@ -53,8 +53,18 @@
 
 .displayId {
   margin: 0;
-  font-size: 0.8rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--sidebar-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.displayId:hover {
+  text-decoration: underline;
 }
 
 .switch {
