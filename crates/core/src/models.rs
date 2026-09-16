@@ -208,5 +208,6 @@ pub struct InboxItem {
     pub run_message: Option<String>,
     pub waiting_reason: Option<String>,
     pub reason: String,
+    pub stale: bool,
     pub updated_at: DateTime<Utc>,
 }

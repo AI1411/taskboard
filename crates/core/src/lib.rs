@@ -20,7 +20,7 @@ pub use display_status::{
 };
 pub use error::{FieldError, ValidationError};
 pub use ids::{display_id, parse_display_id, DisplayKind, ParseDisplayIdError};
-pub use inbox::{inbox_membership, inbox_reason, InboxGroup};
+pub use inbox::{inbox_membership, inbox_reason, inbox_stale_reason, InboxGroup};
 pub use models::{
     Activity, ActivityEntry, ActorKind, Check, Comment, EntityType, InboxItem, Link, LinkKind,
     Project, Run, Task, TaskDetail, TaskSummary,

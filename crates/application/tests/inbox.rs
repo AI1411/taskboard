@@ -1,10 +1,21 @@
 use std::ops::Deref;
+use std::sync::{Arc, Mutex};
 
+use chrono::{Duration, TimeZone, Utc};
 use taskboard_application::{
-    Actor, App, InboxScope, ProjectAdd, RunFail, RunStart, RunWait, SystemClock, TaskCreate,
+    Actor, App, Clock, InboxScope, ProjectAdd, RunFail, RunStart, RunWait, SystemClock, TaskCreate,
 };
 use taskboard_core::{ActorKind, Column};
 use taskboard_store_sqlite::{open_db, SqliteStore};
+
+#[derive(Clone)]
+struct SharedClock(Arc<Mutex<chrono::DateTime<Utc>>>);
+
+impl Clock for SharedClock {
+    fn now(&self) -> chrono::DateTime<Utc> {
+        *self.0.lock().unwrap()
+    }
+}
 
 struct TestApp {
     app: App,
@@ -343,4 +354,134 @@ async fn inbox_unknown_project_is_not_found() {
         .await
         .unwrap_err();
     assert_eq!(err.code(), "not_found");
+}
+
+#[tokio::test]
+async fn inbox_includes_stale_between_failed_and_urgent() {
+    let start = Utc.with_ymd_and_hms(2026, 9, 16, 12, 0, 0).unwrap();
+    let clock = SharedClock(Arc::new(Mutex::new(start)));
+    let tmp = tempfile::tempdir().unwrap();
+    let pool = open_db(tmp.path()).await.unwrap();
+    let store = SqliteStore::new(pool, tmp.path());
+    let app = App::new(store, clock.clone());
+    let actor = cli_actor();
+    app.project_add(
+        &actor,
+        ProjectAdd {
+            name: "Renai Sim".into(),
+            repo_path: None,
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+    app.task_create(
+        &actor,
+        TaskCreate {
+            project_slug: "renai-sim".into(),
+            title: "Wait me".into(),
+            column: None,
+            urgent: false,
+        },
+    )
+    .await
+    .unwrap();
+    app.task_create(
+        &actor,
+        TaskCreate {
+            project_slug: "renai-sim".into(),
+            title: "Fail me".into(),
+            column: None,
+            urgent: false,
+        },
+    )
+    .await
+    .unwrap();
+    app.task_create(
+        &actor,
+        TaskCreate {
+            project_slug: "renai-sim".into(),
+            title: "Stuck".into(),
+            column: None,
+            urgent: false,
+        },
+    )
+    .await
+    .unwrap();
+    app.task_create(
+        &actor,
+        TaskCreate {
+            project_slug: "renai-sim".into(),
+            title: "Pin me".into(),
+            column: None,
+            urgent: true,
+        },
+    )
+    .await
+    .unwrap();
+    let wait = app
+        .run_start(
+            &actor,
+            RunStart {
+                task_display_id: "TASK-1".into(),
+                agent: "codex".into(),
+                session_id: None,
+            },
+        )
+        .await
+        .unwrap();
+    app.run_wait(
+        &actor,
+        RunWait {
+            run_display_id: wait.display_id,
+            reason: "Need spec".into(),
+            revision: None,
+        },
+    )
+    .await
+    .unwrap();
+    let fail = app
+        .run_start(
+            &actor,
+            RunStart {
+                task_display_id: "TASK-2".into(),
+                agent: "codex".into(),
+                session_id: None,
+            },
+        )
+        .await
+        .unwrap();
+    app.run_fail(
+        &actor,
+        RunFail {
+            run_display_id: fail.display_id,
+            summary: "boom".into(),
+            revision: None,
+        },
+    )
+    .await
+    .unwrap();
+    app.run_start(
+        &actor,
+        RunStart {
+            task_display_id: "TASK-3".into(),
+            agent: "cursor".into(),
+            session_id: None,
+        },
+    )
+    .await
+    .unwrap();
+    *clock.0.lock().unwrap() += Duration::minutes(31);
+    let items = app
+        .inbox(InboxScope {
+            project: None,
+            include_archived: false,
+        })
+        .await
+        .unwrap();
+    let titles: Vec<_> = items.iter().map(|i| i.title.as_str()).collect();
+    assert_eq!(titles, vec!["Wait me", "Fail me", "Stuck", "Pin me"]);
+    let stuck = items.iter().find(|i| i.title == "Stuck").unwrap();
+    assert!(stuck.stale);
+    assert_eq!(stuck.reason, "stale · last update 2026-09-16T12:00:00Z");
 }

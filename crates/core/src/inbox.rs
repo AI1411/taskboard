@@ -1,3 +1,5 @@
+use chrono::{DateTime, SecondsFormat, Utc};
+
 use crate::column::Column;
 use crate::display_status::CardDisplayStatus;
 
@@ -5,17 +7,20 @@ use crate::display_status::CardDisplayStatus;
 pub enum InboxGroup {
     Waiting = 0,
     Failed = 1,
-    Urgent = 2,
+    Stale = 2,
+    Urgent = 3,
 }
 
 pub fn inbox_membership(
     column: Column,
     urgent: bool,
     status: CardDisplayStatus,
+    stale: bool,
 ) -> Option<InboxGroup> {
     match status {
         CardDisplayStatus::Waiting => Some(InboxGroup::Waiting),
         CardDisplayStatus::Failed => Some(InboxGroup::Failed),
+        _ if stale => Some(InboxGroup::Stale),
         _ if urgent && column != Column::Done => Some(InboxGroup::Urgent),
         _ => None,
     }
@@ -27,6 +32,13 @@ pub fn inbox_reason(waiting_reason: Option<&str>, run_message: Option<&str>) -> 
     waiting.or(message).unwrap_or("").to_string()
 }
 
+pub fn inbox_stale_reason(updated_at: DateTime<Utc>) -> String {
+    format!(
+        "stale · last update {}",
+        updated_at.to_rfc3339_opts(SecondsFormat::Secs, true)
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -34,7 +46,7 @@ mod tests {
     #[test]
     fn waiting_is_inbox_even_in_done() {
         assert_eq!(
-            inbox_membership(Column::Done, false, CardDisplayStatus::Waiting),
+            inbox_membership(Column::Done, false, CardDisplayStatus::Waiting, false),
             Some(InboxGroup::Waiting)
         );
     }
@@ -42,7 +54,7 @@ mod tests {
     #[test]
     fn failed_is_inbox() {
         assert_eq!(
-            inbox_membership(Column::InProgress, false, CardDisplayStatus::Failed),
+            inbox_membership(Column::InProgress, false, CardDisplayStatus::Failed, false),
             Some(InboxGroup::Failed)
         );
     }
@@ -50,7 +62,7 @@ mod tests {
     #[test]
     fn urgent_todo_is_inbox() {
         assert_eq!(
-            inbox_membership(Column::Todo, true, CardDisplayStatus::Idle),
+            inbox_membership(Column::Todo, true, CardDisplayStatus::Idle, false),
             Some(InboxGroup::Urgent)
         );
     }
@@ -58,11 +70,11 @@ mod tests {
     #[test]
     fn urgent_done_without_waiting_or_failed_is_out() {
         assert_eq!(
-            inbox_membership(Column::Done, true, CardDisplayStatus::Completed),
+            inbox_membership(Column::Done, true, CardDisplayStatus::Completed, false),
             None
         );
         assert_eq!(
-            inbox_membership(Column::Done, true, CardDisplayStatus::Idle),
+            inbox_membership(Column::Done, true, CardDisplayStatus::Idle, false),
             None
         );
     }
@@ -70,7 +82,7 @@ mod tests {
     #[test]
     fn idle_non_urgent_is_out() {
         assert_eq!(
-            inbox_membership(Column::Todo, false, CardDisplayStatus::Idle),
+            inbox_membership(Column::Todo, false, CardDisplayStatus::Idle, false),
             None
         );
     }
@@ -78,11 +90,11 @@ mod tests {
     #[test]
     fn completed_in_review_is_out_unless_urgent() {
         assert_eq!(
-            inbox_membership(Column::InReview, false, CardDisplayStatus::Completed),
+            inbox_membership(Column::InReview, false, CardDisplayStatus::Completed, false),
             None
         );
         assert_eq!(
-            inbox_membership(Column::InReview, true, CardDisplayStatus::Completed),
+            inbox_membership(Column::InReview, true, CardDisplayStatus::Completed, false),
             Some(InboxGroup::Urgent)
         );
     }
@@ -90,15 +102,38 @@ mod tests {
     #[test]
     fn running_is_out_unless_urgent() {
         assert_eq!(
-            inbox_membership(Column::InProgress, false, CardDisplayStatus::Running),
+            inbox_membership(Column::InProgress, false, CardDisplayStatus::Running, false),
             None
+        );
+    }
+
+    #[test]
+    fn stale_running_is_inbox_between_failed_and_urgent() {
+        assert_eq!(
+            inbox_membership(Column::InProgress, false, CardDisplayStatus::Running, true),
+            Some(InboxGroup::Stale)
+        );
+        assert_eq!(
+            inbox_membership(Column::InProgress, true, CardDisplayStatus::Running, true),
+            Some(InboxGroup::Stale)
+        );
+        assert!(InboxGroup::Failed < InboxGroup::Stale);
+        assert!(InboxGroup::Stale < InboxGroup::Urgent);
+    }
+
+    #[test]
+    fn stale_reason_includes_last_update() {
+        let at = chrono::TimeZone::with_ymd_and_hms(&chrono::Utc, 2026, 9, 16, 12, 0, 0).unwrap();
+        assert_eq!(
+            inbox_stale_reason(at),
+            "stale · last update 2026-09-16T12:00:00Z"
         );
     }
 
     #[test]
     fn waiting_outranks_urgent_flag() {
         assert_eq!(
-            inbox_membership(Column::Todo, true, CardDisplayStatus::Waiting),
+            inbox_membership(Column::Todo, true, CardDisplayStatus::Waiting, false),
             Some(InboxGroup::Waiting)
         );
     }
