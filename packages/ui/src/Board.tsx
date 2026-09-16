@@ -21,6 +21,7 @@ import { resolveDragEnd } from "./boardDrag";
 import { Card } from "./Card";
 import { COLUMNS } from "./columns";
 import { Search } from "./Search";
+import { taskMatchesQuery } from "./searchMatch";
 import styles from "./Board.module.css";
 
 export function Board(props: {
@@ -48,9 +49,7 @@ export function Board(props: {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overlayWidth, setOverlayWidth] = useState<number>();
   const q = props.query;
-  const visible = q
-    ? props.tasks.filter((t) => t.title.toLowerCase().includes(q.toLowerCase()))
-    : props.tasks;
+  const visible = props.tasks.filter((t) => taskMatchesQuery(t, q));
   const activeTask = activeId ? props.tasks.find((task) => task.displayId === activeId) : undefined;
 
   function handleDragStart(event: DragStartEvent) {

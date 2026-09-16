@@ -13,7 +13,7 @@ export function Search(props: {
       className={styles.input}
       type="search"
       aria-label="Search"
-      placeholder="Search"
+      placeholder="Search title, TASK-n, status"
       value={props.value}
       onChange={(e) => props.onChange(e.target.value)}
     />
