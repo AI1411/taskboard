@@ -357,6 +357,8 @@ async fn task_cmd(
                     statuses: status,
                     column,
                     agent,
+                    blocked: false,
+                    ready: false,
                 })
                 .await
                 .map_err(|err| output::print_error(&err, json))?;

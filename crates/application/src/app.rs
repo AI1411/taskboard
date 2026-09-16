@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
@@ -182,6 +183,8 @@ impl App {
             statuses: Vec::new(),
             column: None,
             agent: None,
+            blocked: false,
+            ready: false,
         })
         .await
     }
@@ -194,13 +197,15 @@ impl App {
         } else {
             store.list_projects(false).await?
         };
+        let index = load_block_index(store).await?;
         let mut summaries = Vec::new();
         for project in projects {
             let tasks = store.list_tasks(project.id).await?;
             for task in tasks {
                 let runs = store.list_runs(task.id).await?;
                 let comments = store.list_comments(task.id).await?;
-                let summary = to_task_summary_from_runs(task, &runs, &comments);
+                let (blocked_by, blocks) = block_lists(&task, &index);
+                let summary = to_task_summary_from_runs(task, &runs, &comments, blocked_by, blocks);
                 if let Some(column) = query.column {
                     if summary.column != column {
                         continue;
@@ -216,6 +221,16 @@ impl App {
                     if run.agent != agent {
                         continue;
                     }
+                }
+                if query.blocked && !has_active_blocker(&summary.blocked_by, &index) {
+                    continue;
+                }
+                if query.ready
+                    && (has_active_blocker(&summary.blocked_by, &index)
+                        || !(summary.display_status == CardDisplayStatus::Idle
+                            || summary.column == Column::Todo))
+                {
+                    continue;
                 }
                 summaries.push(summary);
             }
@@ -1348,6 +1363,7 @@ async fn link_add_inner(
     let value = match cmd.kind {
         LinkKind::Url => parse_url(&cmd.value).map_err(map_validation)?,
         LinkKind::Path => parse_path_link(&cmd.value).map_err(map_validation)?,
+        LinkKind::BlockedBy => parse_blocked_by(store, &task, &cmd.value).await?,
     };
     let existing = store.list_links(task.id).await?;
     let sort_order = existing
@@ -1840,7 +1856,13 @@ fn winning_run(runs: &[Run]) -> Option<&Run> {
     runs.iter().find(|run| run.display_id == view.display_id)
 }
 
-fn to_task_summary_from_runs(task: Task, runs: &[Run], comments: &[Comment]) -> TaskSummary {
+fn to_task_summary_from_runs(
+    task: Task,
+    runs: &[Run],
+    comments: &[Comment],
+    blocked_by: Vec<String>,
+    blocks: Vec<String>,
+) -> TaskSummary {
     let (display_status, run_message, waiting_reason) = display_from_runs(runs);
     TaskSummary {
         id: task.id,
@@ -1854,6 +1876,8 @@ fn to_task_summary_from_runs(task: Task, runs: &[Run], comments: &[Comment]) -> 
         run_message,
         waiting_reason,
         reply: reply_for(display_status, comments),
+        blocked_by,
+        blocks,
     }
 }
 
@@ -1864,10 +1888,114 @@ fn reply_for(status: CardDisplayStatus, comments: &[Comment]) -> Option<String> 
     comments.last().map(|comment| comment.body.clone())
 }
 
+struct BlockIndex {
+    links: Vec<Link>,
+    tasks_by_id: HashMap<Uuid, Task>,
+    display_by_id: HashMap<Uuid, String>,
+}
+
+async fn load_block_index(store: &mut dyn Store) -> Result<BlockIndex, AppError> {
+    let links = store.list_all_links().await?;
+    let mut tasks_by_id = HashMap::new();
+    let mut display_by_id = HashMap::new();
+    for project in store.list_projects(false).await? {
+        for task in store.list_tasks(project.id).await? {
+            display_by_id.insert(task.id, task.display_id.clone());
+            tasks_by_id.insert(task.id, task);
+        }
+    }
+    Ok(BlockIndex {
+        links,
+        tasks_by_id,
+        display_by_id,
+    })
+}
+
+fn block_lists(task: &Task, index: &BlockIndex) -> (Vec<String>, Vec<String>) {
+    let blocked_by = index
+        .links
+        .iter()
+        .filter(|link| link.task_id == task.id && link.kind == LinkKind::BlockedBy)
+        .map(|link| link.value.clone())
+        .collect();
+    let blocks = index
+        .links
+        .iter()
+        .filter(|link| link.kind == LinkKind::BlockedBy && link.value == task.display_id)
+        .filter_map(|link| index.display_by_id.get(&link.task_id).cloned())
+        .collect();
+    (blocked_by, blocks)
+}
+
+fn has_active_blocker(blocked_by: &[String], index: &BlockIndex) -> bool {
+    blocked_by.iter().any(|display_id| {
+        index.tasks_by_id.values().any(|task| {
+            task.display_id == *display_id
+                && task.deleted_at.is_none()
+                && task.column != Column::Done
+        })
+    })
+}
+
+fn would_cycle(edges: &HashMap<String, Vec<String>>, blocked: &str, blocker: &str) -> bool {
+    let mut stack = vec![blocker.to_string()];
+    let mut seen = HashSet::new();
+    while let Some(current) = stack.pop() {
+        if current == blocked {
+            return true;
+        }
+        if !seen.insert(current.clone()) {
+            continue;
+        }
+        if let Some(next) = edges.get(&current) {
+            stack.extend(next.iter().cloned());
+        }
+    }
+    false
+}
+
+async fn parse_blocked_by(
+    store: &mut dyn Store,
+    task: &Task,
+    value: &str,
+) -> Result<String, AppError> {
+    let blocker = require_live_task(store, value).await?;
+    if blocker.display_id == task.display_id {
+        return Err(AppError::Validation {
+            field: "blocked_by".into(),
+            message: "a task cannot block itself".into(),
+        });
+    }
+    let index = load_block_index(store).await?;
+    let mut edges: HashMap<String, Vec<String>> = HashMap::new();
+    for link in &index.links {
+        if link.kind != LinkKind::BlockedBy {
+            continue;
+        }
+        if let Some(from) = index.display_by_id.get(&link.task_id) {
+            edges
+                .entry(from.clone())
+                .or_default()
+                .push(link.value.clone());
+        }
+    }
+    if would_cycle(&edges, &task.display_id, &blocker.display_id) {
+        return Err(AppError::Validation {
+            field: "blocked_by".into(),
+            message: "blocked-by cycle".into(),
+        });
+    }
+    Ok(blocker.display_id)
+}
+
 async fn to_task_summary(store: &mut dyn Store, task: Task) -> Result<TaskSummary, AppError> {
     let runs = store.list_runs(task.id).await?;
     let comments = store.list_comments(task.id).await?;
-    Ok(to_task_summary_from_runs(task, &runs, &comments))
+    let index = load_block_index(store).await?;
+    let (blocked_by, blocks) = block_lists(&task, &index);
+    Ok(to_task_summary_from_runs(
+        task, &runs, &comments, blocked_by, blocks,
+    ))
 }
 
 fn display_from_runs(

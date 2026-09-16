@@ -11,6 +11,7 @@ use crate::run_status::RunStatus;
 pub enum LinkKind {
     Url,
     Path,
+    BlockedBy,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -77,6 +78,8 @@ pub struct TaskSummary {
     pub run_message: Option<String>,
     pub waiting_reason: Option<String>,
     pub reply: Option<String>,
+    pub blocked_by: Vec<String>,
+    pub blocks: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

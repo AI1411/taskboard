@@ -601,6 +601,15 @@ impl Store for SqliteStore {
         rows.iter().map(link_from_row).collect()
     }
 
+    async fn list_all_links(&mut self) -> Result<Vec<Link>, AppError> {
+        let sql = format!(
+            "SELECT {LINK_COLUMNS} FROM links ORDER BY task_id ASC, sort_order ASC, id ASC"
+        );
+        let query = sqlx::query(&sql);
+        let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
+        rows.iter().map(link_from_row).collect()
+    }
+
     async fn insert_link(&mut self, link: &Link) -> Result<(), AppError> {
         let query = sqlx::query(
             "INSERT INTO links (id, task_id, kind, value, sort_order) VALUES (?, ?, ?, ?, ?)",
