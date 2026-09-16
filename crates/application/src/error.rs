@@ -18,6 +18,8 @@ pub enum AppError {
     DatabaseBusy,
     #[error("{0}")]
     Io(String),
+    #[error("pass --project or set TASKBOARD_PROJECT")]
+    ProjectRequired,
 }
 
 impl AppError {
@@ -31,6 +33,7 @@ impl AppError {
             AppError::UndoConflict { .. } => "undo_conflict",
             AppError::DatabaseBusy => "database_busy",
             AppError::Io(_) => "io_error",
+            AppError::ProjectRequired => "project_required",
         }
     }
 }
@@ -99,5 +102,14 @@ mod tests {
     fn io_code() {
         let err = AppError::Io("disk full".into());
         assert_eq!(err.code(), "io_error");
+    }
+
+    #[test]
+    fn project_required_code() {
+        assert_eq!(AppError::ProjectRequired.code(), "project_required");
+        assert_eq!(
+            AppError::ProjectRequired.to_string(),
+            "pass --project or set TASKBOARD_PROJECT"
+        );
     }
 }

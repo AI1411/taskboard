@@ -250,8 +250,30 @@ async fn project_cmd(
                 println!("Restored project  {}", project.slug);
             });
         }
+        ProjectCommand::Detect => {
+            let project = resolve_detected_project(app)
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entity(json, &project, project.revision, || {
+                println!("{}  {}", project.slug, project.name);
+            });
+        }
     }
     Ok(())
+}
+
+async fn resolve_detected_project(app: &App) -> Result<taskboard_core::Project, AppError> {
+    let cwd = std::env::current_dir().map_err(|err| AppError::Io(err.to_string()))?;
+    let env_slug = std::env::var("TASKBOARD_PROJECT").ok();
+    app.detect_project(&cwd, env_slug.as_deref().filter(|value| !value.is_empty()))
+        .await
+}
+
+async fn resolve_project(app: &App, project: Option<String>) -> Result<String, AppError> {
+    if let Some(slug) = project {
+        return Ok(slug);
+    }
+    Ok(resolve_detected_project(app).await?.slug)
 }
 
 async fn project_note_cmd(
@@ -287,6 +309,9 @@ async fn task_cmd(
             column,
             urgent,
         } => {
+            let project = resolve_project(app, project)
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
             let task = app
                 .task_create(
                     actor,
@@ -304,6 +329,9 @@ async fn task_cmd(
             });
         }
         TaskCommand::List { project, column } => {
+            let project = resolve_project(app, project)
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
             let mut tasks = app
                 .task_list(&project)
                 .await

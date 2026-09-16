@@ -137,7 +137,7 @@ fn ok() -> Response {
 
 fn app_error(err: AppError) -> Response {
     let status = match &err {
-        AppError::Validation { .. } => StatusCode::BAD_REQUEST,
+        AppError::Validation { .. } | AppError::ProjectRequired => StatusCode::BAD_REQUEST,
         AppError::NotFound { .. } => StatusCode::NOT_FOUND,
         AppError::DuplicateSlug { .. }
         | AppError::RevisionConflict { .. }
