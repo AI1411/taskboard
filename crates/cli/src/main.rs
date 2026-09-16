@@ -9,16 +9,16 @@ use std::path::PathBuf;
 use chrono::Utc;
 use clap::Parser;
 use taskboard_application::{
-    Actor, App, AppError, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunContinue, RunFail,
-    RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, SystemClock, TaskCreate, TaskListQuery,
-    TaskUpdate,
+    Actor, App, AppError, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunContinue,
+    RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, SystemClock, TaskCreate,
+    TaskListQuery, TaskUpdate,
 };
 use taskboard_core::LinkKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
 
 use args::{
-    BackupCommand, Cli, Command, LinkCommand, NoteCommand, ProjectCommand, ProjectNoteCommand,
-    RunCommand, TaskCommand, TrashCommand,
+    BackupCommand, Cli, Command, CommentCommand, LinkCommand, NoteCommand, ProjectCommand,
+    ProjectNoteCommand, RunCommand, TaskCommand, TrashCommand,
 };
 
 #[tokio::main]
@@ -88,6 +88,7 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
         Command::Note(cmd) => note_cmd(app, actor, json, revision, cmd).await,
         Command::Link(cmd) => link_cmd(app, actor, json, revision, cmd).await,
         Command::Run(cmd) => run_cmd(app, actor, json, revision, cmd).await,
+        Command::Comment(cmd) => comment_cmd(app, actor, json, cmd).await,
         Command::Trash(TrashCommand::List) => {
             let trash = app
                 .trash_list()
@@ -686,6 +687,36 @@ async fn run_cmd(
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &run, run.revision, || {
                 println!("Finished {}", run.display_id);
+            });
+        }
+    }
+    Ok(())
+}
+
+async fn comment_cmd(app: &App, actor: &Actor, json: bool, cmd: CommentCommand) -> Result<(), i32> {
+    match cmd {
+        CommentCommand::Add { display_id, text } => {
+            let comment = app
+                .comment_add(
+                    actor,
+                    CommentAdd {
+                        task_display_id: display_id.clone(),
+                        body: text,
+                    },
+                )
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entity(json, &comment, 0, || {
+                println!("Commented {display_id}");
+            });
+        }
+        CommentCommand::List { display_id } => {
+            let comments = app
+                .comment_list(&display_id)
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entities(json, &comments, || {
+                output::print_comment_list(&comments);
             });
         }
     }

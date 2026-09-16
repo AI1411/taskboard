@@ -3,7 +3,8 @@ use std::path::Path;
 use serde::Serialize;
 use taskboard_application::AppError;
 use taskboard_core::{
-    CardDisplayStatus, Column, EntityType, InboxItem, Project, Run, TaskDetail, TaskSummary,
+    CardDisplayStatus, Column, Comment, EntityType, InboxItem, Project, Run, TaskDetail,
+    TaskSummary,
 };
 
 pub fn print_error(err: &AppError, json: bool) -> i32 {
@@ -139,6 +140,18 @@ pub fn print_run(run: &Run) {
         run.agent,
         run.status.as_str()
     );
+}
+
+pub fn print_comment_list(comments: &[Comment]) {
+    println!("TIME  ACTOR  TEXT");
+    for comment in comments {
+        println!(
+            "{}  {}  {}",
+            comment.created_at.to_rfc3339(),
+            comment.actor_label,
+            comment.body
+        );
+    }
 }
 
 pub fn print_task_list(tasks: &[TaskSummary]) {

@@ -34,3 +34,25 @@ describe("Inspector links", () => {
     expect(screen.queryByText("https://example.com")).toBeNull();
   });
 });
+
+describe("Inspector comments", () => {
+  it("shows a plain comment thread", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    const task = await transport.taskCreate(project.slug, { title: "Talk", column: "todo" });
+    task.comments = [
+      {
+        id: "c1",
+        taskId: task.id,
+        actorKind: "cli",
+        actorLabel: "alice",
+        body: "use TDD",
+        createdAt: "2026-09-16T12:00:00Z",
+      },
+    ];
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Talk"));
+    expect(await screen.findByText(/2026-09-16T12:00:00Z · alice · use TDD/)).toBeTruthy();
+    expect(screen.queryByText(/marked/i)).toBeNull();
+  });
+});

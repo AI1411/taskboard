@@ -8,7 +8,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, S
 use sqlx::{Row, SqlitePool};
 use taskboard_application::{AppError, NewActivity, Store};
 use taskboard_core::{
-    Activity, ActorKind, Column, EntityType, Link, LinkKind, Project, Run, RunStatus, Task,
+    Activity, ActorKind, Column, Comment, EntityType, Link, LinkKind, Project, Run, RunStatus, Task,
 };
 use uuid::Uuid;
 
@@ -17,6 +17,7 @@ use crate::db::map_sqlx;
 const PROJECT_COLUMNS: &str = "id, slug, name, repo_path, archived, note_markdown, sort_order, revision, created_at, updated_at, deleted_at";
 const TASK_COLUMNS: &str = "id, display_id, project_id, title, column, urgent, note_markdown, position, revision, created_at, updated_at, deleted_at";
 const LINK_COLUMNS: &str = "id, task_id, kind, value, sort_order";
+const COMMENT_COLUMNS: &str = "id, task_id, actor_kind, actor_label, body, created_at";
 const RUN_COLUMNS: &str = "id, display_id, task_id, agent, session_id, status, message, waiting_reason, summary, started_at, ended_at, revision, created_at, updated_at";
 const ACTIVITY_COLUMNS: &str = "id, sequence, actor_kind, actor_label, operation, entity_type, entity_id, previous_revision, before_json, after_json, created_at";
 
@@ -262,6 +263,21 @@ fn task_from_row(row: &SqliteRow) -> Result<Task, AppError> {
         created_at: parse_dt(&created_at)?,
         updated_at: parse_dt(&updated_at)?,
         deleted_at: deleted_at.as_deref().map(parse_dt).transpose()?,
+    })
+}
+
+fn comment_from_row(row: &SqliteRow) -> Result<Comment, AppError> {
+    let id: Vec<u8> = row.try_get("id").map_err(map_sqlx)?;
+    let task_id: Vec<u8> = row.try_get("task_id").map_err(map_sqlx)?;
+    let actor_kind: String = row.try_get("actor_kind").map_err(map_sqlx)?;
+    let created_at: String = row.try_get("created_at").map_err(map_sqlx)?;
+    Ok(Comment {
+        id: uuid_from_blob(&id)?,
+        task_id: uuid_from_blob(&task_id)?,
+        actor_kind: parse_enum::<ActorKind>(&actor_kind)?,
+        actor_label: row.try_get("actor_label").map_err(map_sqlx)?,
+        body: row.try_get("body").map_err(map_sqlx)?,
+        created_at: parse_dt(&created_at)?,
     })
 }
 
@@ -615,6 +631,29 @@ impl Store for SqliteStore {
         let query = sqlx::query("DELETE FROM links WHERE id = ?").bind(uuid_bytes(id));
         run!(self, query, execute).map_err(map_sqlx)?;
         Ok(())
+    }
+
+    async fn insert_comment(&mut self, comment: &Comment) -> Result<(), AppError> {
+        let query = sqlx::query(
+            "INSERT INTO comments (id, task_id, actor_kind, actor_label, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(uuid_bytes(comment.id))
+        .bind(uuid_bytes(comment.task_id))
+        .bind(enum_str(comment.actor_kind)?)
+        .bind(&comment.actor_label)
+        .bind(&comment.body)
+        .bind(fmt_dt(comment.created_at));
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
+    }
+
+    async fn list_comments(&mut self, task_id: Uuid) -> Result<Vec<Comment>, AppError> {
+        let sql = format!(
+            "SELECT {COMMENT_COLUMNS} FROM comments WHERE task_id = ? ORDER BY created_at ASC, id ASC"
+        );
+        let query = sqlx::query(&sql).bind(uuid_bytes(task_id));
+        let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
+        rows.iter().map(comment_from_row).collect()
     }
 
     async fn get_run(&mut self, id: Uuid) -> Result<Option<Run>, AppError> {

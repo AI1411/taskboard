@@ -3,8 +3,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use taskboard_application::{SyncDelta, Trash, UndoResult};
 use taskboard_core::{
-    Activity, ActorKind, CardDisplayStatus, Column, EntityType, InboxItem, Link, LinkKind, Project,
-    Run, RunStatus, TaskDetail, TaskSummary,
+    Activity, ActorKind, CardDisplayStatus, Column, Comment, EntityType, InboxItem, Link, LinkKind,
+    Project, Run, RunStatus, TaskDetail, TaskSummary,
 };
 use taskboard_store_sqlite::UiState;
 use uuid::Uuid;
@@ -56,6 +56,7 @@ pub struct TaskSummaryDto {
     pub display_status: CardDisplayStatus,
     pub run_message: Option<String>,
     pub waiting_reason: Option<String>,
+    pub reply: Option<String>,
 }
 
 impl From<TaskSummary> for TaskSummaryDto {
@@ -71,6 +72,7 @@ impl From<TaskSummary> for TaskSummaryDto {
             display_status: task.display_status,
             run_message: task.run_message,
             waiting_reason: task.waiting_reason,
+            reply: task.reply,
         }
     }
 }
@@ -83,6 +85,30 @@ pub struct LinkDto {
     pub kind: LinkKind,
     pub value: String,
     pub sort_order: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommentDto {
+    pub id: Uuid,
+    pub task_id: Uuid,
+    pub actor_kind: ActorKind,
+    pub actor_label: String,
+    pub body: String,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<Comment> for CommentDto {
+    fn from(comment: Comment) -> Self {
+        Self {
+            id: comment.id,
+            task_id: comment.task_id,
+            actor_kind: comment.actor_kind,
+            actor_label: comment.actor_label,
+            body: comment.body,
+            created_at: comment.created_at,
+        }
+    }
 }
 
 impl From<Link> for LinkDto {
@@ -184,9 +210,11 @@ pub struct TaskDetailDto {
     pub display_status: CardDisplayStatus,
     pub run_message: Option<String>,
     pub waiting_reason: Option<String>,
+    pub reply: Option<String>,
     pub note_markdown: String,
     pub links: Vec<LinkDto>,
     pub runs: Vec<RunDto>,
+    pub comments: Vec<CommentDto>,
     pub recent_activities: Vec<ActivityDto>,
 }
 
@@ -203,9 +231,11 @@ impl From<TaskDetail> for TaskDetailDto {
             display_status: task.display_status,
             run_message: task.run_message,
             waiting_reason: task.waiting_reason,
+            reply: task.reply,
             note_markdown: task.note_markdown,
             links: task.links.into_iter().map(LinkDto::from).collect(),
             runs: task.runs.into_iter().map(RunDto::from).collect(),
+            comments: task.comments.into_iter().map(CommentDto::from).collect(),
             recent_activities: task
                 .recent_activities
                 .into_iter()

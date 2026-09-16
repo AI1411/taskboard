@@ -12,6 +12,7 @@ export function summary(overrides: Partial<TaskSummary> = {}): TaskSummary {
     displayStatus: "idle",
     runMessage: null,
     waitingReason: null,
+    reply: null,
     ...overrides,
   };
 }

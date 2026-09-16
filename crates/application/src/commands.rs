@@ -101,3 +101,9 @@ pub struct RunListQuery {
     pub session_id: Option<String>,
     pub agent: Option<String>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommentAdd {
+    pub task_display_id: String,
+    pub body: String,
+}
