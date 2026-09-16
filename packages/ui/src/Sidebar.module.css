@@ -92,10 +92,64 @@
   background: color-mix(in srgb, var(--accent) 38%, transparent);
 }
 
+.selectedRow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .selectedName {
   margin: 0;
+  flex: 1;
+  min-width: 0;
+  font: inherit;
   font-size: 0.95rem;
   font-weight: 650;
+  border: 0;
+  border-radius: 8px;
+  background: var(--board-bg);
+  color: var(--sidebar-fg);
+  padding: 0.4rem 0.5rem;
+}
+
+.actions {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sidebar-muted);
+  font: inherit;
+  font-size: 1.1rem;
+  min-height: 44px;
+  min-width: 44px;
+  cursor: pointer;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.menuItem {
+  text-align: left;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sidebar-fg);
+  font: inherit;
+  font-size: 0.82rem;
+  min-height: 40px;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+}
+
+.pathInput {
+  font: inherit;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  background: var(--board-bg);
+  color: var(--sidebar-fg);
+  padding: 0.4rem 0.5rem;
 }
 
 .note {
