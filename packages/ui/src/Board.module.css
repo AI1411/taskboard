@@ -95,6 +95,20 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
+.collapse {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.collapse:hover {
+  color: var(--board-fg);
+}
+
 .header {
   display: flex;
   align-items: baseline;

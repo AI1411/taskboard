@@ -189,4 +189,21 @@ describe("Board", () => {
     expect(screen.getByText("Esc")).toBeTruthy();
     expect(document.querySelector("[data-empty-slot]")).toBeNull();
   });
+
+  it("collapses and expands the Done column for the session", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Finished", column: "done" });
+    render(<TaskboardApp transport={transport} />);
+    expect(await screen.findByRole("listitem", { name: /Finished/ })).toBeTruthy();
+    const toggle = screen.getByRole("button", { name: "Done" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    await userEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("listitem", { name: /Finished/ })).toBeNull();
+    expect(screen.getByRole("list", { name: "Done" }).textContent).not.toMatch(/Finished/);
+    await userEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("listitem", { name: /Finished/ })).toBeTruthy();
+  });
 });

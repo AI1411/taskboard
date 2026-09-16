@@ -48,6 +48,7 @@ export function Board(props: {
   );
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overlayWidth, setOverlayWidth] = useState<number>();
+  const [doneCollapsed, setDoneCollapsed] = useState(false);
   const q = props.query;
   const visible = props.tasks.filter((t) => taskMatchesQuery(t, q));
   const emptyBoard = props.tasks.length === 0;
@@ -119,6 +120,10 @@ export function Board(props: {
                 label={col.label}
                 count={columnTasks.length}
                 current={props.currentColumn === col.id}
+                collapsed={col.id === "done" && doneCollapsed}
+                onToggle={
+                  col.id === "done" ? () => setDoneCollapsed((open) => !open) : undefined
+                }
                 onBackgroundClick={props.onBackgroundClick}
               >
                 <SortableContext
@@ -171,6 +176,8 @@ function ColumnDrop(props: {
   label: string;
   count: number;
   current: boolean;
+  collapsed?: boolean;
+  onToggle?: () => void;
   onBackgroundClick?: () => void;
   children: ReactNode;
 }) {
@@ -186,11 +193,22 @@ function ColumnDrop(props: {
       }}
     >
       <h2 className={styles.header}>
-        {props.label}
+        {props.onToggle ? (
+          <button
+            type="button"
+            className={styles.collapse}
+            aria-expanded={!props.collapsed}
+            onClick={props.onToggle}
+          >
+            {props.label}
+          </button>
+        ) : (
+          props.label
+        )}
         <span className={styles.count}>{props.count}</span>
       </h2>
       <div ref={setNodeRef} role="list" aria-label={props.label} className={styles.list}>
-        {props.children}
+        {props.collapsed ? null : props.children}
       </div>
     </div>
   );
