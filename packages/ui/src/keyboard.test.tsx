@@ -107,6 +107,22 @@ describe("keyboard", () => {
     expect(transport.undo).toHaveBeenCalled();
   });
 
+  it("delete key confirms and deletes the selected card", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Drop me", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Drop me"));
+    await userEvent.keyboard("{Delete}");
+    expect(transport.taskDelete).not.toHaveBeenCalled();
+    expect(screen.getByText("Delete Drop me?")).toBeTruthy();
+    await userEvent.keyboard("{Escape}");
+    expect(transport.taskDelete).not.toHaveBeenCalled();
+    await userEvent.keyboard("{Backspace}");
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(transport.taskDelete).toHaveBeenCalled());
+  });
+
   it("Enter opens the inspector for the selected card", async () => {
     const transport = fakeTransport();
     const project = await transport.projectAdd({ name: "Untitled" });

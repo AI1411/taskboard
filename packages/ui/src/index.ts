@@ -7,3 +7,5 @@ export { Search } from "./Search";
 export { Sidebar } from "./Sidebar";
 export { InboxStrip } from "./InboxStrip";
 export { Composer } from "./Composer";
+export { TrashPanel } from "./TrashPanel";
+export { ConfirmDialog } from "./ConfirmDialog";

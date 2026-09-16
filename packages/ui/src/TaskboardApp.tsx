@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Transport } from "@taskboard/client";
-import type { Column, InboxItem, Project, TaskDetail, TaskSummary } from "@taskboard/types";
+import type { Column, InboxItem, Project, TaskDetail, TaskSummary, Trash } from "@taskboard/types";
 
 import { Board } from "./Board";
 import { InboxStrip } from "./InboxStrip";
 import { Inspector } from "./Inspector";
 import { Sidebar } from "./Sidebar";
+import { TrashPanel } from "./TrashPanel";
 import { COLUMN_IDS, neighborColumn } from "./columns";
 import styles from "./TaskboardApp.module.css";
 import "./theme.css";
@@ -34,6 +35,10 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   const [inboxScope, setInboxScope] = useState<"this" | "all">("this");
   const [composingTask, setComposingTask] = useState(false);
   const [composingProject, setComposingProject] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trash, setTrash] = useState<Trash>({ projects: [], tasks: [] });
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [trashedSelection, setTrashedSelection] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -49,6 +54,9 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   const detailRef = useRef<TaskDetail | null>(null);
   const includeArchivedRef = useRef(false);
   const inboxScopeRef = useRef<"this" | "all">("this");
+  const confirmDeleteRef = useRef(false);
+  const trashOpenRef = useRef(false);
+  const trashedSelectionRef = useRef(false);
 
   selectedProjectRef.current = selectedProject;
   selectedIdRef.current = selectedId;
@@ -59,6 +67,9 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   projectsRef.current = projects;
   includeArchivedRef.current = includeArchived;
   inboxScopeRef.current = inboxScope;
+  confirmDeleteRef.current = confirmDelete;
+  trashOpenRef.current = trashOpen;
+  trashedSelectionRef.current = trashedSelection;
 
   const applyDetail = (updated: TaskDetail | null) => {
     detailRef.current = updated;
@@ -193,13 +204,20 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
     [transport, refreshTasks],
   );
 
+  const refreshTrash = useCallback(async () => {
+    setTrash(await transport.trashList());
+  }, [transport]);
+
   const selectCard = useCallback(
-    async (displayId: string) => {
+    async (displayId: string, fromTrash = false) => {
       const task = tasksRef.current.find((t) => t.displayId === displayId);
       selectedIdRef.current = displayId;
       setSelectedId(displayId);
       setInspectorOpen(true);
       inspectorOpenRef.current = true;
+      setConfirmDelete(false);
+      confirmDeleteRef.current = false;
+      setTrashedSelection(fromTrash);
       if (task) {
         setCurrentColumn(task.column);
         currentColumnRef.current = task.column;
@@ -319,6 +337,15 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         return;
       }
       if (e.key === "Escape") {
+        if (confirmDeleteRef.current) {
+          setConfirmDelete(false);
+          confirmDeleteRef.current = false;
+          return;
+        }
+        if (trashOpenRef.current) {
+          setTrashOpen(false);
+          return;
+        }
         if (queryRef.current) {
           setQuery("");
           queryRef.current = "";
@@ -326,6 +353,15 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         }
         setInspectorOpen(false);
         inspectorOpenRef.current = false;
+        return;
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (!selectedIdRef.current || trashedSelectionRef.current) return;
+        e.preventDefault();
+        setInspectorOpen(true);
+        inspectorOpenRef.current = true;
+        setConfirmDelete(true);
+        confirmDeleteRef.current = true;
         return;
       }
       if (e.key === "Enter") {
@@ -500,12 +536,42 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
     const id = selectedIdRef.current;
     if (!id) return;
     await transport.taskDelete(id, detailRef.current?.revision);
+    setConfirmDelete(false);
+    confirmDeleteRef.current = false;
+    setTrashedSelection(false);
+    trashedSelectionRef.current = false;
     setSelectedId(null);
     selectedIdRef.current = null;
     applyDetail(null);
     const project = selectedProjectRef.current;
     if (project) await refreshTasks(project.slug);
-  }, [transport, refreshTasks]);
+    await refreshTrash();
+  }, [transport, refreshTasks, refreshTrash]);
+
+  const restoreTask = useCallback(
+    async (displayId: string) => {
+      await transport.taskRestore(displayId);
+      setTrashedSelection(false);
+      trashedSelectionRef.current = false;
+      await refreshTrash();
+      const project = selectedProjectRef.current;
+      if (project) await refreshTasks(project.slug);
+      await selectCard(displayId);
+    },
+    [transport, refreshTrash, refreshTasks, selectCard],
+  );
+
+  const restoreProject = useCallback(
+    async (slug: string) => {
+      const project = await transport.projectRestore(slug);
+      await refreshTrash();
+      const list = await transport.projectList(includeArchivedRef.current);
+      setProjects(list);
+      projectsRef.current = list;
+      await applyProject(project);
+    },
+    [transport, refreshTrash, applyProject],
+  );
 
   const toggleArchived = useCallback(async () => {
     const next = !includeArchivedRef.current;
@@ -543,7 +609,9 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         }}
         onToggleArchived={() => void toggleArchived()}
         onProjectNoteChange={setProjectNote}
-        onTrash={() => void transport.trashList()}
+        onTrash={() => {
+          void refreshTrash().then(() => setTrashOpen(true));
+        }}
       />
       <main className={styles.main}>
         {selectedProject ? (
@@ -590,10 +658,21 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
           </>
         ) : null}
       </main>
+      {trashOpen ? (
+        <TrashPanel
+          trash={trash}
+          onClose={() => setTrashOpen(false)}
+          onRestoreTask={(displayId) => void restoreTask(displayId)}
+          onRestoreProject={(slug) => void restoreProject(slug)}
+          onSelectTask={(displayId) => void selectCard(displayId, true)}
+        />
+      ) : null}
       <Inspector
         task={detail}
         open={inspectorOpen}
         titleRef={titleRef}
+        trashed={trashedSelection}
+        confirming={confirmDelete}
         onTitleCommit={(title) => void onTitleCommit(title)}
         onColumnChange={(column) => void moveSelected(column)}
         onUrgentChange={(urgent) => {
@@ -606,11 +685,26 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
           });
         }}
         onNoteChange={onNoteChange}
+        onDeleteRequest={() => {
+          setConfirmDelete(true);
+          confirmDeleteRef.current = true;
+        }}
         onDelete={() => void onDelete()}
+        onCancelDelete={() => {
+          setConfirmDelete(false);
+          confirmDeleteRef.current = false;
+        }}
+        onRestore={() => {
+          const id = selectedIdRef.current;
+          if (id) void restoreTask(id);
+        }}
         onClose={() => {
           setSelectedId(null);
           selectedIdRef.current = null;
           applyDetail(null);
+          setConfirmDelete(false);
+          confirmDeleteRef.current = false;
+          setTrashedSelection(false);
           setInspectorOpen(true);
           inspectorOpenRef.current = true;
         }}

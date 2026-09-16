@@ -1,0 +1,39 @@
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: auto;
+}
+
+.message {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.confirm,
+.cancel {
+  flex: 1;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 0.45rem 0.6rem;
+  cursor: pointer;
+}
+
+.confirm {
+  background: color-mix(in srgb, var(--urgent) 12%, transparent);
+  color: var(--urgent);
+}
+
+.cancel {
+  background: transparent;
+  color: color-mix(in srgb, var(--board-fg) 70%, transparent);
+}
