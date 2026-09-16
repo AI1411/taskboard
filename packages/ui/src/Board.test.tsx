@@ -27,11 +27,13 @@ describe("Board", () => {
     expect(await screen.findByText("Create a project to start a board")).toBeTruthy();
   });
 
-  it("New project calls projectAdd with Untitled", async () => {
+  it("New project composer commits a named project", async () => {
     const transport = fakeTransport();
     render(<TaskboardApp transport={transport} />);
     await userEvent.click(screen.getByRole("button", { name: "New project" }));
-    expect(transport.projectAdd).toHaveBeenCalledWith({ name: "Untitled" });
+    expect(transport.projectAdd).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByPlaceholderText("Project name"), "Renai Sim{Enter}");
+    await waitFor(() => expect(transport.projectAdd).toHaveBeenCalledWith({ name: "Renai Sim" }));
   });
 
   it("renders four columns with exact aria-labels after a project exists", async () => {

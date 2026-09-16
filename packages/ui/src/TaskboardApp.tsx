@@ -32,10 +32,13 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   const [inboxAll, setInboxAll] = useState<InboxItem[]>([]);
   const [inboxExpanded, setInboxExpanded] = useState(false);
   const [inboxScope, setInboxScope] = useState<"this" | "all">("this");
+  const [composingTask, setComposingTask] = useState(false);
+  const [composingProject, setComposingProject] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
-  const pendingProject = useRef<Promise<Project> | null>(null);
+  const taskComposerRef = useRef<HTMLInputElement>(null);
+  const projectComposerRef = useRef<HTMLInputElement>(null);
   const selectedProjectRef = useRef<Project | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const tasksRef = useRef<TaskSummary[]>([]);
@@ -167,9 +170,10 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
     void reloadBoard();
   }, [sequence, reloadBoard]);
 
-  const addProject = useCallback(() => {
-    const promise = (async () => {
-      const project = await transport.projectAdd({ name: "Untitled" });
+  const addProject = useCallback(
+    async (name: string) => {
+      const project = await transport.projectAdd({ name });
+      setComposingProject(false);
       selectedProjectRef.current = project;
       selectedIdRef.current = null;
       setSelectedProject(project);
@@ -185,10 +189,9 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
       });
       await refreshTasks(project.slug);
       return project;
-    })();
-    pendingProject.current = promise;
-    return promise;
-  }, [transport, refreshTasks]);
+    },
+    [transport, refreshTasks],
+  );
 
   const selectCard = useCallback(
     async (displayId: string) => {
@@ -207,23 +210,24 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
     [transport],
   );
 
-  const createTask = useCallback(async () => {
-    if (pendingProject.current) {
-      await pendingProject.current;
-    }
-    const project = selectedProjectRef.current;
-    if (!project) return;
-    const created = await transport.taskCreate(project.slug, {
-      title: "Untitled",
-      column: currentColumnRef.current,
-    });
-    await refreshTasks(project.slug);
-    selectedIdRef.current = created.displayId;
-    setSelectedId(created.displayId);
-    applyDetail(created);
-    setInspectorOpen(true);
-    inspectorOpenRef.current = true;
-  }, [transport, refreshTasks]);
+  const createTask = useCallback(
+    async (title: string) => {
+      const project = selectedProjectRef.current;
+      if (!project) return;
+      const created = await transport.taskCreate(project.slug, {
+        title,
+        column: currentColumnRef.current,
+      });
+      setComposingTask(false);
+      await refreshTasks(project.slug);
+      selectedIdRef.current = created.displayId;
+      setSelectedId(created.displayId);
+      applyDetail(created);
+      setInspectorOpen(true);
+      inspectorOpenRef.current = true;
+    },
+    [transport, refreshTasks],
+  );
 
   const toggleUrgent = useCallback(async () => {
     const id = selectedIdRef.current;
@@ -335,12 +339,13 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
       }
       if (e.key === "p") {
         e.preventDefault();
-        void addProject();
+        setComposingProject(true);
         return;
       }
       if (e.key === "n") {
         e.preventDefault();
-        void createTask();
+        if (!selectedProjectRef.current) return;
+        setComposingTask(true);
         return;
       }
       if (e.key === "u") {
@@ -527,7 +532,11 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
           counts[item.projectSlug] = (counts[item.projectSlug] ?? 0) + 1;
           return counts;
         }, {})}
-        onNewProject={() => void addProject()}
+        composing={composingProject}
+        composerRef={projectComposerRef}
+        onComposerSubmit={(name) => void addProject(name)}
+        onComposerCancel={() => setComposingProject(false)}
+        onNewProject={() => setComposingProject(true)}
         onSelectProject={(slug) => {
           const project = projectsRef.current.find((p) => p.slug === slug);
           if (project) void applyProject(project);
@@ -572,7 +581,11 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
             onSelectCard={(id) => void selectCard(id)}
             onMove={(id, column) => void onMove(id, column)}
             onReorder={(id, beforeId) => void onReorder(id, beforeId)}
-            onNewTask={() => void createTask()}
+            composing={composingTask}
+            composerRef={taskComposerRef}
+            onComposerSubmit={(title) => void createTask(title)}
+            onComposerCancel={() => setComposingTask(false)}
+            onNewTask={() => setComposingTask(true)}
           />
           </>
         ) : null}
