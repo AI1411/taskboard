@@ -626,6 +626,79 @@ fn run_show_missing_is_not_found() {
     assert_eq!(v["error"]["code"], "not_found");
 }
 
+#[test]
+fn run_continue_json_resumes_waiting() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Fix login",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "cursor"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "wait", "RUN-1", "--reason", "need spec"])
+        .assert()
+        .success();
+    let continued = json_ok(&dir, &["run", "continue", "RUN-1", "--message", "got spec"]);
+    assert_eq!(continued["entity"]["display_id"], "RUN-1");
+    assert_eq!(continued["entity"]["status"], "running");
+    assert_eq!(
+        continued["entity"]["waiting_reason"],
+        serde_json::Value::Null
+    );
+    assert_eq!(continued["entity"]["ended_at"], serde_json::Value::Null);
+    assert_eq!(continued["entity"]["message"], "got spec");
+}
+
+#[test]
+fn run_continue_running_is_validation_error() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Fix login",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "cursor"])
+        .assert()
+        .success();
+    let out = tb_in(&dir)
+        .args(["run", "continue", "RUN-1", "--json"])
+        .assert()
+        .failure()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "validation_error");
+    assert_eq!(v["error"]["field"], "status");
+}
+
 fn json_ok(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     let mut argv = args.to_vec();
     argv.push("--json");

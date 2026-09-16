@@ -14,8 +14,8 @@ use taskboard_core::{
 
 use crate::actor::Actor;
 use crate::commands::{
-    InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunListQuery, RunStart,
-    RunUpdate, RunWait, TaskCreate, TaskListQuery, TaskUpdate,
+    InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery,
+    RunStart, RunUpdate, RunWait, TaskCreate, TaskListQuery, TaskUpdate,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -429,6 +429,15 @@ impl App {
         let store = &mut **store;
         store.begin().await?;
         let result = run_wait_inner(store, actor, cmd, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn run_continue(&self, actor: &Actor, cmd: RunContinue) -> Result<Run, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = run_continue_inner(store, actor, cmd, now).await;
         commit_or_rollback(store, result).await
     }
 
@@ -1490,6 +1499,37 @@ async fn run_wait_inner(
         |run| {
             run.status = RunStatus::Waiting;
             run.waiting_reason = Some(reason);
+            Ok(())
+        },
+    )
+    .await
+}
+
+async fn run_continue_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: RunContinue,
+    now: DateTime<Utc>,
+) -> Result<Run, AppError> {
+    mutate_run(
+        store,
+        actor,
+        &cmd.run_display_id,
+        cmd.revision,
+        now,
+        "run.continue",
+        |run| {
+            if run.status != RunStatus::Waiting {
+                return Err(AppError::Validation {
+                    field: "status".into(),
+                    message: "run must be waiting".into(),
+                });
+            }
+            if let Some(message) = cmd.message {
+                run.message = Some(parse_run_message(&message)?);
+            }
+            run.status = RunStatus::Running;
+            run.waiting_reason = None;
             Ok(())
         },
     )

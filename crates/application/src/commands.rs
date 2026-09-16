@@ -61,6 +61,13 @@ pub struct RunWait {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunContinue {
+    pub run_display_id: String,
+    pub message: Option<String>,
+    pub revision: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunFail {
     pub run_display_id: String,
     pub summary: String,
