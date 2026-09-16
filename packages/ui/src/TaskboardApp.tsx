@@ -6,6 +6,7 @@ import { Board } from "./Board";
 import { InboxStrip } from "./InboxStrip";
 import { Inspector } from "./Inspector";
 import { Sidebar } from "./Sidebar";
+import { ShortcutLegend } from "./ShortcutLegend";
 import { TrashPanel } from "./TrashPanel";
 import { COLUMN_IDS, neighborColumn } from "./columns";
 import styles from "./TaskboardApp.module.css";
@@ -39,6 +40,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   const [trash, setTrash] = useState<Trash>({ projects: [], tasks: [] });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [trashedSelection, setTrashedSelection] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -57,6 +59,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   const confirmDeleteRef = useRef(false);
   const trashOpenRef = useRef(false);
   const trashedSelectionRef = useRef(false);
+  const legendOpenRef = useRef(false);
 
   selectedProjectRef.current = selectedProject;
   selectedIdRef.current = selectedId;
@@ -70,6 +73,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
   confirmDeleteRef.current = confirmDelete;
   trashOpenRef.current = trashOpen;
   trashedSelectionRef.current = trashedSelection;
+  legendOpenRef.current = legendOpen;
 
   const applyDetail = (updated: TaskDetail | null) => {
     detailRef.current = updated;
@@ -331,12 +335,25 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
         return;
       }
 
+      if (e.key === "?") {
+        e.preventDefault();
+        setLegendOpen((open) => {
+          legendOpenRef.current = !open;
+          return !open;
+        });
+        return;
+      }
       if (e.key === "/") {
         e.preventDefault();
         searchRef.current?.focus();
         return;
       }
       if (e.key === "Escape") {
+        if (legendOpenRef.current) {
+          setLegendOpen(false);
+          legendOpenRef.current = false;
+          return;
+        }
         if (confirmDeleteRef.current) {
           setConfirmDelete(false);
           confirmDeleteRef.current = false;
@@ -757,6 +774,7 @@ export function TaskboardApp(props: { transport: Transport; sequence?: number })
           inspectorOpenRef.current = true;
         }}
       />
+      {legendOpen ? <ShortcutLegend onClose={() => setLegendOpen(false)} /> : null}
     </div>
   );
 }

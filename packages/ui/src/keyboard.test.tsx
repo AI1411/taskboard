@@ -123,6 +123,27 @@ describe("keyboard", () => {
     await waitFor(() => expect(transport.taskDelete).toHaveBeenCalled());
   });
 
+  it("question mark toggles shortcut legend", async () => {
+    const transport = fakeTransport();
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.keyboard("?");
+    const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" });
+    expect(dialog).toBeTruthy();
+    expect(dialog.textContent).toMatch(/New task/);
+    await userEvent.keyboard("?");
+    expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).toBeNull();
+  });
+
+  it("question mark in a field does not open the legend", async () => {
+    const transport = fakeTransport();
+    await transport.projectAdd({ name: "Alpha" });
+    render(<TaskboardApp transport={transport} />);
+    await screen.findByRole("list", { name: "Todo" });
+    await userEvent.keyboard("/");
+    await userEvent.keyboard("?");
+    expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).toBeNull();
+  });
+
   it("Enter opens the inspector for the selected card", async () => {
     const transport = fakeTransport();
     const project = await transport.projectAdd({ name: "Untitled" });
