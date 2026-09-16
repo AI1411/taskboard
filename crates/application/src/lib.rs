@@ -8,9 +8,9 @@ mod store;
 pub use actor::Actor;
 pub use app::{App, Clock, SystemClock};
 pub use commands::{
-    ActivityQuery, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate,
-    RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, TaskCreate,
-    TaskListQuery, TaskUpdate,
+    ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope, LinkAdd, ProjectAdd,
+    ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait,
+    StatusLine, TaskCreate, TaskListQuery, TaskUpdate, STATUS_HEAD,
 };
 pub use error::AppError;
 pub use store::{NewActivity, Store, SyncDelta, Trash, UndoResult};

@@ -16,9 +16,9 @@ use taskboard_core::{
 
 use crate::actor::Actor;
 use crate::commands::{
-    ActivityQuery, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate,
-    RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, TaskCreate,
-    TaskListQuery, TaskUpdate,
+    ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope, LinkAdd, ProjectAdd,
+    ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait,
+    StatusLine, TaskCreate, TaskListQuery, TaskUpdate, STATUS_HEAD,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -325,6 +325,104 @@ impl App {
                 .then_with(|| left.display_id.cmp(&right.display_id))
         });
         Ok(items)
+    }
+
+    pub async fn status(&self, project: Option<String>) -> Result<BoardStatus, AppError> {
+        let inbox = self
+            .inbox(InboxScope {
+                project: project.clone(),
+                include_archived: false,
+            })
+            .await?;
+        let ready = self
+            .task_query(TaskListQuery {
+                project: project.clone(),
+                ready: true,
+                ..TaskListQuery::default()
+            })
+            .await?;
+        let blocked = self
+            .task_query(TaskListQuery {
+                project: project.clone(),
+                blocked: true,
+                ..TaskListQuery::default()
+            })
+            .await?;
+        let in_review = self
+            .task_query(TaskListQuery {
+                project: project.clone(),
+                column: Some(Column::InReview),
+                ..TaskListQuery::default()
+            })
+            .await?;
+        let tasks = self
+            .task_query(TaskListQuery {
+                project: project.clone(),
+                ..TaskListQuery::default()
+            })
+            .await?;
+        let task_ids: HashSet<_> = tasks.iter().map(|task| task.id).collect();
+        let task_by_id: HashMap<_, _> = tasks.iter().map(|task| (task.id, task)).collect();
+        let mut open = self
+            .run_list(RunListQuery {
+                open: true,
+                ..RunListQuery::default()
+            })
+            .await?;
+        let mut stale_runs = self.stale_list(30).await?;
+        if project.is_some() {
+            open.retain(|run| task_ids.contains(&run.task_id));
+            stale_runs.retain(|run| task_ids.contains(&run.task_id));
+        }
+        let inbox_counts = InboxCounts {
+            total: inbox.len(),
+            waiting: inbox
+                .iter()
+                .filter(|item| item.display_status == CardDisplayStatus::Waiting)
+                .count(),
+            failed: inbox
+                .iter()
+                .filter(|item| item.display_status == CardDisplayStatus::Failed)
+                .count(),
+            stale: inbox
+                .iter()
+                .filter(|item| {
+                    item.stale
+                        && item.display_status != CardDisplayStatus::Waiting
+                        && item.display_status != CardDisplayStatus::Failed
+                })
+                .count(),
+            urgent: inbox
+                .iter()
+                .filter(|item| {
+                    !item.stale
+                        && item.display_status != CardDisplayStatus::Waiting
+                        && item.display_status != CardDisplayStatus::Failed
+                })
+                .count(),
+        };
+        Ok(BoardStatus {
+            inbox: inbox_counts,
+            inbox_head: inbox.iter().take(STATUS_HEAD).map(inbox_line).collect(),
+            open_runs: open.len(),
+            open_run_head: open
+                .iter()
+                .take(STATUS_HEAD)
+                .map(|run| run_line(run, &task_by_id))
+                .collect(),
+            stale: stale_runs.len(),
+            stale_head: stale_runs
+                .iter()
+                .take(STATUS_HEAD)
+                .map(|run| run_line(run, &task_by_id))
+                .collect(),
+            ready: ready.len(),
+            ready_head: ready.iter().take(STATUS_HEAD).map(task_line).collect(),
+            in_review: in_review.len(),
+            in_review_head: in_review.iter().take(STATUS_HEAD).map(task_line).collect(),
+            blocked: blocked.len(),
+            blocked_head: blocked.iter().take(STATUS_HEAD).map(task_line).collect(),
+        })
     }
 
     pub async fn task_show(&self, display_id: &str) -> Result<TaskDetail, AppError> {
@@ -2063,6 +2161,55 @@ fn to_task_summary_from_runs(
 
 fn is_stale(run: &Run, now: DateTime<Utc>, minutes: i64) -> bool {
     run.status == RunStatus::Running && now - run.updated_at >= chrono::Duration::minutes(minutes)
+}
+
+fn inbox_line(item: &InboxItem) -> StatusLine {
+    StatusLine {
+        display_id: item.display_id.clone(),
+        status: item.display_status.as_str().to_string(),
+        agent: None,
+        detail: if item.reason.is_empty() {
+            item.title.clone()
+        } else {
+            item.reason.clone()
+        },
+    }
+}
+
+fn task_line(task: &TaskSummary) -> StatusLine {
+    let detail = task
+        .waiting_reason
+        .as_deref()
+        .or(task.run_message.as_deref())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(task.title.as_str())
+        .to_string();
+    StatusLine {
+        display_id: task.display_id.clone(),
+        status: task.display_status.as_str().to_string(),
+        agent: None,
+        detail,
+    }
+}
+
+fn run_line(run: &Run, tasks: &HashMap<Uuid, &TaskSummary>) -> StatusLine {
+    let display_id = tasks
+        .get(&run.task_id)
+        .map(|task| task.display_id.clone())
+        .unwrap_or_else(|| run.display_id.clone());
+    let detail = run
+        .waiting_reason
+        .as_deref()
+        .or(run.message.as_deref())
+        .or(run.summary.as_deref())
+        .unwrap_or("")
+        .to_string();
+    StatusLine {
+        display_id,
+        status: run.status.as_str().to_string(),
+        agent: Some(run.agent.clone()),
+        detail,
+    }
 }
 
 fn with_task_workspace(mut run: Run, task: &Task) -> Run {

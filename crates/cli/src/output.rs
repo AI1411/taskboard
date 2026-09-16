@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use serde::Serialize;
-use taskboard_application::AppError;
+use taskboard_application::{AppError, BoardStatus, InboxCounts, StatusLine};
 use taskboard_core::{
     ActivityEntry, CardDisplayStatus, Check, Column, Comment, EntityType, InboxItem, Project, Run,
     TaskDetail, TaskSummary,
@@ -98,6 +98,55 @@ pub fn created_task(task: &TaskDetail) {
         task.title,
         task.column.as_str()
     );
+}
+
+pub fn print_status(snap: &BoardStatus) {
+    println!(
+        "inbox  {}  ({})",
+        snap.inbox.total,
+        inbox_parts(&snap.inbox)
+    );
+    print_status_lines(&snap.inbox_head);
+    println!("open_runs  {}", snap.open_runs);
+    print_status_lines(&snap.open_run_head);
+    println!("stale  {}", snap.stale);
+    print_status_lines(&snap.stale_head);
+    println!("ready  {}", snap.ready);
+    print_status_lines(&snap.ready_head);
+    println!("in_review  {}", snap.in_review);
+    print_status_lines(&snap.in_review_head);
+    println!("blocked  {}", snap.blocked);
+    print_status_lines(&snap.blocked_head);
+}
+
+fn inbox_parts(counts: &InboxCounts) -> String {
+    let parts = [
+        (counts.waiting, "waiting"),
+        (counts.failed, "failed"),
+        (counts.stale, "stale"),
+        (counts.urgent, "urgent"),
+    ]
+    .into_iter()
+    .filter(|(n, _)| *n > 0)
+    .map(|(n, label)| format!("{label} {n}"))
+    .collect::<Vec<_>>();
+    if parts.is_empty() {
+        "-".into()
+    } else {
+        parts.join(" · ")
+    }
+}
+
+fn print_status_lines(lines: &[StatusLine]) {
+    for line in lines {
+        println!(
+            "  {}  {}  {}  {}",
+            line.display_id,
+            line.status,
+            line.agent.as_deref().unwrap_or("-"),
+            line.detail
+        );
+    }
 }
 
 pub fn print_inbox(items: &[InboxItem]) {
