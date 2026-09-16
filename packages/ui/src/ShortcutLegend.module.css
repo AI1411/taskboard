@@ -1,0 +1,71 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  z-index: 40;
+}
+
+.panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(480px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  padding: 1rem 1.1rem 1.2rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  color: var(--board-fg);
+  z-index: 45;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.close {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sidebar-muted);
+  font: inherit;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.table th {
+  text-align: left;
+  font-weight: 650;
+  white-space: nowrap;
+  padding: 0.35rem 0.75rem 0.35rem 0;
+  color: var(--sidebar-muted);
+}
+
+.table td {
+  padding: 0.35rem 0;
+}

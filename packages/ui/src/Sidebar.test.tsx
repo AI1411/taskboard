@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -11,9 +11,8 @@ describe("project admin", () => {
     await transport.projectAdd({ name: "Alpha" });
     render(<TaskboardApp transport={transport} />);
     const name = await screen.findByLabelText("Project name");
-    await userEvent.clear(name);
-    await userEvent.type(name, "Renamed");
-    await userEvent.tab();
+    fireEvent.change(name, { target: { value: "Renamed" } });
+    fireEvent.blur(name);
     await waitFor(() =>
       expect(transport.projectUpdate).toHaveBeenCalledWith("alpha", { name: "Renamed" }, 1),
     );
