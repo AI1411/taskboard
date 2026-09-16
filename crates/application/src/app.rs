@@ -8,16 +8,17 @@ use uuid::Uuid;
 use taskboard_core::{
     card_display_status, display_id, inbox_membership, inbox_reason, next_unique_slug, parse_agent,
     parse_path_link, parse_url, place_before, place_urgent, rewrite_positions, slugify,
-    sort_column, trim_project_name, trim_title, winning_run_view, Activity, CardDisplayStatus,
-    Column, Comment, DisplayKind, EntityType, FieldError, InboxItem, Link, LinkKind, OrderError,
-    OrderKey, Project, Run, RunStatus, RunStatusView, SlugError, Task, TaskDetail, TaskSummary,
-    ValidationError,
+    sort_column, trim_project_name, trim_title, winning_run_view, Activity, ActivityEntry,
+    CardDisplayStatus, Column, Comment, DisplayKind, EntityType, FieldError, InboxItem, Link,
+    LinkKind, OrderError, OrderKey, Project, Run, RunStatus, RunStatusView, SlugError, Task,
+    TaskDetail, TaskSummary, ValidationError,
 };
 
 use crate::actor::Actor;
 use crate::commands::{
-    CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunContinue, RunFail, RunFinish,
-    RunListQuery, RunStart, RunUpdate, RunWait, TaskCreate, TaskListQuery, TaskUpdate,
+    ActivityQuery, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunContinue,
+    RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, TaskCreate, TaskListQuery,
+    TaskUpdate,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -601,6 +602,45 @@ impl App {
     pub async fn activity_head(&self) -> Result<i64, AppError> {
         let mut store = self.store.lock().await;
         store.activity_head().await
+    }
+
+    pub async fn activity_list(
+        &self,
+        query: ActivityQuery,
+    ) -> Result<Vec<ActivityEntry>, AppError> {
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        if let Some(slug) = query.project.as_deref() {
+            let _ = require_live_project(store, slug).await?;
+        }
+        if let Some(display_id) = query.task_display_id.as_deref() {
+            let _ = require_live_task(store, display_id).await?;
+        }
+        let activities = store.list_activities_after(query.after).await?;
+        let mut rows = Vec::new();
+        for activity in activities {
+            let Some(resolved) = resolve_activity_target(store, &activity).await? else {
+                continue;
+            };
+            if let Some(slug) = query.project.as_deref() {
+                if resolved.project_slug.as_deref() != Some(slug) {
+                    continue;
+                }
+            }
+            if let Some(display_id) = query.task_display_id.as_deref() {
+                if resolved.task_display_id.as_deref() != Some(display_id) {
+                    continue;
+                }
+            }
+            rows.push(ActivityEntry {
+                sequence: activity.sequence,
+                created_at: activity.created_at,
+                actor: activity.actor_label,
+                operation: activity.operation,
+                target: resolved.target,
+            });
+        }
+        Ok(rows)
     }
 
     pub async fn sync(&self, after: i64) -> Result<SyncDelta, AppError> {
@@ -2357,6 +2397,86 @@ async fn assign_unique_project_sort(
         project.sort_order = taken.iter().max().copied().unwrap_or(-1) + 1;
     }
     Ok(())
+}
+
+struct ResolvedActivity {
+    target: String,
+    project_slug: Option<String>,
+    task_display_id: Option<String>,
+}
+
+async fn resolve_activity_target(
+    store: &mut dyn Store,
+    activity: &Activity,
+) -> Result<Option<ResolvedActivity>, AppError> {
+    match activity.entity_type {
+        EntityType::Project => {
+            let Some(project) = store.get_project(activity.entity_id).await? else {
+                return Ok(None);
+            };
+            Ok(Some(ResolvedActivity {
+                target: project.slug.clone(),
+                project_slug: Some(project.slug),
+                task_display_id: None,
+            }))
+        }
+        EntityType::Task => {
+            let Some(task) = store.get_task(activity.entity_id).await? else {
+                return Ok(None);
+            };
+            let project_slug = store
+                .get_project(task.project_id)
+                .await?
+                .map(|project| project.slug);
+            Ok(Some(ResolvedActivity {
+                target: task.display_id.clone(),
+                project_slug,
+                task_display_id: Some(task.display_id),
+            }))
+        }
+        EntityType::Run => {
+            let Some(run) = store.get_run(activity.entity_id).await? else {
+                return Ok(None);
+            };
+            let Some(task) = store.get_task(run.task_id).await? else {
+                return Ok(Some(ResolvedActivity {
+                    target: run.display_id,
+                    project_slug: None,
+                    task_display_id: None,
+                }));
+            };
+            let project_slug = store
+                .get_project(task.project_id)
+                .await?
+                .map(|project| project.slug);
+            Ok(Some(ResolvedActivity {
+                target: run.display_id,
+                project_slug,
+                task_display_id: Some(task.display_id),
+            }))
+        }
+        EntityType::Link => {
+            let Some(link) = store.get_link(activity.entity_id).await? else {
+                return Ok(None);
+            };
+            let Some(task) = store.get_task(link.task_id).await? else {
+                return Ok(Some(ResolvedActivity {
+                    target: link.id.to_string(),
+                    project_slug: None,
+                    task_display_id: None,
+                }));
+            };
+            let project_slug = store
+                .get_project(task.project_id)
+                .await?
+                .map(|project| project.slug);
+            Ok(Some(ResolvedActivity {
+                target: task.display_id.clone(),
+                project_slug,
+                task_display_id: Some(task.display_id),
+            }))
+        }
+    }
 }
 
 async fn current_entity_json(
