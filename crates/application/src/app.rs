@@ -1181,13 +1181,14 @@ async fn task_spawn_inner(
         });
     }
     let parent = require_live_task(store, &cmd.parent_display_id).await?;
-    let project = store
-        .get_project(parent.project_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound {
-            entity: "project".into(),
-            id: parent.project_id.to_string(),
-        })?;
+    let project =
+        store
+            .get_project(parent.project_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "project".into(),
+                id: parent.project_id.to_string(),
+            })?;
     let mut children = Vec::new();
     for title in cmd.titles {
         let child = task_create_inner(
