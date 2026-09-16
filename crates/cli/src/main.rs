@@ -161,6 +161,14 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
             output::print_entities(json, &items, || output::print_inbox(&items));
             Ok(())
         }
+        Command::Status { project } => {
+            let snap = app
+                .status(project)
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entity(json, &snap, 0, || output::print_status(&snap));
+            Ok(())
+        }
         Command::Backup(cmd) => backup_cmd(app, json, cmd).await,
         Command::Serve(_) => unreachable!("serve is handled before dispatch"),
     }

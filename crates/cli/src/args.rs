@@ -83,6 +83,11 @@ pub enum Command {
         #[arg(long)]
         archived: bool,
     },
+    /// Board-wide snapshot
+    Status {
+        #[arg(long)]
+        project: Option<String>,
+    },
     /// Undo the latest undoable activity
     Undo,
     /// List stale running runs

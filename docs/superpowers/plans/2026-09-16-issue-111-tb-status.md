@@ -57,7 +57,7 @@ User already chose sequential inline execution.
   - Run line: mapped to the task’s `TASK-n`, run `status`, `agent`, `detail` = message or waiting_reason or summary or `""`
   - `--project` filters open/stale runs to tasks returned by `task_query` for that slug
 
-- [ ] **Step 1: Write the failing application test**
+- [x] **Step 1: Write the failing application test**
 
 Create `crates/application/tests/status.rs` using the same `TestApp` / `cli_actor` pattern as `inbox.rs` (SystemClock):
 

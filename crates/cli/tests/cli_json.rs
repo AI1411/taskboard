@@ -949,6 +949,92 @@ fn stale_json_skips_fresh_running_run() {
     assert_eq!(v["error"]["code"], "validation_error");
 }
 
+#[test]
+fn status_json_counts_and_heads() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Wait me",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Ready me",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "codex"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "wait", "RUN-1", "--reason", "Need spec"])
+        .assert()
+        .success();
+    let ready = json_ok(&dir, &["task", "list", "--project", "renai-sim", "--ready"]);
+    let ready_ids: Vec<_> = ready["entities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["display_id"].as_str().unwrap().to_string())
+        .collect();
+    let v = json_ok(&dir, &["status"]);
+    assert_eq!(v["entity"]["inbox"]["waiting"], 1);
+    assert_eq!(v["entity"]["open_runs"], 1);
+    assert_eq!(v["entity"]["ready"], ready_ids.len());
+    assert_eq!(v["entity"]["inbox_head"][0]["display_id"], "TASK-1");
+    assert_eq!(v["entity"]["inbox_head"][0]["detail"], "Need spec");
+    let status_ready: Vec<_> = v["entity"]["ready_head"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|line| line["display_id"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(
+        status_ready,
+        ready_ids.into_iter().take(3).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn status_project_scope_json() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "A"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "B"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "a", "--title", "In A"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "b", "--title", "In B"])
+        .assert()
+        .success();
+    let v = json_ok(&dir, &["status", "--project", "b"]);
+    assert_eq!(v["entity"]["ready"], 1);
+    assert_eq!(v["entity"]["ready_head"][0]["display_id"], "TASK-2");
+}
+
 fn json_ok(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     let mut argv = args.to_vec();
     argv.push("--json");
