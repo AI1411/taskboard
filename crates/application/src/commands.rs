@@ -24,10 +24,12 @@ pub struct TaskCreate {
     pub urgent: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TaskUpdate {
     pub display_id: String,
     pub title: Option<String>,
+    pub worktree_path: Option<Option<String>>,
+    pub branch: Option<Option<String>>,
     pub revision: Option<i64>,
 }
 

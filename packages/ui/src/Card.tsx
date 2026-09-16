@@ -105,6 +105,8 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
           {task.checklistDone}/{task.checklistTotal}
         </span>
       ) : null}
+      {task.worktreePath ? <span className={styles.runMessage}>{task.worktreePath}</span> : null}
+      {task.branch ? <span className={styles.runMessage}>{task.branch}</span> : null}
     </div>
   );
 });

@@ -16,7 +16,7 @@ use uuid::Uuid;
 use crate::db::map_sqlx;
 
 const PROJECT_COLUMNS: &str = "id, slug, name, repo_path, archived, note_markdown, sort_order, revision, created_at, updated_at, deleted_at";
-const TASK_COLUMNS: &str = "id, display_id, project_id, title, column, urgent, note_markdown, position, revision, created_at, updated_at, deleted_at";
+const TASK_COLUMNS: &str = "id, display_id, project_id, title, column, urgent, note_markdown, worktree_path, branch, position, revision, created_at, updated_at, deleted_at";
 const LINK_COLUMNS: &str = "id, task_id, kind, value, sort_order";
 const COMMENT_COLUMNS: &str = "id, task_id, actor_kind, actor_label, body, created_at";
 const CHECK_COLUMNS: &str = "id, display_id, task_id, text, done, sort_order";
@@ -260,6 +260,8 @@ fn task_from_row(row: &SqliteRow) -> Result<Task, AppError> {
         column: parse_enum(&column)?,
         urgent: urgent != 0,
         note_markdown: row.try_get("note_markdown").map_err(map_sqlx)?,
+        worktree_path: row.try_get("worktree_path").map_err(map_sqlx)?,
+        branch: row.try_get("branch").map_err(map_sqlx)?,
         position: row.try_get("position").map_err(map_sqlx)?,
         revision: row.try_get("revision").map_err(map_sqlx)?,
         created_at: parse_dt(&created_at)?,
@@ -333,6 +335,8 @@ fn run_from_row(row: &SqliteRow) -> Result<Run, AppError> {
         revision: row.try_get("revision").map_err(map_sqlx)?,
         created_at: parse_dt(&created_at)?,
         updated_at: parse_dt(&updated_at)?,
+        worktree_path: None,
+        branch: None,
     })
 }
 
@@ -523,7 +527,7 @@ impl Store for SqliteStore {
 
     async fn insert_task(&mut self, task: &Task) -> Result<(), AppError> {
         let query = sqlx::query(
-            "INSERT INTO tasks (id, display_id, project_id, title, column, urgent, note_markdown, position, revision, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (id, display_id, project_id, title, column, urgent, note_markdown, worktree_path, branch, position, revision, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(uuid_bytes(task.id))
         .bind(&task.display_id)
@@ -532,6 +536,8 @@ impl Store for SqliteStore {
         .bind(enum_str(task.column)?)
         .bind(if task.urgent { 1i64 } else { 0 })
         .bind(&task.note_markdown)
+        .bind(&task.worktree_path)
+        .bind(&task.branch)
         .bind(task.position)
         .bind(task.revision)
         .bind(fmt_dt(task.created_at))
@@ -543,7 +549,7 @@ impl Store for SqliteStore {
 
     async fn update_task(&mut self, task: &Task) -> Result<(), AppError> {
         let query = sqlx::query(
-            "UPDATE tasks SET display_id = ?, project_id = ?, title = ?, column = ?, urgent = ?, note_markdown = ?, position = ?, revision = ?, created_at = ?, updated_at = ?, deleted_at = ? WHERE id = ?",
+            "UPDATE tasks SET display_id = ?, project_id = ?, title = ?, column = ?, urgent = ?, note_markdown = ?, worktree_path = ?, branch = ?, position = ?, revision = ?, created_at = ?, updated_at = ?, deleted_at = ? WHERE id = ?",
         )
         .bind(&task.display_id)
         .bind(uuid_bytes(task.project_id))
@@ -551,6 +557,8 @@ impl Store for SqliteStore {
         .bind(enum_str(task.column)?)
         .bind(if task.urgent { 1i64 } else { 0 })
         .bind(&task.note_markdown)
+        .bind(&task.worktree_path)
+        .bind(&task.branch)
         .bind(task.position)
         .bind(task.revision)
         .bind(fmt_dt(task.created_at))
@@ -1136,6 +1144,8 @@ mod tests {
             column: Column::Todo,
             urgent: false,
             note_markdown: String::new(),
+            worktree_path: None,
+            branch: None,
             position: 0,
             revision: 1,
             created_at: now,
@@ -1174,6 +1184,8 @@ mod tests {
             revision: 1,
             created_at: now,
             updated_at: now,
+            worktree_path: None,
+            branch: None,
         };
         store.insert_run(&run).await.unwrap();
         run.status = RunStatus::Completed;

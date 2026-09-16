@@ -18,6 +18,8 @@ export function summary(overrides: Partial<TaskSummary> = {}): TaskSummary {
     stale: false,
     checklistDone: 0,
     checklistTotal: 0,
+    worktreePath: null,
+    branch: null,
     ...overrides,
   };
 }

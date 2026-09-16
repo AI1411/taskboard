@@ -62,6 +62,8 @@ pub struct TaskSummaryDto {
     pub stale: bool,
     pub checklist_done: i64,
     pub checklist_total: i64,
+    pub worktree_path: Option<String>,
+    pub branch: Option<String>,
 }
 
 impl From<TaskSummary> for TaskSummaryDto {
@@ -83,6 +85,8 @@ impl From<TaskSummary> for TaskSummaryDto {
             stale: task.stale,
             checklist_done: task.checklist_done,
             checklist_total: task.checklist_total,
+            worktree_path: task.worktree_path,
+            branch: task.branch,
         }
     }
 }
@@ -174,6 +178,8 @@ pub struct RunDto {
     pub revision: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub worktree_path: Option<String>,
+    pub branch: Option<String>,
 }
 
 impl From<Run> for RunDto {
@@ -193,6 +199,8 @@ impl From<Run> for RunDto {
             revision: run.revision,
             created_at: run.created_at,
             updated_at: run.updated_at,
+            worktree_path: run.worktree_path,
+            branch: run.branch,
         }
     }
 }
@@ -250,6 +258,8 @@ pub struct TaskDetailDto {
     pub runs: Vec<RunDto>,
     pub comments: Vec<CommentDto>,
     pub checks: Vec<CheckDto>,
+    pub worktree_path: Option<String>,
+    pub branch: Option<String>,
     pub recent_activities: Vec<ActivityDto>,
 }
 
@@ -272,6 +282,8 @@ impl From<TaskDetail> for TaskDetailDto {
             runs: task.runs.into_iter().map(RunDto::from).collect(),
             comments: task.comments.into_iter().map(CommentDto::from).collect(),
             checks: task.checks.into_iter().map(CheckDto::from).collect(),
+            worktree_path: task.worktree_path,
+            branch: task.branch,
             recent_activities: task
                 .recent_activities
                 .into_iter()

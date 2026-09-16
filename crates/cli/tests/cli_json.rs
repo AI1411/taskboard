@@ -700,6 +700,46 @@ fn run_continue_running_is_validation_error() {
 }
 
 #[test]
+fn task_update_worktree_and_branch_json() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "renai-sim", "--title", "Fix"])
+        .assert()
+        .success();
+    let updated = json_ok(
+        &dir,
+        &[
+            "task",
+            "update",
+            "TASK-1",
+            "--worktree",
+            "/tmp/wt",
+            "--branch",
+            "cursor/foo-88ba",
+        ],
+    );
+    assert_eq!(updated["entity"]["worktree_path"], "/tmp/wt");
+    assert_eq!(updated["entity"]["branch"], "cursor/foo-88ba");
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "cursor"])
+        .assert()
+        .success();
+    let current = json_ok(&dir, &["run", "current", "TASK-1"]);
+    assert_eq!(current["entity"]["worktree_path"], "/tmp/wt");
+    assert_eq!(current["entity"]["branch"], "cursor/foo-88ba");
+    let cleared = json_ok(
+        &dir,
+        &["task", "update", "TASK-1", "--worktree", "", "--branch", ""],
+    );
+    assert_eq!(cleared["entity"]["worktree_path"], serde_json::Value::Null);
+    assert_eq!(cleared["entity"]["branch"], serde_json::Value::Null);
+}
+
+#[test]
 fn check_add_toggle_list_json_keeps_note() {
     let dir = tempfile::tempdir().unwrap();
     tb_in(&dir)

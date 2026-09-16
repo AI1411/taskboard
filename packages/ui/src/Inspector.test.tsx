@@ -59,6 +59,19 @@ describe("Inspector links", () => {
   });
 });
 
+describe("Inspector workspace", () => {
+  it("shows recorded worktree and branch", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    const task = await transport.taskCreate(project.slug, { title: "Wt", column: "todo" });
+    task.worktreePath = "/tmp/wt";
+    task.branch = "cursor/foo-88ba";
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Wt"));
+    expect(await screen.findByText("/tmp/wt · cursor/foo-88ba")).toBeTruthy();
+  });
+});
+
 describe("Inspector checklists", () => {
   it("shows checklist items as checkboxes without changing the note", async () => {
     const transport = fakeTransport();

@@ -23,7 +23,7 @@ Use this CLI only. Do not call the localhost HTTP API. Do not identify tasks by 
 
 Do this **before the first edit** when the user asked you to implement, fix, or change something:
 
-1. `project list --json` — reuse a matching project slug, or `project add --name <name> --path <repo-root> --json`
+1. `project list --json` — reuse a matching project slug, or `project add --name <name> --path <repo-root> --json`. If `task show` has `worktree_path`, `cd` there before the first edit.
 2. `task list --project <slug> --json` — reuse a matching `TASK-n`, or `task create --project <slug> --title "<short title>" --json`
 3. `task move TASK-n in-progress --json`
 4. `run start TASK-n --agent <agent> --json` — keep `RUN-n`

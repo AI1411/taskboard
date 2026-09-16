@@ -187,6 +187,7 @@ pub async fn task_update_inner(app: &App, patch: TaskPatchArgs) -> Result<TaskDe
                     display_id: display_id.clone(),
                     title,
                     revision,
+                    ..Default::default()
                 },
             )
             .await?;
