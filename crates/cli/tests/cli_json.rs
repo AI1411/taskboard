@@ -699,6 +699,55 @@ fn run_continue_running_is_validation_error() {
     assert_eq!(v["error"]["field"], "status");
 }
 
+#[test]
+fn comment_add_list_json_keeps_note() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "renai-sim", "--title", "Fix"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["note", "set", "TASK-1", "--text", "# Spec"])
+        .assert()
+        .success();
+    let added = json_ok(&dir, &["comment", "add", "TASK-1", "--text", "use TDD"]);
+    assert_eq!(added["entity"]["body"], "use TDD");
+    let listed = json_ok(&dir, &["comment", "list", "TASK-1"]);
+    assert_eq!(listed["entities"].as_array().unwrap().len(), 1);
+    let shown = json_ok(&dir, &["task", "show", "TASK-1"]);
+    assert_eq!(shown["entity"]["note_markdown"], "# Spec");
+    assert_eq!(shown["entity"]["comments"][0]["body"], "use TDD");
+    assert_eq!(shown["entity"]["reply"], serde_json::Value::Null);
+}
+
+#[test]
+fn comment_reply_on_waiting_task_show() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "renai-sim", "--title", "Fix"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "cursor"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "wait", "RUN-1", "--reason", "need spec"])
+        .assert()
+        .success();
+    json_ok(&dir, &["comment", "add", "TASK-1", "--text", "here is spec"]);
+    let shown = json_ok(&dir, &["task", "show", "TASK-1"]);
+    assert_eq!(shown["entity"]["reply"], "here is spec");
+}
+
 fn json_ok(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     let mut argv = args.to_vec();
     argv.push("--json");

@@ -67,6 +67,9 @@ pub enum Command {
     /// Agent run commands
     #[command(subcommand)]
     Run(RunCommand),
+    /// Card comment thread
+    #[command(subcommand)]
+    Comment(CommentCommand),
     /// Soft-deleted entities
     #[command(subcommand)]
     Trash(TrashCommand),
@@ -326,6 +329,18 @@ pub enum RunCommand {
         #[arg(long)]
         summary: String,
     },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CommentCommand {
+    /// Append a comment without changing the note
+    Add {
+        display_id: String,
+        #[arg(long)]
+        text: String,
+    },
+    /// List comments on a task
+    List { display_id: String },
 }
 
 #[derive(Debug, Subcommand)]
