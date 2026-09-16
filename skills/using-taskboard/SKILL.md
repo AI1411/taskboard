@@ -17,7 +17,7 @@ Resolve the binary once per session:
 
 Set `<agent>` to the host: `cursor`, `claude`, or `codex`. Always pass `--json` and `--actor <agent>` (or set `TASKBOARD_ACTOR`). Parse stdout JSON. Success is `"ok": true` with `entity` / `entities` and `revision`. Failure is `"ok": false` with `error.code` and a nonzero exit.
 
-Use this CLI only. Do not call the localhost HTTP API. Do not identify tasks by title; use `TASK-n`. After `run start`, use the returned `RUN-n`. If you forget `RUN-n`, use `run current TASK-n` or `run list --open`. `task list --all --status running,waiting` lists cards across projects.
+Use MCP (`tb mcp`) when the host exposes it; otherwise use this CLI. Do not call the localhost HTTP API. Do not identify tasks by title; use `TASK-n`. After `run start`, use the returned `RUN-n`. If you forget `RUN-n`, use `run current TASK-n` or `run list --open`. `task list --all --status running,waiting` lists cards across projects.
 
 ## Session workflow
 

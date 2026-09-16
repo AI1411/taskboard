@@ -1,5 +1,6 @@
 mod args;
 mod data_dir;
+mod mcp;
 mod output;
 
 use std::io::Write;
@@ -46,6 +47,9 @@ async fn run(cli: Cli) -> Result<(), i32> {
     }
 
     let actor = cli.actor();
+    if matches!(cli.command, Command::Mcp) {
+        return mcp::serve(&app, &actor).await;
+    }
     dispatch(&app, &actor, cli).await
 }
 
@@ -90,6 +94,7 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
         Command::Run(cmd) => run_cmd(app, actor, json, revision, cmd).await,
         Command::Comment(cmd) => comment_cmd(app, actor, json, cmd).await,
         Command::Check(cmd) => check_cmd(app, actor, json, cmd).await,
+        Command::Mcp => mcp::serve(app, actor).await,
         Command::Trash(TrashCommand::List) => {
             let trash = app
                 .trash_list()

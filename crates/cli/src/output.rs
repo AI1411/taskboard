@@ -238,7 +238,7 @@ pub fn undo_human(entity_type: EntityType, entity: &serde_json::Value) -> String
     }
 }
 
-fn error_value(err: &AppError) -> serde_json::Value {
+pub fn error_value(err: &AppError) -> serde_json::Value {
     let (field, current) = match err {
         AppError::Validation { field, .. } => (Some(field.clone()), None),
         AppError::RevisionConflict { current } | AppError::UndoConflict { current } => {

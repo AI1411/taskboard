@@ -104,6 +104,8 @@ pub enum Command {
     Backup(BackupCommand),
     /// Start the local HTTP UI
     Serve(ServeArgs),
+    /// Serve local MCP tools over stdio
+    Mcp,
 }
 
 #[derive(Debug, Subcommand)]
