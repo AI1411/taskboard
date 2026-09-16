@@ -72,6 +72,12 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
         ) : null}
       </span>
       {showMessage ? <span className={styles.runMessage}>{faceMessage}</span> : null}
+      {task.blockedBy.length > 0 ? (
+        <span className={styles.runMessage}>Blocked by {task.blockedBy.join(", ")}</span>
+      ) : null}
+      {task.blocks.length > 0 ? (
+        <span className={styles.runMessage}>Blocks {task.blocks.join(", ")}</span>
+      ) : null}
     </div>
   );
 });

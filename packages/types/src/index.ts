@@ -36,6 +36,8 @@ export interface TaskSummary {
   runMessage: string | null;
   waitingReason: string | null;
   reply: string | null;
+  blockedBy: string[];
+  blocks: string[];
 }
 
 export interface Comment {

@@ -13,6 +13,8 @@ export function summary(overrides: Partial<TaskSummary> = {}): TaskSummary {
     runMessage: null,
     waitingReason: null,
     reply: null,
+    blockedBy: [],
+    blocks: [],
     ...overrides,
   };
 }

@@ -138,6 +138,8 @@ export function fakeTransport(): Transport {
         runMessage: null,
         waitingReason: null,
         reply: null,
+        blockedBy: [],
+        blocks: [],
       };
       tasks.push(task);
       const detail = asDetail(task);
