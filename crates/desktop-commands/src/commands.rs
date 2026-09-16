@@ -1,11 +1,12 @@
 use std::path::Path;
 
 use taskboard_application::{
-    Actor, App, AppError, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish,
-    RunStart, RunUpdate, RunWait, SyncDelta, TaskCreate, TaskUpdate, Trash, UndoResult,
+    Actor, App, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate,
+    RunFail, RunFinish, RunStart, RunUpdate, RunWait, SyncDelta, TaskCreate, TaskUpdate, Trash,
+    UndoResult,
 };
 use taskboard_core::{
-    ActorKind, Column, InboxItem, LinkKind, Project, Run, TaskDetail, TaskSummary,
+    ActorKind, Check, Column, Comment, InboxItem, LinkKind, Project, Run, TaskDetail, TaskSummary,
 };
 use taskboard_store_sqlite::{load_ui_state, save_ui_state, UiState};
 use uuid::Uuid;
@@ -286,6 +287,44 @@ pub async fn task_note_set_inner(
     revision: Option<i64>,
 ) -> Result<TaskDetail, AppErrorDto> {
     app.task_note_set(&actor(), &display_id, markdown, revision)
+        .await
+        .map_err(Into::into)
+}
+
+pub async fn comment_add_inner(
+    app: &App,
+    display_id: String,
+    body: String,
+) -> Result<Comment, AppErrorDto> {
+    app.comment_add(
+        &actor(),
+        CommentAdd {
+            task_display_id: display_id,
+            body,
+        },
+    )
+    .await
+    .map_err(Into::into)
+}
+
+pub async fn check_add_inner(
+    app: &App,
+    display_id: String,
+    text: String,
+) -> Result<Check, AppErrorDto> {
+    app.check_add(
+        &actor(),
+        CheckAdd {
+            task_display_id: display_id,
+            text,
+        },
+    )
+    .await
+    .map_err(Into::into)
+}
+
+pub async fn check_toggle_inner(app: &App, display_id: String) -> Result<Check, AppErrorDto> {
+    app.check_toggle(&actor(), &display_id)
         .await
         .map_err(Into::into)
 }
