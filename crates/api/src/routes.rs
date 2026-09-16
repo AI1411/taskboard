@@ -9,8 +9,8 @@ use axum::{Json, Router};
 use serde::Serialize;
 use serde_json::{json, Value};
 use taskboard_application::{
-    Actor, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate,
-    RunFail, RunFinish, RunStart, RunUpdate, RunWait, TaskCreate, TaskUpdate,
+    Actor, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail,
+    RunFinish, RunStart, RunUpdate, RunWait, TaskCreate, TaskUpdate,
 };
 use taskboard_core::ActorKind;
 use uuid::Uuid;
