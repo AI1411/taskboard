@@ -12,6 +12,8 @@ describe("design-review regressions", () => {
     render(<TaskboardApp transport={transport} />);
     await screen.findByRole("list", { name: "Todo" });
     await userEvent.click(screen.getByRole("button", { name: "New task" }));
+    expect(transport.taskCreate).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByPlaceholderText("Task title"), "Named{Enter}");
     await waitFor(() => expect(transport.taskCreate).toHaveBeenCalled());
   });
 

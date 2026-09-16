@@ -1,5 +1,7 @@
 import type { Project } from "@taskboard/types";
+import type { Ref } from "react";
 
+import { Composer } from "./Composer";
 import { EmptyState } from "./EmptyState";
 import styles from "./Sidebar.module.css";
 
@@ -14,6 +16,10 @@ export function Sidebar(props: {
   onToggleArchived: () => void;
   onProjectNoteChange: (markdown: string) => void;
   onTrash?: () => void;
+  composing?: boolean;
+  composerRef?: Ref<HTMLInputElement>;
+  onComposerSubmit?: (name: string) => void;
+  onComposerCancel?: () => void;
 }) {
   return (
     <aside className={styles.sidebar}>
@@ -25,6 +31,14 @@ export function Sidebar(props: {
             New project
           </button>
         </div>
+        {props.composing ? (
+          <Composer
+            placeholder="Project name"
+            inputRef={props.composerRef}
+            onSubmit={(name) => props.onComposerSubmit?.(name)}
+            onCancel={() => props.onComposerCancel?.()}
+          />
+        ) : null}
       </div>
       {props.projects.length === 0 ? (
         <EmptyState>Create a project to start a board</EmptyState>

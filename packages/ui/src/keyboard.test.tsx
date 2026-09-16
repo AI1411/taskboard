@@ -6,20 +6,31 @@ import { fakeTransport } from "./fakeTransport";
 import { TaskboardApp } from "./index";
 
 describe("keyboard", () => {
-  it("n creates a task through transport", async () => {
+  it("n opens composer and Enter creates in the current column", async () => {
     const transport = fakeTransport();
     render(<TaskboardApp transport={transport} />);
     await userEvent.click(screen.getByRole("button", { name: "New project" }));
-    // fakeTransport.projectAdd resolves; press n
+    await userEvent.type(screen.getByPlaceholderText("Project name"), "Alpha{Enter}");
+    await screen.findByRole("list", { name: "Todo" });
+    await userEvent.keyboard("2");
     await userEvent.keyboard("n");
-    await waitFor(() => expect(transport.taskCreate).toHaveBeenCalled());
+    expect(transport.taskCreate).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByPlaceholderText("Task title"), "Ship it{Enter}");
+    await waitFor(() =>
+      expect(transport.taskCreate).toHaveBeenCalledWith("alpha", {
+        title: "Ship it",
+        column: "in-progress",
+      }),
+    );
   });
 
-  it("p creates a project through transport", async () => {
+  it("p opens project composer and does not insert Untitled", async () => {
     const transport = fakeTransport();
     render(<TaskboardApp transport={transport} />);
     await userEvent.keyboard("p");
-    expect(transport.projectAdd).toHaveBeenCalledWith({ name: "Untitled" });
+    expect(transport.projectAdd).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByPlaceholderText("Project name"), "Beta{Enter}");
+    await waitFor(() => expect(transport.projectAdd).toHaveBeenCalledWith({ name: "Beta" }));
   });
 
   it("u toggles urgent on the selected card", async () => {
@@ -50,13 +61,15 @@ describe("keyboard", () => {
     const transport = fakeTransport();
     render(<TaskboardApp transport={transport} />);
     await userEvent.click(screen.getByRole("button", { name: "New project" }));
-    await waitFor(() => expect(transport.projectAdd).toHaveBeenCalled());
+    await userEvent.type(screen.getByPlaceholderText("Project name"), "Alpha{Enter}");
     await screen.findByRole("list", { name: "Todo" });
     await userEvent.keyboard("2");
     await userEvent.keyboard("n");
+    expect(transport.taskCreate).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByPlaceholderText("Task title"), "Ship it{Enter}");
     await waitFor(() =>
-      expect(transport.taskCreate).toHaveBeenCalledWith("untitled", {
-        title: "Untitled",
+      expect(transport.taskCreate).toHaveBeenCalledWith("alpha", {
+        title: "Ship it",
         column: "in-progress",
       }),
     );

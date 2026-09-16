@@ -1,0 +1,12 @@
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--board-fg);
+  font: inherit;
+  font-size: 0.875rem;
+  min-height: 36px;
+  padding: 0.45rem 0.6rem;
+}

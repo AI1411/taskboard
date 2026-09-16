@@ -15,6 +15,8 @@ import type { Column, TaskSummary } from "@taskboard/types";
 
 import { useState, type ReactNode, type Ref } from "react";
 
+import { Composer } from "./Composer";
+
 import { resolveDragEnd } from "./boardDrag";
 import { Card } from "./Card";
 import { COLUMNS } from "./columns";
@@ -32,6 +34,10 @@ export function Board(props: {
   onMove: (displayId: string, column: Column) => void;
   onReorder: (displayId: string, beforeId: string) => void;
   onNewTask?: () => void;
+  composing?: boolean;
+  composerRef?: Ref<HTMLInputElement>;
+  onComposerSubmit?: (title: string) => void;
+  onComposerCancel?: () => void;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -102,6 +108,14 @@ export function Board(props: {
                   items={columnTasks.map((t) => t.displayId)}
                   strategy={verticalListSortingStrategy}
                 >
+                  {props.composing && props.currentColumn === col.id ? (
+                    <Composer
+                      placeholder="Task title"
+                      inputRef={props.composerRef}
+                      onSubmit={(title) => props.onComposerSubmit?.(title)}
+                      onCancel={() => props.onComposerCancel?.()}
+                    />
+                  ) : null}
                   {columnTasks.map((task) => (
                     <SortableCard
                       key={task.displayId}

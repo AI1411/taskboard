@@ -6,3 +6,4 @@ export { Inspector } from "./Inspector";
 export { Search } from "./Search";
 export { Sidebar } from "./Sidebar";
 export { InboxStrip } from "./InboxStrip";
+export { Composer } from "./Composer";
