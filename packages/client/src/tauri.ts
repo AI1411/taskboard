@@ -1,5 +1,8 @@
 import type {
+  Check,
   Column,
+  Comment,
+  LinkKind,
   Project,
   ProjectPatch,
   Run,
@@ -135,8 +138,20 @@ export class TauriTransport implements Transport {
     return this.call("task_note_set", { displayId, markdown, revision });
   }
 
-  linkAdd(displayId: string, input: { kind: "url" | "path"; value: string }): Promise<TaskDetail> {
+  linkAdd(displayId: string, input: { kind: LinkKind; value: string }): Promise<TaskDetail> {
     return this.call("link_add", { displayId, ...input });
+  }
+
+  commentAdd(displayId: string, body: string): Promise<Comment> {
+    return this.call("comment_add", { displayId, body });
+  }
+
+  checkAdd(displayId: string, text: string): Promise<Check> {
+    return this.call("check_add", { displayId, text });
+  }
+
+  checkToggle(displayId: string): Promise<Check> {
+    return this.call("check_toggle", { displayId });
   }
 
   linkRemove(linkId: string, revision?: number): Promise<TaskDetail> {

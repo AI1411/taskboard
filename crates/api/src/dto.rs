@@ -392,6 +392,18 @@ pub struct AddLinkBody {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AddCommentBody {
+    pub body: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddCheckBody {
+    pub text: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StartRunBody {
     pub agent: String,
     pub session_id: Option<String>,

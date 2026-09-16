@@ -311,3 +311,124 @@ async fn ui_state_get_and_patch_round_trip() {
         .unwrap();
     assert_eq!(after["entity"]["lastProjectSlug"], "taskboard");
 }
+
+#[tokio::test]
+async fn comment_add_does_not_change_note() {
+    let s = seeded_task_server().await;
+    let client = authed(&s);
+    client
+        .patch(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .json(&json!({"noteMarkdown": "# Spec"}))
+        .send()
+        .await
+        .unwrap();
+    let added = client
+        .post(format!("{}/api/v1/tasks/TASK-1/comments", s.base))
+        .json(&json!({"body": "use TDD"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(added.status(), 200);
+    let body = added.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(body["ok"], true);
+    assert_eq!(body["entity"]["body"], "use TDD");
+    assert_eq!(body["entity"]["actorKind"], "web");
+    assert_eq!(body["entity"]["actorLabel"], "local-web");
+    let shown = client
+        .get(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    assert_eq!(shown["entity"]["noteMarkdown"], "# Spec");
+    assert_eq!(shown["entity"]["comments"][0]["body"], "use TDD");
+}
+
+#[tokio::test]
+async fn check_add_and_toggle() {
+    let s = seeded_task_server().await;
+    let client = authed(&s);
+    let added = client
+        .post(format!("{}/api/v1/tasks/TASK-1/checks", s.base))
+        .json(&json!({"text": "Write tests"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(added.status(), 200);
+    let body = added.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(body["entity"]["displayId"], "CHECK-1");
+    assert_eq!(body["entity"]["done"], false);
+    let toggled = client
+        .patch(format!("{}/api/v1/checks/CHECK-1", s.base))
+        .json(&json!({}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(toggled.status(), 200);
+    let toggle_body = toggled.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(toggle_body["entity"]["done"], true);
+    let listed = client
+        .get(format!("{}/api/v1/projects/renai-sim/tasks", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    assert_eq!(listed["entities"][0]["checklistDone"], 1);
+    assert_eq!(listed["entities"][0]["checklistTotal"], 1);
+}
+
+#[tokio::test]
+async fn blocked_by_link_and_cycle() {
+    let s = seeded_task_server().await;
+    let client = authed(&s);
+    assert_eq!(
+        client
+            .post(format!("{}/api/v1/projects/renai-sim/tasks", s.base))
+            .json(&json!({"title": "Blocker"}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
+    let added = client
+        .post(format!("{}/api/v1/tasks/TASK-2/links", s.base))
+        .json(&json!({"kind": "blocked_by", "value": "TASK-1"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(added.status(), 200);
+    let body = added.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(body["entity"]["links"][0]["kind"], "blocked_by");
+    assert_eq!(body["entity"]["links"][0]["value"], "TASK-1");
+    let listed = client
+        .get(format!("{}/api/v1/projects/renai-sim/tasks", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    let two = listed["entities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["displayId"] == "TASK-2")
+        .unwrap();
+    assert_eq!(two["blockedBy"][0], "TASK-1");
+    let cycle = client
+        .post(format!("{}/api/v1/tasks/TASK-1/links", s.base))
+        .json(&json!({"kind": "blocked_by", "value": "TASK-2"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cycle.status(), 400);
+    let err = cycle.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(err["error"]["code"], "validation_error");
+    assert_eq!(err["error"]["field"], "blocked_by");
+    assert_eq!(err["error"]["message"], "blocked-by cycle");
+}

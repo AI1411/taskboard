@@ -55,12 +55,19 @@ export function Inspector(props: {
   onRestore?: () => void;
   onLinkAdd?: (value: string) => void;
   onLinkRemove?: (linkId: string) => void;
+  onCommentAdd?: (body: string) => void;
+  onCheckAdd?: (text: string) => void;
+  onCheckToggle?: (displayId: string) => void;
+  onBlockedByAdd?: (displayId: string) => void;
   onCopyId?: (displayId: string) => void;
   onClose?: () => void;
 }) {
   const [title, setTitle] = useState(props.task?.title ?? "");
   const [note, setNote] = useState(props.task?.noteMarkdown ?? "");
   const [linkValue, setLinkValue] = useState("");
+  const [commentValue, setCommentValue] = useState("");
+  const [checkValue, setCheckValue] = useState("");
+  const [blockedByValue, setBlockedByValue] = useState("");
   const lastId = useRef<string | null>(null);
   const panelRef = useRef<HTMLElement>(null);
 
@@ -70,6 +77,9 @@ export function Inspector(props: {
       setTitle("");
       setNote("");
       setLinkValue("");
+      setCommentValue("");
+      setCheckValue("");
+      setBlockedByValue("");
       return;
     }
     if (lastId.current !== props.task.displayId) {
@@ -77,6 +87,9 @@ export function Inspector(props: {
       setTitle(props.task.title);
       setNote(props.task.noteMarkdown);
       setLinkValue("");
+      setCommentValue("");
+      setCheckValue("");
+      setBlockedByValue("");
     }
   }, [props.task]);
 
@@ -163,12 +176,44 @@ export function Inspector(props: {
             {props.task.checks.map((check) => (
               <li key={check.id}>
                 <label className={styles.switch}>
-                  <input type="checkbox" checked={check.done} readOnly />
+                  <input
+                    type="checkbox"
+                    checked={check.done}
+                    onChange={() => props.onCheckToggle?.(check.displayId)}
+                  />
                   {check.text}
                 </label>
               </li>
             ))}
           </ul>
+          <div className={styles.linkAdd}>
+            <input
+              className={styles.linkInput}
+              placeholder="Add a check"
+              value={checkValue}
+              onChange={(e) => setCheckValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                const text = checkValue.trim();
+                if (!text) return;
+                props.onCheckAdd?.(text);
+                setCheckValue("");
+              }}
+            />
+            <button
+              type="button"
+              className={styles.linkButton}
+              onClick={() => {
+                const text = checkValue.trim();
+                if (!text) return;
+                props.onCheckAdd?.(text);
+                setCheckValue("");
+              }}
+            >
+              Add check
+            </button>
+          </div>
         </div>
         <div>
           <h3 className={styles.heading}>Comments</h3>
@@ -179,6 +224,20 @@ export function Inspector(props: {
               </li>
             ))}
           </ul>
+          <input
+            className={styles.linkInput}
+            placeholder="Add a comment"
+            value={commentValue}
+            onChange={(e) => setCommentValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              const body = commentValue.trim();
+              if (!body) return;
+              props.onCommentAdd?.(body);
+              setCommentValue("");
+            }}
+          />
         </div>
         <div>
           <h3 className={styles.heading}>Links</h3>
@@ -235,6 +294,34 @@ export function Inspector(props: {
               }}
             >
               Add link
+            </button>
+          </div>
+          <div className={styles.linkAdd}>
+            <input
+              className={styles.linkInput}
+              placeholder="TASK-n"
+              value={blockedByValue}
+              onChange={(e) => setBlockedByValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                const value = blockedByValue.trim();
+                if (!value) return;
+                props.onBlockedByAdd?.(value);
+                setBlockedByValue("");
+              }}
+            />
+            <button
+              type="button"
+              className={styles.linkButton}
+              onClick={() => {
+                const value = blockedByValue.trim();
+                if (!value) return;
+                props.onBlockedByAdd?.(value);
+                setBlockedByValue("");
+              }}
+            >
+              Add blocked-by
             </button>
           </div>
         </div>

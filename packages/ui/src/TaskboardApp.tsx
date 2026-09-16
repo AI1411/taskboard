@@ -911,6 +911,58 @@ export function TaskboardApp(props: {
         onLinkRemove={(linkId) => {
           void transport.linkRemove(linkId).then(applyDetail);
         }}
+        onCommentAdd={(body) => {
+          const id = selectedIdRef.current;
+          if (!id) return;
+          void (async () => {
+            try {
+              await transport.commentAdd(id, body);
+              applyDetail(await transport.taskShow(id));
+            } catch (err) {
+              setToast({ message: errorMessage(err), error: true });
+            }
+          })();
+        }}
+        onCheckAdd={(text) => {
+          const id = selectedIdRef.current;
+          if (!id) return;
+          void (async () => {
+            try {
+              await transport.checkAdd(id, text);
+              applyDetail(await transport.taskShow(id));
+              const project = selectedProjectRef.current;
+              if (project) await refreshTasks(project.slug);
+            } catch (err) {
+              setToast({ message: errorMessage(err), error: true });
+            }
+          })();
+        }}
+        onCheckToggle={(checkId) => {
+          const id = selectedIdRef.current;
+          if (!id) return;
+          void (async () => {
+            try {
+              await transport.checkToggle(checkId);
+              applyDetail(await transport.taskShow(id));
+              const project = selectedProjectRef.current;
+              if (project) await refreshTasks(project.slug);
+            } catch (err) {
+              setToast({ message: errorMessage(err), error: true });
+            }
+          })();
+        }}
+        onBlockedByAdd={(value) => {
+          const id = selectedIdRef.current;
+          if (!id) return;
+          void transport
+            .linkAdd(id, { kind: "blocked_by", value })
+            .then(async (updated) => {
+              applyDetail(updated);
+              const project = selectedProjectRef.current;
+              if (project) await refreshTasks(project.slug);
+            })
+            .catch((err) => setToast({ message: errorMessage(err), error: true }));
+        }}
         onCopyId={copyId}
         onClose={closeInspector}
       />

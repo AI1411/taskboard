@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { Transport } from "@taskboard/client";
+import { TransportError, type Transport } from "@taskboard/client";
 import type {
   Column,
   DisplayStatus,
@@ -233,6 +233,15 @@ export function fakeTransport(): Transport {
     async linkAdd(displayId, input) {
       const detail = details.get(displayId);
       if (!detail) throw new Error("not found");
+      const task = tasks.find((t) => t.displayId === displayId);
+      const blocker = tasks.find((t) => t.displayId === input.value);
+      if (input.kind === "blocked_by" && blocker?.blockedBy.includes(displayId)) {
+        throw new TransportError({
+          code: "validation_error",
+          message: "blocked-by cycle",
+          field: "blocked_by",
+        });
+      }
       detail.links.push({
         id: `l${detail.links.length + 1}`,
         taskId: detail.id,
@@ -240,7 +249,60 @@ export function fakeTransport(): Transport {
         value: input.value,
         sortOrder: detail.links.length,
       });
+      if (input.kind === "blocked_by") {
+        if (task && !task.blockedBy.includes(input.value)) task.blockedBy.push(input.value);
+        detail.blockedBy = task?.blockedBy ?? detail.blockedBy;
+        if (blocker && !blocker.blocks.includes(displayId)) blocker.blocks.push(displayId);
+        const blockerDetail = details.get(input.value);
+        if (blockerDetail && blocker) Object.assign(blockerDetail, blocker);
+      }
       return { ...detail, links: [...detail.links] };
+    },
+    async commentAdd(displayId, body) {
+      const detail = details.get(displayId);
+      if (!detail) throw new Error("not found");
+      const comment = {
+        id: `c${detail.comments.length + 1}`,
+        taskId: detail.id,
+        actorKind: "desktop" as const,
+        actorLabel: "local-ui",
+        body,
+        createdAt: now(),
+      };
+      detail.comments.push(comment);
+      return comment;
+    },
+    async checkAdd(displayId, text) {
+      const detail = details.get(displayId);
+      const task = tasks.find((t) => t.displayId === displayId);
+      if (!detail || !task) throw new Error("not found");
+      const check = {
+        id: `k${detail.checks.length + 1}`,
+        displayId: `CHECK-${detail.checks.length + 1}`,
+        taskId: detail.id,
+        text,
+        done: false,
+        sortOrder: detail.checks.length,
+      };
+      detail.checks.push(check);
+      task.checklistTotal += 1;
+      Object.assign(detail, task);
+      return check;
+    },
+    async checkToggle(displayId) {
+      for (const detail of details.values()) {
+        const check = detail.checks.find((item) => item.displayId === displayId);
+        if (!check) continue;
+        check.done = !check.done;
+        const task = tasks.find((t) => t.displayId === detail.displayId);
+        if (task) {
+          task.checklistDone = detail.checks.filter((item) => item.done).length;
+          task.checklistTotal = detail.checks.length;
+          Object.assign(detail, task);
+        }
+        return { ...check };
+      }
+      throw new Error("not found");
     },
     async linkRemove(linkId) {
       for (const detail of details.values()) {

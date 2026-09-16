@@ -1,5 +1,8 @@
 import type {
+  Check,
   Column,
+  Comment,
+  LinkKind,
   Project,
   ProjectPatch,
   Run,
@@ -51,8 +54,11 @@ export interface Transport {
   taskDelete(displayId: string, revision?: number): Promise<TaskDetail>;
   taskRestore(displayId: string): Promise<TaskDetail>;
   taskNoteSet(displayId: string, markdown: string, revision?: number): Promise<TaskDetail>;
-  linkAdd(displayId: string, input: { kind: "url" | "path"; value: string }): Promise<TaskDetail>;
+  linkAdd(displayId: string, input: { kind: LinkKind; value: string }): Promise<TaskDetail>;
   linkRemove(linkId: string, revision?: number): Promise<TaskDetail>;
+  commentAdd(displayId: string, body: string): Promise<Comment>;
+  checkAdd(displayId: string, text: string): Promise<Check>;
+  checkToggle(displayId: string): Promise<Check>;
   runStart(displayId: string, input: { agent: string; sessionId?: string }): Promise<Run>;
   runPatch(runDisplayId: string, op: RunOp, revision?: number): Promise<Run>;
   inbox(opts?: { project?: string; includeArchived?: boolean }): Promise<InboxItem[]>;

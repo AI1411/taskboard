@@ -123,4 +123,33 @@ describe("HttpTransport", () => {
     const body = (await fetches[1].json()) as Record<string, unknown>;
     assert.equal(body.lastProjectSlug, "alpha");
   });
+
+  it("posts comments and checks and patches toggle", async () => {
+    const fetches: Request[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      fetches.push(new Request(input, init));
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          entity: { displayId: "CHECK-1", body: "hi", done: true },
+          revision: 0,
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    };
+    const t = new HttpTransport("http://127.0.0.1:9", "deadbeef", fetchImpl);
+    await t.commentAdd("TASK-1", "hi");
+    await t.checkAdd("TASK-1", "Write tests");
+    await t.checkToggle("CHECK-1");
+    await t.linkAdd("TASK-1", { kind: "blocked_by", value: "TASK-2" });
+    assert.equal(fetches[0].method, "POST");
+    assert.equal(new URL(fetches[0].url).pathname, "/api/v1/tasks/TASK-1/comments");
+    assert.deepEqual(await fetches[0].json(), { body: "hi" });
+    assert.equal(new URL(fetches[1].url).pathname, "/api/v1/tasks/TASK-1/checks");
+    assert.deepEqual(await fetches[1].json(), { text: "Write tests" });
+    assert.equal(fetches[2].method, "PATCH");
+    assert.equal(new URL(fetches[2].url).pathname, "/api/v1/checks/CHECK-1");
+    assert.equal(new URL(fetches[3].url).pathname, "/api/v1/tasks/TASK-1/links");
+    assert.deepEqual(await fetches[3].json(), { kind: "blocked_by", value: "TASK-2" });
+  });
 });

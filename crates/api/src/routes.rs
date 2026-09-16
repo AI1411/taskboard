@@ -9,17 +9,18 @@ use axum::{Json, Router};
 use serde::Serialize;
 use serde_json::{json, Value};
 use taskboard_application::{
-    Actor, AppError, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail, RunFinish, RunStart,
-    RunUpdate, RunWait, TaskCreate, TaskUpdate,
+    Actor, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail,
+    RunFinish, RunStart, RunUpdate, RunWait, TaskCreate, TaskUpdate,
 };
 use taskboard_core::ActorKind;
 use uuid::Uuid;
 
 use crate::dto::{
-    json_keys_to_camel, AddLinkBody, BackupBody, CreateProjectBody, CreateTaskBody, InboxItemDto,
-    InboxQuery, ListProjectsQuery, PatchProjectBody, PatchRunBody, PatchTaskBody, PatchUiStateBody,
-    ProjectDto, ReorderProjectsBody, RunDto, RunOp, StartRunBody, SyncDeltaDto, SyncQuery,
-    TaskDetailDto, TrashDto, UiStateDto,
+    json_keys_to_camel, AddCheckBody, AddCommentBody, AddLinkBody, BackupBody, CheckDto,
+    CommentDto, CreateProjectBody, CreateTaskBody, InboxItemDto, InboxQuery, ListProjectsQuery,
+    PatchProjectBody, PatchRunBody, PatchTaskBody, PatchUiStateBody, ProjectDto,
+    ReorderProjectsBody, RunDto, RunOp, StartRunBody, SyncDeltaDto, SyncQuery, TaskDetailDto,
+    TrashDto, UiStateDto,
 };
 use crate::origin::origin_allowed;
 use crate::server::{
@@ -42,6 +43,9 @@ pub(crate) fn api_router() -> Router<Arc<AppState>> {
             patch(patch_project).delete(delete_project),
         )
         .route("/api/v1/tasks/:display_id/links", post(add_link))
+        .route("/api/v1/tasks/:display_id/comments", post(add_comment))
+        .route("/api/v1/tasks/:display_id/checks", post(add_check))
+        .route("/api/v1/checks/:display_id", patch(toggle_check))
         .route("/api/v1/tasks/:display_id/runs", post(start_run))
         .route("/api/v1/tasks/:display_id/restore", post(restore_task))
         .route(
@@ -518,6 +522,62 @@ async fn add_link(
     let dto = TaskDetailDto::from(task);
     let revision = dto.revision;
     Ok(entity(dto, revision))
+}
+
+async fn add_comment(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(display_id): Path<String>,
+    Json(body): Json<AddCommentBody>,
+) -> ApiResult {
+    require_mutation(&state, &headers)?;
+    let comment = state
+        .app
+        .comment_add(
+            &web_actor(),
+            CommentAdd {
+                task_display_id: display_id,
+                body: body.body,
+            },
+        )
+        .await
+        .map_err(app_error)?;
+    Ok(entity(CommentDto::from(comment), 0))
+}
+
+async fn add_check(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(display_id): Path<String>,
+    Json(body): Json<AddCheckBody>,
+) -> ApiResult {
+    require_mutation(&state, &headers)?;
+    let check = state
+        .app
+        .check_add(
+            &web_actor(),
+            CheckAdd {
+                task_display_id: display_id,
+                text: body.text,
+            },
+        )
+        .await
+        .map_err(app_error)?;
+    Ok(entity(CheckDto::from(check), 0))
+}
+
+async fn toggle_check(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(display_id): Path<String>,
+) -> ApiResult {
+    require_mutation(&state, &headers)?;
+    let check = state
+        .app
+        .check_toggle(&web_actor(), &display_id)
+        .await
+        .map_err(app_error)?;
+    Ok(entity(CheckDto::from(check), 0))
 }
 
 async fn remove_link(
