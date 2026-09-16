@@ -54,6 +54,7 @@ pub struct TaskSummaryDto {
     pub revision: i64,
     pub display_status: CardDisplayStatus,
     pub run_message: Option<String>,
+    pub waiting_reason: Option<String>,
 }
 
 impl From<TaskSummary> for TaskSummaryDto {
@@ -68,6 +69,7 @@ impl From<TaskSummary> for TaskSummaryDto {
             revision: task.revision,
             display_status: task.display_status,
             run_message: task.run_message,
+            waiting_reason: task.waiting_reason,
         }
     }
 }
@@ -180,6 +182,7 @@ pub struct TaskDetailDto {
     pub revision: i64,
     pub display_status: CardDisplayStatus,
     pub run_message: Option<String>,
+    pub waiting_reason: Option<String>,
     pub note_markdown: String,
     pub links: Vec<LinkDto>,
     pub runs: Vec<RunDto>,
@@ -198,6 +201,7 @@ impl From<TaskDetail> for TaskDetailDto {
             revision: task.revision,
             display_status: task.display_status,
             run_message: task.run_message,
+            waiting_reason: task.waiting_reason,
             note_markdown: task.note_markdown,
             links: task.links.into_iter().map(LinkDto::from).collect(),
             runs: task.runs.into_iter().map(RunDto::from).collect(),

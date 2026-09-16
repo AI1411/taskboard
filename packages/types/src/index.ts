@@ -34,6 +34,7 @@ export interface TaskSummary {
   revision: number;
   displayStatus: DisplayStatus;
   runMessage: string | null;
+  waitingReason: string | null;
 }
 
 export interface Link {

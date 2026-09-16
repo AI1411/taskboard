@@ -75,6 +75,7 @@ pub struct TaskSummary {
     pub revision: i64,
     pub display_status: CardDisplayStatus,
     pub run_message: Option<String>,
+    pub waiting_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,6 +90,7 @@ pub struct TaskDetail {
     pub revision: i64,
     pub display_status: CardDisplayStatus,
     pub run_message: Option<String>,
+    pub waiting_reason: Option<String>,
     pub note_markdown: String,
     pub links: Vec<Link>,
     pub runs: Vec<Run>,

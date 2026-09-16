@@ -127,6 +127,7 @@ export function fakeTransport(): Transport {
         revision: 1,
         displayStatus: "idle",
         runMessage: null,
+        waitingReason: null,
       };
       tasks.push(task);
       const detail = asDetail(task);

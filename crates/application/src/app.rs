@@ -1553,7 +1553,7 @@ async fn load_task_detail(store: &mut dyn Store, task: Task) -> Result<TaskDetai
     let links = store.list_links(task.id).await?;
     let runs = store.list_runs(task.id).await?;
     let recent_activities = store.list_recent_activities(task.id, 20).await?;
-    let (display_status, run_message) = display_from_runs(&runs);
+    let (display_status, run_message, waiting_reason) = display_from_runs(&runs);
     Ok(TaskDetail {
         id: task.id,
         display_id: task.display_id,
@@ -1564,6 +1564,7 @@ async fn load_task_detail(store: &mut dyn Store, task: Task) -> Result<TaskDetai
         revision: task.revision,
         display_status,
         run_message,
+        waiting_reason,
         note_markdown: task.note_markdown,
         links,
         runs,
@@ -1573,7 +1574,7 @@ async fn load_task_detail(store: &mut dyn Store, task: Task) -> Result<TaskDetai
 
 async fn to_task_summary(store: &mut dyn Store, task: Task) -> Result<TaskSummary, AppError> {
     let runs = store.list_runs(task.id).await?;
-    let (display_status, run_message) = display_from_runs(&runs);
+    let (display_status, run_message, waiting_reason) = display_from_runs(&runs);
     Ok(TaskSummary {
         id: task.id,
         display_id: task.display_id,
@@ -1584,10 +1585,13 @@ async fn to_task_summary(store: &mut dyn Store, task: Task) -> Result<TaskSummar
         revision: task.revision,
         display_status,
         run_message,
+        waiting_reason,
     })
 }
 
-fn display_from_runs(runs: &[Run]) -> (taskboard_core::CardDisplayStatus, Option<String>) {
+fn display_from_runs(
+    runs: &[Run],
+) -> (taskboard_core::CardDisplayStatus, Option<String>, Option<String>) {
     let views: Vec<RunStatusView> = runs
         .iter()
         .map(|run| RunStatusView {
@@ -1600,16 +1604,17 @@ fn display_from_runs(runs: &[Run]) -> (taskboard_core::CardDisplayStatus, Option
     let has_active = runs
         .iter()
         .any(|run| matches!(run.status, RunStatus::Running | RunStatus::Waiting));
-    let run_message = runs
+    let winning = runs
         .iter()
         .filter(|run| !has_active || matches!(run.status, RunStatus::Running | RunStatus::Waiting))
         .max_by(|left, right| {
             left.started_at
                 .cmp(&right.started_at)
                 .then_with(|| left.display_id.cmp(&right.display_id))
-        })
-        .and_then(|run| run.message.clone());
-    (display_status, run_message)
+        });
+    let run_message = winning.and_then(|run| run.message.clone());
+    let waiting_reason = winning.and_then(|run| run.waiting_reason.clone());
+    (display_status, run_message, waiting_reason)
 }
 
 fn map_order_error(err: OrderError) -> AppError {
