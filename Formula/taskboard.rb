@@ -6,8 +6,7 @@ class Taskboard < Formula
 
   # Binary install (GitHub Release asset produced by .github/workflows/release-cli.yml).
   url "https://github.com/AI1411/taskboard/releases/download/v#{version}/taskboard-aarch64-apple-darwin.tar.gz"
-  # Updated after the first v0.1.0 CLI tarball is published.
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  sha256 "120c206c897f4e952061154a8b13260bd20e811a186118f7cb1054b052e3ebf5"
 
   head "https://github.com/AI1411/taskboard.git", branch: "main"
 

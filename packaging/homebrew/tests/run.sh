@@ -71,6 +71,21 @@ assert "formula requires macOS 14+" grep -q 'macos: :sonoma' "$formula"
 assert "formula installs from aarch64-apple-darwin tarball" grep -q 'taskboard-aarch64-apple-darwin.tar.gz' "$formula"
 assert "formula postinstall mentions alias_skipped" grep -q 'alias_skipped' "$formula"
 assert "formula does not bin.install tb" awk '/def install/,/^  end$/{if ($0 ~ /bin.install .*tb/) exit 1}' "$formula"
+assert "formula sha256 is 64 hex chars" grep -Eq 'sha256 "[0-9a-f]{64}"' "$formula"
+formula_sha256_not_placeholder() {
+  if grep -q 'sha256 "0000000000000000000000000000000000000000000000000000000000000000"' "$formula"; then
+    return 1
+  fi
+  return 0
+}
+readme_without_until_v010() {
+  if grep -q 'Until GitHub Release' "$repo/packaging/homebrew/README.md"; then
+    return 1
+  fi
+  return 0
+}
+assert "formula sha256 is not a zero placeholder" formula_sha256_not_placeholder
+assert "homebrew README no longer says Until v0.1.0" readme_without_until_v010
 
 if [ "$fail" -ne 0 ]; then
   printf '\npackaging/homebrew tests failed\n' >&2

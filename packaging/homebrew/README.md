@@ -18,17 +18,9 @@ brew tap AI1411/taskboard https://github.com/AI1411/taskboard
 brew install taskboard
 ```
 
-Until GitHub Release `v0.1.0` publishes `taskboard-aarch64-apple-darwin.tar.gz`, install from git:
-
-```bash
-brew install --HEAD AI1411/taskboard/taskboard
-```
-
 ## Tarball
 
-`packaging/homebrew/package_cli_tarball.sh` packs a `taskboard` binary plus a `tb` symlink. The tag workflow `.github/workflows/release-cli.yml` runs that script on `macos-14` and uploads the asset.
-
-After the first release, replace the placeholder `sha256` in `Formula/taskboard.rb` with:
+`packaging/homebrew/package_cli_tarball.sh` packs a `taskboard` binary plus a `tb` symlink. The tag workflow `.github/workflows/release-cli.yml` runs that script on `macos-14` and uploads the asset. `Formula/taskboard.rb` `sha256` must match that GitHub Release asset:
 
 ```bash
 shasum -a 256 taskboard-aarch64-apple-darwin.tar.gz
