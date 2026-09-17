@@ -11,9 +11,9 @@ use chrono::Utc;
 use clap::Parser;
 use taskboard_application::{
     ActivityQuery, Actor, App, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, NextClaim,
-    ProjectAdd, ProjectUpdate, ReviewAction, ReviewTask, RunCancel, RunContinue, RunFail,
-    RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, SystemClock, TaskCreate, TaskListQuery,
-    TaskSpawn, TaskUpdate,
+    OccupancyQuery, ProjectAdd, ProjectUpdate, ReviewAction, ReviewTask, RunCancel, RunContinue,
+    RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, SystemClock, TaskCreate,
+    TaskListQuery, TaskSpawn, TaskUpdate,
 };
 use taskboard_core::LinkKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
@@ -111,6 +111,14 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
                     println!("{}  {}", task.display_id, task.title);
                 }
             });
+            Ok(())
+        }
+        Command::Occupancy { path } => {
+            let groups = app
+                .occupancy(OccupancyQuery { path })
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entities(json, &groups, || output::print_occupancy(&groups));
             Ok(())
         }
         Command::Stale { minutes } => {
