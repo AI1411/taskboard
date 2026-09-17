@@ -17,9 +17,9 @@ use taskboard_core::{
 use crate::actor::Actor;
 use crate::commands::{
     ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope, LinkAdd, NextClaim,
-    ProjectAdd, ProjectUpdate, ReplyContinueResult, ReviewAction, ReviewTask, RunCancel,
-    RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, StatusLine,
-    TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate, STATUS_HEAD,
+    OccupancyGroup, OccupancyQuery, OccupancyRun, ProjectAdd, ProjectUpdate, ReplyContinueResult,
+    ReviewAction, ReviewTask, RunCancel, RunContinue, RunFail, RunFinish, RunListQuery, RunStart,
+    RunUpdate, RunWait, StatusLine, TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate, STATUS_HEAD,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -600,6 +600,12 @@ impl App {
         store.begin().await?;
         let result = run_finish_inner(store, actor, cmd, now).await;
         commit_or_rollback(store, result).await
+    }
+
+    pub async fn occupancy(&self, query: OccupancyQuery) -> Result<Vec<OccupancyGroup>, AppError> {
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        occupancy_inner(store, query).await
     }
 
     pub async fn run_list(&self, query: RunListQuery) -> Result<Vec<Run>, AppError> {
@@ -2525,6 +2531,47 @@ fn run_line(run: &Run, tasks: &HashMap<Uuid, &TaskSummary>) -> StatusLine {
         agent: Some(run.agent.clone()),
         detail,
     }
+}
+
+async fn occupancy_inner(
+    store: &mut dyn Store,
+    query: OccupancyQuery,
+) -> Result<Vec<OccupancyGroup>, AppError> {
+    let runs = store.list_all_runs().await?;
+    let mut groups: std::collections::BTreeMap<String, Vec<OccupancyRun>> =
+        std::collections::BTreeMap::new();
+    for run in runs {
+        if !matches!(run.status, RunStatus::Running | RunStatus::Waiting) {
+            continue;
+        }
+        let Some(task) = store.get_task(run.task_id).await? else {
+            continue;
+        };
+        let Some(path) = task.worktree_path.clone() else {
+            continue;
+        };
+        if let Some(filter) = query.path.as_deref() {
+            if path != filter {
+                continue;
+            }
+        }
+        groups.entry(path).or_default().push(OccupancyRun {
+            run_display_id: run.display_id,
+            task_display_id: task.display_id,
+            status: run.status.as_str().to_string(),
+            agent: run.agent,
+        });
+    }
+    if query.path.is_none() {
+        groups.retain(|_, runs| runs.len() >= 2);
+    }
+    Ok(groups
+        .into_iter()
+        .map(|(worktree_path, runs)| OccupancyGroup {
+            worktree_path,
+            runs,
+        })
+        .collect())
 }
 
 fn with_task_workspace(mut run: Run, task: &Task) -> Run {

@@ -130,6 +130,27 @@ pub struct TaskListQuery {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct OccupancyQuery {
+    pub path: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct OccupancyRun {
+    pub run_display_id: String,
+    pub task_display_id: String,
+    pub status: String,
+    pub agent: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct OccupancyGroup {
+    pub worktree_path: String,
+    pub runs: Vec<OccupancyRun>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct RunListQuery {
     pub open: bool,
     pub session_id: Option<String>,
