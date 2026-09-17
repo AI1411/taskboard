@@ -137,8 +137,17 @@ fn mcp_initialize_lists_core_tools_and_calls_app() {
         "stale",
         "project_detect",
         "link_add",
+        "status",
+        "occupancy",
+        "task_spawn",
     ] {
         assert!(names.contains(&required), "missing {required} in {names:?}");
+    }
+    for forbidden in ["project_add", "undo", "note_set"] {
+        assert!(
+            !names.contains(&forbidden),
+            "MCP must not grow {forbidden}: {names:?}"
+        );
     }
     let shown: Value = serde_json::from_str(
         responses[2]["result"]["structuredContent"]
@@ -308,5 +317,119 @@ fn mcp_write_path_parity() {
     assert_eq!(
         responses[14]["result"]["structuredContent"]["entity"]["status"],
         "failed"
+    );
+}
+
+#[test]
+fn mcp_status_occupancy_and_task_spawn() {
+    let dir = tempfile::tempdir().unwrap();
+    seed(&dir);
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Sibling",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    tb_in(&dir)
+        .args([
+            "task",
+            "update",
+            "TASK-1",
+            "--worktree",
+            "/tmp/shared",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    tb_in(&dir)
+        .args([
+            "task",
+            "update",
+            "TASK-2",
+            "--worktree",
+            "/tmp/shared",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "cursor", "--json"])
+        .output()
+        .unwrap();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-2", "--agent", "cursor", "--json"])
+        .output()
+        .unwrap();
+
+    let responses = mcp_rpc(
+        &dir,
+        &[
+            json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
+                "name":"status",
+                "arguments":{"project":"renai-sim"}
+            }}),
+            json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
+                "name":"occupancy",
+                "arguments":{}
+            }}),
+            json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
+                "name":"occupancy",
+                "arguments":{"path":"/tmp/shared"}
+            }}),
+            json!({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{
+                "name":"task_spawn",
+                "arguments":{"display_id":"TASK-1","titles":["API","UI"]}
+            }}),
+            json!({"jsonrpc":"2.0","id":5,"method":"tools/call","params":{
+                "name":"task_spawn",
+                "arguments":{"display_id":"TASK-1","titles":[]}
+            }}),
+            json!({"jsonrpc":"2.0","id":6,"method":"tools/call","params":{
+                "name":"project_add",
+                "arguments":{"name":"Nope"}
+            }}),
+        ],
+    );
+
+    let status = &responses[0]["result"]["structuredContent"]["entity"];
+    assert_eq!(status["open_runs"], 2);
+    assert!(status["ready"].is_number());
+
+    let collision = &responses[1]["result"]["structuredContent"]["entities"][0];
+    assert_eq!(collision["worktree_path"], "/tmp/shared");
+    assert_eq!(collision["runs"].as_array().unwrap().len(), 2);
+
+    assert_eq!(
+        responses[2]["result"]["structuredContent"]["entities"][0]["runs"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let children = responses[3]["result"]["structuredContent"]["entities"]
+        .as_array()
+        .unwrap();
+    assert_eq!(children.len(), 2);
+    assert_eq!(children[0]["display_id"], "TASK-3");
+    assert_eq!(children[0]["column"], "todo");
+    assert_eq!(children[1]["display_id"], "TASK-4");
+
+    assert_eq!(responses[4]["result"]["isError"], true);
+    assert_eq!(
+        responses[4]["result"]["structuredContent"]["error"]["code"],
+        "validation_error"
+    );
+
+    assert_eq!(responses[5]["result"]["isError"], true);
+    assert_eq!(
+        responses[5]["result"]["structuredContent"]["error"]["code"],
+        "validation_error"
     );
 }
