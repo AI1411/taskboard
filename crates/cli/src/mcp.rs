@@ -3,9 +3,9 @@ use std::str::FromStr;
 
 use serde_json::{json, Value};
 use taskboard_application::{
-    ActivityQuery, Actor, App, CheckAdd, CommentAdd, InboxScope, LinkAdd, NextClaim, ReviewAction,
-    ReviewTask, RunCancel, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunWait,
-    TaskCreate, TaskListQuery, TaskUpdate,
+    ActivityQuery, Actor, App, CheckAdd, CommentAdd, InboxScope, LinkAdd, NextClaim,
+    OccupancyQuery, ReviewAction, ReviewTask, RunCancel, RunContinue, RunFail, RunFinish,
+    RunListQuery, RunStart, RunWait, TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate,
 };
 use taskboard_core::{CardDisplayStatus, Column, LinkKind};
 
@@ -194,6 +194,41 @@ fn tools() -> Vec<Value> {
                     "project": { "type": "string" },
                     "archived": { "type": "boolean" }
                 }
+            }),
+        ),
+        tool(
+            "status",
+            "Board-wide snapshot of inbox, open runs, ready, review, and blocked",
+            json!({
+                "type": "object",
+                "properties": {
+                    "project": { "type": "string" }
+                }
+            }),
+        ),
+        tool(
+            "occupancy",
+            "Group running and waiting runs by worktree path",
+            json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                }
+            }),
+        ),
+        tool(
+            "task_spawn",
+            "Create child tasks and block the parent on them",
+            json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "titles": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                    }
+                },
+                "required": ["display_id", "titles"]
             }),
         ),
         tool(
@@ -758,6 +793,42 @@ async fn dispatch_tool(
         "project_detect" => {
             let project = detect_current_project(app).await?;
             Ok(json!({ "ok": true, "entity": project, "revision": project.revision }))
+        }
+        "status" => {
+            let snap = app.status(string_arg(&args, "project")).await?;
+            Ok(json!({ "ok": true, "entity": snap, "revision": 0 }))
+        }
+        "occupancy" => {
+            let groups = app
+                .occupancy(OccupancyQuery {
+                    path: string_arg(&args, "path"),
+                })
+                .await?;
+            Ok(json!({ "ok": true, "entities": groups }))
+        }
+        "task_spawn" => {
+            let titles = args
+                .get("titles")
+                .and_then(Value::as_array)
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .filter(|title| !title.is_empty())
+                        .map(str::to_string)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let children = app
+                .task_spawn(
+                    actor,
+                    TaskSpawn {
+                        parent_display_id: require_string(&args, "display_id")?,
+                        titles,
+                    },
+                )
+                .await?;
+            Ok(json!({ "ok": true, "entities": children }))
         }
         other => Err(taskboard_application::AppError::Validation {
             field: "name".into(),
