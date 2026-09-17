@@ -12,7 +12,7 @@ use clap::Parser;
 use taskboard_application::{
     ActivityQuery, Actor, App, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, NextClaim,
     ProjectAdd, ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate,
-    RunWait, SystemClock, TaskCreate, TaskListQuery, TaskUpdate,
+    RunWait, SystemClock, TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate,
 };
 use taskboard_core::LinkKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
@@ -398,6 +398,23 @@ async fn task_cmd(
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &task, task.revision, || {
                 output::created_task(&task);
+            });
+        }
+        TaskCommand::Spawn { display_id, titles } => {
+            let children = app
+                .task_spawn(
+                    actor,
+                    TaskSpawn {
+                        parent_display_id: display_id,
+                        titles,
+                    },
+                )
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entities(json, &children, || {
+                for child in &children {
+                    output::created_task(child);
+                }
             });
         }
         TaskCommand::List {

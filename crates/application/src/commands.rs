@@ -25,6 +25,12 @@ pub struct TaskCreate {
     pub urgent: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskSpawn {
+    pub parent_display_id: String,
+    pub titles: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TaskUpdate {
     pub display_id: String,

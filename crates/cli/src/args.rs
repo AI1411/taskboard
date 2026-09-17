@@ -201,6 +201,12 @@ pub enum TaskCommand {
         #[arg(long)]
         urgent: bool,
     },
+    /// Create child tasks and block the parent on them
+    Spawn {
+        display_id: String,
+        #[arg(long = "title", required = true, num_args = 1..)]
+        titles: Vec<String>,
+    },
     /// List tasks in a project or across all live projects
     List {
         #[arg(long, conflicts_with = "all")]
