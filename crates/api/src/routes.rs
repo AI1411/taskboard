@@ -532,15 +532,24 @@ async fn add_comment(
     Json(body): Json<AddCommentBody>,
 ) -> ApiResult {
     require_mutation(&state, &headers)?;
+    let cmd = CommentAdd {
+        task_display_id: display_id,
+        body: body.body,
+    };
+    if body.continue_waiting {
+        let result = state
+            .app
+            .comment_add_and_continue(&web_actor(), cmd)
+            .await
+            .map_err(app_error)?;
+        return Ok(entity(
+            CommentDto::from(result.comment),
+            result.run.revision,
+        ));
+    }
     let comment = state
         .app
-        .comment_add(
-            &web_actor(),
-            CommentAdd {
-                task_display_id: display_id,
-                body: body.body,
-            },
-        )
+        .comment_add(&web_actor(), cmd)
         .await
         .map_err(app_error)?;
     Ok(entity(CommentDto::from(comment), 0))

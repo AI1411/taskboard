@@ -74,7 +74,7 @@ async fn comment_add_command_uses_desktop_actor_and_keeps_note() {
         .await
         .unwrap();
     assert_eq!(task.note_markdown, "");
-    let comment = comment_add_inner(&app, "TASK-1".into(), "use TDD".into())
+    let comment = comment_add_inner(&app, "TASK-1".into(), "use TDD".into(), false)
         .await
         .unwrap();
     assert_eq!(comment.body, "use TDD");

@@ -230,9 +230,47 @@ describe("Inspector comments", () => {
     render(<TaskboardApp transport={transport} />);
     await userEvent.click(await screen.findByText("Talk"));
     await userEvent.type(screen.getByPlaceholderText("Add a comment"), "use TDD{Enter}");
-    await waitFor(() => expect(transport.commentAdd).toHaveBeenCalledWith("TASK-1", "use TDD"));
+    await waitFor(() =>
+      expect(transport.commentAdd).toHaveBeenCalledWith("TASK-1", "use TDD", false),
+    );
     expect(await screen.findByText(/local-ui · use TDD/)).toBeTruthy();
     expect((screen.getByLabelText("Note") as HTMLTextAreaElement).value).toBe("# Spec");
+  });
+
+  it("can continue a waiting run when sending a comment", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    const task = await transport.taskCreate(project.slug, { title: "Wait", column: "todo" });
+    const startedAt = "2026-09-16T12:00:00Z";
+    task.displayStatus = "waiting";
+    task.waitingReason = "Need spec";
+    task.runs = [
+      {
+        id: "r1",
+        displayId: "RUN-1",
+        taskId: task.id,
+        agent: "cursor",
+        sessionId: null,
+        status: "waiting",
+        message: null,
+        waitingReason: "Need spec",
+        summary: null,
+        startedAt,
+        endedAt: null,
+        revision: 1,
+        createdAt: startedAt,
+        updatedAt: startedAt,
+        worktreePath: null,
+        branch: null,
+      },
+    ];
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Wait"));
+    await userEvent.click(screen.getByLabelText("If Waiting, Continue"));
+    await userEvent.type(screen.getByPlaceholderText("Add a comment"), "here is spec{Enter}");
+    await waitFor(() =>
+      expect(transport.commentAdd).toHaveBeenCalledWith("TASK-1", "here is spec", true),
+    );
   });
 });
 

@@ -142,8 +142,8 @@ export class TauriTransport implements Transport {
     return this.call("link_add", { displayId, ...input });
   }
 
-  commentAdd(displayId: string, body: string): Promise<Comment> {
-    return this.call("comment_add", { displayId, body });
+  commentAdd(displayId: string, body: string, continueWaiting?: boolean): Promise<Comment> {
+    return this.call("comment_add", { displayId, body, continueWaiting: continueWaiting ?? false });
   }
 
   checkAdd(displayId: string, text: string): Promise<Check> {

@@ -178,7 +178,8 @@ fn tools() -> Vec<Value> {
                 "type": "object",
                 "properties": {
                     "display_id": { "type": "string" },
-                    "message": { "type": "string" }
+                    "message": { "type": "string" },
+                    "reply": { "type": "string" }
                 },
                 "required": ["display_id"]
             }),
@@ -213,7 +214,8 @@ fn tools() -> Vec<Value> {
                 "type": "object",
                 "properties": {
                     "display_id": { "type": "string" },
-                    "text": { "type": "string" }
+                    "text": { "type": "string" },
+                    "continue": { "type": "boolean" }
                 },
                 "required": ["display_id", "text"]
             }),
@@ -499,6 +501,7 @@ async fn dispatch_tool(
                     RunContinue {
                         run_display_id: require_string(&args, "display_id")?,
                         message: string_arg(&args, "message"),
+                        reply: string_arg(&args, "reply"),
                         revision: None,
                     },
                 )
@@ -528,16 +531,21 @@ async fn dispatch_tool(
             Ok(json!({ "ok": true, "entities": rows }))
         }
         "comment_add" => {
-            let comment = app
-                .comment_add(
-                    actor,
-                    CommentAdd {
-                        task_display_id: require_string(&args, "display_id")?,
-                        body: require_string(&args, "text")?,
-                    },
-                )
-                .await?;
-            Ok(json!({ "ok": true, "entity": comment, "revision": 0 }))
+            let cmd = CommentAdd {
+                task_display_id: require_string(&args, "display_id")?,
+                body: require_string(&args, "text")?,
+            };
+            if args
+                .get("continue")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                let result = app.comment_add_and_continue(actor, cmd).await?;
+                Ok(json!({ "ok": true, "entity": result, "revision": result.run.revision }))
+            } else {
+                let comment = app.comment_add(actor, cmd).await?;
+                Ok(json!({ "ok": true, "entity": comment, "revision": 0 }))
+            }
         }
         "comment_list" => {
             let comments = app

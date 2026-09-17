@@ -252,9 +252,10 @@ pub async fn comment_add(
     state: tauri::State<'_, DesktopState>,
     display_id: String,
     body: String,
+    continue_waiting: Option<bool>,
 ) -> Result<CommentDto, AppErrorDto> {
     let app = state.app.lock().await;
-    comment_add_inner(&app, display_id, body)
+    comment_add_inner(&app, display_id, body, continue_waiting.unwrap_or(false))
         .await
         .map(Into::into)
 }
