@@ -157,6 +157,20 @@ pub struct CommentAdd {
 
 pub const STATUS_HEAD: usize = 3;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReviewAction {
+    Approve,
+    Changes,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewTask {
+    pub task_display_id: String,
+    pub action: ReviewAction,
+    pub text: String,
+    pub revision: Option<i64>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct StatusLine {

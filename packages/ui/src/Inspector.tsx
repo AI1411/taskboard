@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type Ref } from "react";
-import type { Column, TaskDetail } from "@taskboard/types";
+import type { Column, ReviewAction, TaskDetail } from "@taskboard/types";
 
 import { COLUMNS } from "./columns";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -60,6 +60,7 @@ export function Inspector(props: {
   onCheckToggle?: (displayId: string) => void;
   onBlockedByAdd?: (displayId: string) => void;
   onRunCancel?: (runDisplayId: string) => void;
+  onReview?: (action: ReviewAction, text: string) => void;
   onCopyId?: (displayId: string) => void;
   onClose?: () => void;
 }) {
@@ -70,6 +71,7 @@ export function Inspector(props: {
   const [continueWaiting, setContinueWaiting] = useState(false);
   const [checkValue, setCheckValue] = useState("");
   const [blockedByValue, setBlockedByValue] = useState("");
+  const [reviewValue, setReviewValue] = useState("");
   const lastId = useRef<string | null>(null);
   const panelRef = useRef<HTMLElement>(null);
 
@@ -82,6 +84,7 @@ export function Inspector(props: {
       setCommentValue("");
       setCheckValue("");
       setBlockedByValue("");
+      setReviewValue("");
       return;
     }
     if (lastId.current !== props.task.displayId) {
@@ -92,6 +95,7 @@ export function Inspector(props: {
       setCommentValue("");
       setCheckValue("");
       setBlockedByValue("");
+      setReviewValue("");
     }
   }, [props.task]);
 
@@ -249,6 +253,43 @@ export function Inspector(props: {
             If Waiting, Continue
           </label>
         </div>
+        {props.task.column === "in-review" ? (
+          <div>
+            <h3 className={styles.heading}>Review</h3>
+            <input
+              className={styles.linkInput}
+              placeholder="Review comment"
+              value={reviewValue}
+              onChange={(e) => setReviewValue(e.target.value)}
+            />
+            <div className={styles.linkAdd}>
+              <button
+                type="button"
+                className={styles.linkButton}
+                onClick={() => {
+                  const text = reviewValue.trim();
+                  if (!text) return;
+                  props.onReview?.("approve", text);
+                  setReviewValue("");
+                }}
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                className={styles.linkButton}
+                onClick={() => {
+                  const text = reviewValue.trim();
+                  if (!text) return;
+                  props.onReview?.("changes", text);
+                  setReviewValue("");
+                }}
+              >
+                Request changes
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div>
           <h3 className={styles.heading}>Links</h3>
           <ul className={styles.list}>

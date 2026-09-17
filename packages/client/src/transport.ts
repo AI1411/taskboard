@@ -5,6 +5,7 @@ import type {
   LinkKind,
   Project,
   ProjectPatch,
+  ReviewAction,
   Run,
   RunOp,
   SyncDelta,
@@ -61,6 +62,7 @@ export interface Transport {
   checkToggle(displayId: string): Promise<Check>;
   runStart(displayId: string, input: { agent: string; sessionId?: string }): Promise<Run>;
   runPatch(runDisplayId: string, op: RunOp, revision?: number): Promise<Run>;
+  review(displayId: string, input: { action: ReviewAction; text: string }): Promise<TaskDetail>;
   inbox(opts?: { project?: string; includeArchived?: boolean }): Promise<InboxItem[]>;
   trashList(): Promise<Trash>;
   undo(): Promise<UndoResult>;

@@ -10,7 +10,8 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use taskboard_application::{
     Actor, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate,
-    RunCancel, RunFail, RunFinish, RunStart, RunUpdate, RunWait, TaskCreate, TaskUpdate,
+    ReviewAction, ReviewTask, RunCancel, RunFail, RunFinish, RunStart, RunUpdate, RunWait,
+    TaskCreate, TaskUpdate,
 };
 use taskboard_core::ActorKind;
 use uuid::Uuid;
@@ -19,8 +20,8 @@ use crate::dto::{
     json_keys_to_camel, AddCheckBody, AddCommentBody, AddLinkBody, BackupBody, CheckDto,
     CommentDto, CreateProjectBody, CreateTaskBody, InboxItemDto, InboxQuery, ListProjectsQuery,
     PatchProjectBody, PatchRunBody, PatchTaskBody, PatchUiStateBody, ProjectDto,
-    ReorderProjectsBody, RunDto, RunOp, StartRunBody, SyncDeltaDto, SyncQuery, TaskDetailDto,
-    TrashDto, UiStateDto,
+    ReorderProjectsBody, ReviewActionDto, ReviewBody, RunDto, RunOp, StartRunBody, SyncDeltaDto,
+    SyncQuery, TaskDetailDto, TrashDto, UiStateDto,
 };
 use crate::origin::origin_allowed;
 use crate::server::{
@@ -45,6 +46,7 @@ pub(crate) fn api_router() -> Router<Arc<AppState>> {
         .route("/api/v1/tasks/:display_id/links", post(add_link))
         .route("/api/v1/tasks/:display_id/comments", post(add_comment))
         .route("/api/v1/tasks/:display_id/checks", post(add_check))
+        .route("/api/v1/tasks/:display_id/review", post(review_task))
         .route("/api/v1/checks/:display_id", patch(toggle_check))
         .route("/api/v1/tasks/:display_id/runs", post(start_run))
         .route("/api/v1/tasks/:display_id/restore", post(restore_task))
@@ -553,6 +555,35 @@ async fn add_comment(
         .await
         .map_err(app_error)?;
     Ok(entity(CommentDto::from(comment), 0))
+}
+
+async fn review_task(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(display_id): Path<String>,
+    Json(body): Json<ReviewBody>,
+) -> ApiResult {
+    require_mutation(&state, &headers)?;
+    let action = match body.action {
+        ReviewActionDto::Approve => ReviewAction::Approve,
+        ReviewActionDto::Changes => ReviewAction::Changes,
+    };
+    let task = state
+        .app
+        .review(
+            &web_actor(),
+            ReviewTask {
+                task_display_id: display_id,
+                action,
+                text: body.text,
+                revision: if_match(&headers)?,
+            },
+        )
+        .await
+        .map_err(app_error)?;
+    let dto = TaskDetailDto::from(task);
+    let revision = dto.revision;
+    Ok(entity(dto, revision))
 }
 
 async fn add_check(

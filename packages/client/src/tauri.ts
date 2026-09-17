@@ -5,6 +5,7 @@ import type {
   LinkKind,
   Project,
   ProjectPatch,
+  ReviewAction,
   Run,
   RunOp,
   SyncDelta,
@@ -164,6 +165,10 @@ export class TauriTransport implements Transport {
 
   runPatch(runDisplayId: string, op: RunOp, revision?: number): Promise<Run> {
     return this.call("run_patch", { runDisplayId, ...op, revision });
+  }
+
+  review(displayId: string, input: { action: ReviewAction; text: string }): Promise<TaskDetail> {
+    return this.call("review", { displayId, ...input });
   }
 
   inbox(opts?: { project?: string; includeArchived?: boolean }): Promise<InboxItem[]> {

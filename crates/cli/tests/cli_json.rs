@@ -1352,6 +1352,90 @@ fn run_cancel_completed_is_validation_error() {
     assert_eq!(v["error"]["code"], "validation_error");
 }
 
+#[test]
+fn review_approve_json_moves_to_done() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Ship",
+            "--column",
+            "in-review",
+        ])
+        .assert()
+        .success();
+    let v = json_ok(&dir, &["review", "TASK-1", "--approve", "--text", "lgtm"]);
+    assert_eq!(v["entity"]["column"], "done");
+    assert_eq!(v["entity"]["comments"][0]["body"], "lgtm");
+}
+
+#[test]
+fn review_changes_json_moves_to_in_progress() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Ship",
+            "--column",
+            "in-review",
+        ])
+        .assert()
+        .success();
+    let v = json_ok(
+        &dir,
+        &["review", "TASK-1", "--changes", "--text", "fix the copy"],
+    );
+    assert_eq!(v["entity"]["column"], "in-progress");
+    let shown = json_ok(&dir, &["task", "show", "TASK-1"]);
+    assert_eq!(shown["entity"]["runs"].as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn review_todo_is_validation_error() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Idle",
+        ])
+        .assert()
+        .success();
+    let out = tb_in(&dir)
+        .args(["review", "TASK-1", "--approve", "--text", "nope", "--json"])
+        .assert()
+        .failure()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["error"]["code"], "validation_error");
+}
+
 fn json_ok(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     let mut argv = args.to_vec();
     argv.push("--json");
