@@ -55,6 +55,7 @@ pub fn run() {
             commands::check_toggle,
             commands::run_start,
             commands::run_patch,
+            commands::review,
             commands::inbox,
             commands::trash_list,
             commands::undo,

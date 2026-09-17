@@ -379,3 +379,28 @@ describe("Inspector blocked-by", () => {
     expect(await screen.findByText("blocked-by cycle")).toBeTruthy();
   });
 });
+
+describe("Inspector review", () => {
+  it("approves an in-review card", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Ship", column: "in-review" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Ship"));
+    await userEvent.type(screen.getByPlaceholderText("Review comment"), "lgtm");
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await waitFor(() =>
+      expect(transport.review).toHaveBeenCalledWith("TASK-1", { action: "approve", text: "lgtm" }),
+    );
+  });
+
+  it("hides review verbs when the card is not in review", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Todo", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Todo"));
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Request changes" })).toBeNull();
+  });
+});

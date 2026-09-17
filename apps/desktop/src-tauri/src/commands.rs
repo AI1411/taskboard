@@ -3,7 +3,8 @@ use taskboard_desktop_commands::{
     check_add_inner, check_toggle_inner, comment_add_inner, deserialize_present_option,
     inbox_inner, link_add_inner, link_remove_inner, project_add_inner, project_archive_inner,
     project_delete_inner, project_list_inner, project_note_set_inner, project_reorder_inner,
-    project_restore_inner, project_update_inner, run_patch_inner, run_start_inner, sync_inner,
+    project_restore_inner, project_update_inner, review_inner, run_patch_inner, run_start_inner,
+    sync_inner,
     task_create_inner, task_delete_inner, task_list_inner, task_move_inner, task_note_set_inner,
     task_reorder_inner, task_restore_inner, task_show_inner, task_update_inner, task_urgent_inner,
     trash_list_inner, ui_state_inner, ui_state_set_inner, undo_inner, AppErrorDto, CheckDto,
@@ -340,6 +341,20 @@ pub async fn run_patch(
     )
     .await
     .map(Into::into)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn review(
+    state: tauri::State<'_, DesktopState>,
+    display_id: String,
+    action: String,
+    text: String,
+    revision: Option<i64>,
+) -> Result<TaskDetailDto, AppErrorDto> {
+    let app = state.app.lock().await;
+    review_inner(&app, display_id, action, text, revision)
+        .await
+        .map(Into::into)
 }
 
 #[tauri::command(rename_all = "snake_case")]

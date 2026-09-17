@@ -5,6 +5,7 @@ import type {
   DisplayStatus,
   InboxItem,
   Project,
+  ReviewAction,
   TaskDetail,
   TaskSummary,
 } from "@taskboard/types";
@@ -351,6 +352,22 @@ export function fakeTransport(): Transport {
         }
       }
       throw new Error("not implemented");
+    },
+    async review(displayId, input: { action: ReviewAction; text: string }) {
+      const detail = details.get(displayId);
+      const task = tasks.find((item) => item.displayId === displayId);
+      if (!detail || !task) throw new Error("not found");
+      detail.comments.push({
+        id: `c${detail.comments.length + 1}`,
+        taskId: detail.id,
+        actorKind: "desktop",
+        actorLabel: "local-ui",
+        body: input.text,
+        createdAt: now(),
+      });
+      task.column = input.action === "approve" ? "done" : "in-progress";
+      Object.assign(detail, task);
+      return { ...detail, comments: [...detail.comments], runs: [...detail.runs] };
     },
     async inbox(opts) {
       const includeArchived = opts?.includeArchived ?? false;

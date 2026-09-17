@@ -2,8 +2,8 @@ use std::path::Path;
 
 use taskboard_application::{
     Actor, App, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate,
-    RunCancel, RunFail, RunFinish, RunStart, RunUpdate, RunWait, SyncDelta, TaskCreate, TaskUpdate,
-    Trash, UndoResult,
+    ReviewAction, ReviewTask, RunCancel, RunFail, RunFinish, RunStart, RunUpdate, RunWait,
+    SyncDelta, TaskCreate, TaskUpdate, Trash, UndoResult,
 };
 use taskboard_core::{
     ActorKind, Check, Column, Comment, InboxItem, LinkKind, Project, Run, TaskDetail, TaskSummary,
@@ -460,6 +460,33 @@ pub async fn run_patch_inner(
             .await
             .map_err(Into::into),
     }
+}
+
+pub async fn review_inner(
+    app: &App,
+    display_id: String,
+    action: String,
+    text: String,
+    revision: Option<i64>,
+) -> Result<TaskDetail, AppErrorDto> {
+    let action = match action.as_str() {
+        "approve" => ReviewAction::Approve,
+        "changes" => ReviewAction::Changes,
+        _ => {
+            return Err(missing("action"));
+        }
+    };
+    app.review(
+        &actor(),
+        ReviewTask {
+            task_display_id: display_id,
+            action,
+            text,
+            revision,
+        },
+    )
+    .await
+    .map_err(Into::into)
 }
 
 pub async fn inbox_inner(

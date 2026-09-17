@@ -406,6 +406,20 @@ pub struct AddCheckBody {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewBody {
+    pub action: ReviewActionDto,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReviewActionDto {
+    Approve,
+    Changes,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StartRunBody {
     pub agent: String,
     pub session_id: Option<String>,

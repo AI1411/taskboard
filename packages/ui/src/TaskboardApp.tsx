@@ -951,6 +951,19 @@ export function TaskboardApp(props: {
             }
           })();
         }}
+        onReview={(action, text) => {
+          const id = selectedIdRef.current;
+          if (!id) return;
+          void (async () => {
+            try {
+              applyDetail(await transport.review(id, { action, text }));
+              const project = selectedProjectRef.current;
+              if (project) await refreshTasks(project.slug);
+            } catch (err) {
+              setToast({ message: errorMessage(err), error: true });
+            }
+          })();
+        }}
         onRunCancel={(runDisplayId) => {
           void (async () => {
             try {

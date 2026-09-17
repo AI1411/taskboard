@@ -5,6 +5,7 @@ import type {
   LinkKind,
   Project,
   ProjectPatch,
+  ReviewAction,
   Run,
   RunOp,
   SyncDelta,
@@ -164,6 +165,10 @@ export class HttpTransport implements Transport {
 
   runPatch(runDisplayId: string, op: RunOp, revision?: number): Promise<Run> {
     return this.request("PATCH", `/api/v1/runs/${enc(runDisplayId)}`, { body: op, revision });
+  }
+
+  review(displayId: string, input: { action: ReviewAction; text: string }): Promise<TaskDetail> {
+    return this.request("POST", `/api/v1/tasks/${enc(displayId)}/review`, { body: input });
   }
 
   inbox(opts?: { project?: string; includeArchived?: boolean }): Promise<InboxItem[]> {

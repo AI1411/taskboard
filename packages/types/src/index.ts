@@ -160,6 +160,8 @@ export interface TaskPatch {
   beforeDisplayId?: string | null;
 }
 
+export type ReviewAction = "approve" | "changes";
+
 export type RunOp =
   | { op: "update"; message?: string }
   | { op: "wait"; reason: string }

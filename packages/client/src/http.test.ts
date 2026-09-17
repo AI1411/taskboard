@@ -142,6 +142,7 @@ describe("HttpTransport", () => {
     await t.checkAdd("TASK-1", "Write tests");
     await t.checkToggle("CHECK-1");
     await t.linkAdd("TASK-1", { kind: "blocked_by", value: "TASK-2" });
+    await t.review("TASK-1", { action: "approve", text: "lgtm" });
     assert.equal(fetches[0].method, "POST");
     assert.equal(new URL(fetches[0].url).pathname, "/api/v1/tasks/TASK-1/comments");
     assert.deepEqual(await fetches[0].json(), { body: "hi", continue: false });
@@ -151,5 +152,7 @@ describe("HttpTransport", () => {
     assert.equal(new URL(fetches[2].url).pathname, "/api/v1/checks/CHECK-1");
     assert.equal(new URL(fetches[3].url).pathname, "/api/v1/tasks/TASK-1/links");
     assert.deepEqual(await fetches[3].json(), { kind: "blocked_by", value: "TASK-2" });
+    assert.equal(new URL(fetches[4].url).pathname, "/api/v1/tasks/TASK-1/review");
+    assert.deepEqual(await fetches[4].json(), { action: "approve", text: "lgtm" });
   });
 });
