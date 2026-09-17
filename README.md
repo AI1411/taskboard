@@ -4,6 +4,17 @@ macOS 向けのローカル Kanban です。ボードはデスクトップアプ
 
 Cursor、Claude Code、Codex などの AI エージェントは、HTTP API ではなく CLI を SKILL 経由で呼び出します。`GET /api/v1/status`、`GET /api/v1/occupancy`、`POST /api/v1/tasks/TASK-n/spawn` は人のボード面（`tb serve` / desktop）です。エージェントは CLI か `tb mcp` を使います。
 
+出荷済みの面は次のとおりです。契約の全文は [`AGENTS.md`](AGENTS.md) と [`skills/using-taskboard/SKILL.md`](skills/using-taskboard/SKILL.md)。変更履歴は [`CHANGELOG`](CHANGELOG.md)。計画メモは [`docs/superpowers/`](docs/superpowers/) にリンクだけ置きます。
+
+## Capability
+
+| Surface | What exists today |
+| --- | --- |
+| Board | Inbox (waiting / failed / stale / In Review / urgent), inspector writes (note, worktree, branch, checks, comments, links), human review, status counts, occupancy line, spawn |
+| CLI | `status`, `next`, `spawn`, `occupancy`, `review`, `inbox`, `tb serve` |
+| Agents | skills + [`AGENTS.md`](AGENTS.md); local `tb mcp` (stdio). Not the HTTP API |
+| Distribution | Homebrew `brew install taskboard`; `tb serve` for the local Web UI |
+
 ## CLI を入れる
 
 [Homebrew](packaging/homebrew/README.md):
