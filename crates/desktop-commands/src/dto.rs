@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-use taskboard_application::{SyncDelta, Trash, UndoResult};
+use taskboard_application::{
+    BoardStatus, InboxCounts, OccupancyGroup, OccupancyRun, StatusLine, SyncDelta, Trash, UndoResult,
+};
 use taskboard_core::{
     Activity, ActorKind, CardDisplayStatus, Check, Column, Comment, EntityType, InboxItem, Link,
     LinkKind, Project, Run, RunStatus, TaskDetail, TaskSummary,
@@ -376,6 +378,122 @@ impl From<InboxItem> for InboxItemDto {
 pub struct UndoResultDto {
     pub entity_type: EntityType,
     pub entity: Value,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusLineDto {
+    pub display_id: String,
+    pub status: String,
+    pub agent: Option<String>,
+    pub detail: String,
+}
+
+impl From<StatusLine> for StatusLineDto {
+    fn from(line: StatusLine) -> Self {
+        Self {
+            display_id: line.display_id,
+            status: line.status,
+            agent: line.agent,
+            detail: line.detail,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InboxCountsDto {
+    pub total: usize,
+    pub waiting: usize,
+    pub failed: usize,
+    pub stale: usize,
+    pub review: usize,
+    pub urgent: usize,
+}
+
+impl From<InboxCounts> for InboxCountsDto {
+    fn from(counts: InboxCounts) -> Self {
+        Self {
+            total: counts.total,
+            waiting: counts.waiting,
+            failed: counts.failed,
+            stale: counts.stale,
+            review: counts.review,
+            urgent: counts.urgent,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BoardStatusDto {
+    pub inbox: InboxCountsDto,
+    pub inbox_head: Vec<StatusLineDto>,
+    pub open_runs: usize,
+    pub open_run_head: Vec<StatusLineDto>,
+    pub stale: usize,
+    pub stale_head: Vec<StatusLineDto>,
+    pub ready: usize,
+    pub ready_head: Vec<StatusLineDto>,
+    pub in_review: usize,
+    pub in_review_head: Vec<StatusLineDto>,
+    pub blocked: usize,
+    pub blocked_head: Vec<StatusLineDto>,
+}
+
+impl From<BoardStatus> for BoardStatusDto {
+    fn from(snap: BoardStatus) -> Self {
+        Self {
+            inbox: InboxCountsDto::from(snap.inbox),
+            inbox_head: snap.inbox_head.into_iter().map(StatusLineDto::from).collect(),
+            open_runs: snap.open_runs,
+            open_run_head: snap.open_run_head.into_iter().map(StatusLineDto::from).collect(),
+            stale: snap.stale,
+            stale_head: snap.stale_head.into_iter().map(StatusLineDto::from).collect(),
+            ready: snap.ready,
+            ready_head: snap.ready_head.into_iter().map(StatusLineDto::from).collect(),
+            in_review: snap.in_review,
+            in_review_head: snap.in_review_head.into_iter().map(StatusLineDto::from).collect(),
+            blocked: snap.blocked,
+            blocked_head: snap.blocked_head.into_iter().map(StatusLineDto::from).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OccupancyRunDto {
+    pub run_display_id: String,
+    pub task_display_id: String,
+    pub status: String,
+    pub agent: String,
+}
+
+impl From<OccupancyRun> for OccupancyRunDto {
+    fn from(run: OccupancyRun) -> Self {
+        Self {
+            run_display_id: run.run_display_id,
+            task_display_id: run.task_display_id,
+            status: run.status,
+            agent: run.agent,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OccupancyGroupDto {
+    pub worktree_path: String,
+    pub runs: Vec<OccupancyRunDto>,
+}
+
+impl From<OccupancyGroup> for OccupancyGroupDto {
+    fn from(group: OccupancyGroup) -> Self {
+        Self {
+            worktree_path: group.worktree_path,
+            runs: group.runs.into_iter().map(OccupancyRunDto::from).collect(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

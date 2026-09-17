@@ -3,8 +3,9 @@ use std::ops::Deref;
 use taskboard_application::{App, AppError, SystemClock};
 use taskboard_core::LinkKind;
 use taskboard_desktop_commands::{
-    check_add_inner, check_toggle_inner, comment_add_inner, link_add_inner, project_add_inner,
-    sync_inner, task_create_inner, task_update_inner, AppErrorDto, TaskPatchArgs,
+    check_add_inner, check_toggle_inner, comment_add_inner, link_add_inner, occupancy_inner,
+    project_add_inner, run_start_inner, status_inner, sync_inner, task_create_inner,
+    task_show_inner, task_spawn_inner, task_update_inner, AppErrorDto, TaskPatchArgs,
 };
 use taskboard_store_sqlite::{open_db, SqliteStore};
 
@@ -183,4 +184,81 @@ async fn task_update_sets_and_clears_worktree_and_branch() {
     .unwrap();
     assert_eq!(cleared.worktree_path, None);
     assert_eq!(cleared.branch, None);
+}
+
+#[tokio::test]
+async fn status_command_counts_ready_card() {
+    let app = test_app().await;
+    project_add_inner(&app, "Renai Sim".into(), None, None)
+        .await
+        .unwrap();
+    task_create_inner(&app, "renai-sim".into(), "Fix login".into(), None, None)
+        .await
+        .unwrap();
+    let snap = status_inner(&app, None).await.unwrap();
+    assert_eq!(snap.ready, 1);
+    assert_eq!(snap.ready_head[0].display_id, "TASK-1");
+}
+
+#[tokio::test]
+async fn occupancy_command_lists_collision() {
+    let app = test_app().await;
+    project_add_inner(&app, "Renai Sim".into(), None, None)
+        .await
+        .unwrap();
+    task_create_inner(&app, "renai-sim".into(), "A".into(), None, None)
+        .await
+        .unwrap();
+    task_create_inner(&app, "renai-sim".into(), "B".into(), None, None)
+        .await
+        .unwrap();
+    for id in ["TASK-1", "TASK-2"] {
+        task_update_inner(
+            &app,
+            TaskPatchArgs {
+                display_id: id.into(),
+                title: None,
+                note_markdown: None,
+                urgent: None,
+                column: None,
+                before_display_id: None,
+                worktree_path: Some("/tmp/shared".into()),
+                branch: None,
+                revision: None,
+            },
+        )
+        .await
+        .unwrap();
+        run_start_inner(&app, id.into(), "cursor".into(), None)
+            .await
+            .unwrap();
+    }
+    let groups = occupancy_inner(&app, None).await.unwrap();
+    assert_eq!(groups[0].worktree_path, "/tmp/shared");
+    assert_eq!(groups[0].runs.len(), 2);
+}
+
+#[tokio::test]
+async fn spawn_command_creates_child_without_moving_parent() {
+    let app = test_app().await;
+    project_add_inner(&app, "Renai Sim".into(), None, None)
+        .await
+        .unwrap();
+    let parent = task_create_inner(&app, "renai-sim".into(), "Parent".into(), None, None)
+        .await
+        .unwrap();
+    let kids = task_spawn_inner(&app, "TASK-1".into(), vec!["Child".into()])
+        .await
+        .unwrap();
+    assert_eq!(kids[0].title, "Child");
+    assert_eq!(kids[0].column, taskboard_core::Column::Todo);
+    let shown = task_show_inner(&app, "TASK-1".into()).await.unwrap();
+    assert_eq!(shown.column, parent.column);
+    let values: Vec<_> = shown
+        .links
+        .iter()
+        .filter(|link| link.kind == LinkKind::BlockedBy)
+        .map(|link| link.value.as_str())
+        .collect();
+    assert_eq!(values, ["TASK-2"]);
 }
