@@ -1,9 +1,10 @@
 use std::path::Path;
 
 use taskboard_application::{
-    Actor, App, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate,
-    ReviewAction, ReviewTask, RunCancel, RunFail, RunFinish, RunStart, RunUpdate, RunWait,
-    SyncDelta, TaskCreate, TaskUpdate, Trash, UndoResult,
+    Actor, App, AppError, BoardStatus, CheckAdd, CommentAdd, InboxScope, LinkAdd, OccupancyGroup,
+    OccupancyQuery, ProjectAdd, ProjectUpdate, ReviewAction, ReviewTask, RunCancel, RunFail,
+    RunFinish, RunStart, RunUpdate, RunWait, SyncDelta, TaskCreate, TaskSpawn, TaskUpdate, Trash,
+    UndoResult,
 };
 use taskboard_core::{
     ActorKind, Check, Column, Comment, InboxItem, LinkKind, Project, Run, TaskDetail, TaskSummary,
@@ -512,6 +513,35 @@ pub async fn review_inner(
             action,
             text,
             revision,
+        },
+    )
+    .await
+    .map_err(Into::into)
+}
+
+pub async fn status_inner(app: &App, project: Option<String>) -> Result<BoardStatus, AppErrorDto> {
+    app.status(project).await.map_err(Into::into)
+}
+
+pub async fn occupancy_inner(
+    app: &App,
+    path: Option<String>,
+) -> Result<Vec<OccupancyGroup>, AppErrorDto> {
+    app.occupancy(OccupancyQuery { path })
+        .await
+        .map_err(Into::into)
+}
+
+pub async fn task_spawn_inner(
+    app: &App,
+    display_id: String,
+    titles: Vec<String>,
+) -> Result<Vec<TaskDetail>, AppErrorDto> {
+    app.task_spawn(
+        &actor(),
+        TaskSpawn {
+            parent_display_id: display_id,
+            titles,
         },
     )
     .await

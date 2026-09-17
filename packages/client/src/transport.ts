@@ -15,6 +15,8 @@ import type {
   InboxItem,
   Trash,
   UndoResult,
+  BoardStatus,
+  OccupancyGroup,
 } from "@taskboard/types";
 
 export type UiState = { lastProjectSlug: string | null };
@@ -63,6 +65,9 @@ export interface Transport {
   runStart(displayId: string, input: { agent: string; sessionId?: string }): Promise<Run>;
   runPatch(runDisplayId: string, op: RunOp, revision?: number): Promise<Run>;
   review(displayId: string, input: { action: ReviewAction; text: string }): Promise<TaskDetail>;
+  status(project?: string): Promise<BoardStatus>;
+  occupancy(path?: string): Promise<OccupancyGroup[]>;
+  taskSpawn(displayId: string, titles: string[]): Promise<TaskDetail[]>;
   inbox(opts?: { project?: string; includeArchived?: boolean }): Promise<InboxItem[]>;
   trashList(): Promise<Trash>;
   undo(): Promise<UndoResult>;

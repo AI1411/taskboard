@@ -176,4 +176,30 @@ describe("HttpTransport", () => {
     assert.equal(new URL(fetches[4].url).pathname, "/api/v1/tasks/TASK-1/review");
     assert.deepEqual(await fetches[4].json(), { action: "approve", text: "lgtm" });
   });
+
+  it("loads status occupancy and spawn as human routes", async () => {
+    const fetches: Request[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      fetches.push(new Request(input, init));
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          entity: { ready: 1, inbox: { total: 0 } },
+          entities: [{ worktreePath: "/tmp/shared" }, { displayId: "TASK-2" }],
+          revision: 0,
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    };
+    const t = new HttpTransport("http://127.0.0.1:9", "deadbeef", fetchImpl);
+    await t.status("renai-sim");
+    assert.equal(new URL(fetches[0].url).pathname, "/api/v1/status");
+    assert.equal(new URL(fetches[0].url).searchParams.get("project"), "renai-sim");
+    await t.occupancy();
+    assert.equal(new URL(fetches[1].url).pathname, "/api/v1/occupancy");
+    await t.taskSpawn("TASK-1", ["Child"]);
+    assert.equal(fetches[2].method, "POST");
+    assert.equal(new URL(fetches[2].url).pathname, "/api/v1/tasks/TASK-1/spawn");
+    assert.deepEqual(await fetches[2].json(), { titles: ["Child"] });
+  });
 });

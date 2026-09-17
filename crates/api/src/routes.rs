@@ -9,18 +9,19 @@ use axum::{Json, Router};
 use serde::Serialize;
 use serde_json::{json, Value};
 use taskboard_application::{
-    Actor, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate,
-    ReviewAction, ReviewTask, RunCancel, RunFail, RunFinish, RunStart, RunUpdate, RunWait,
-    TaskCreate, TaskUpdate,
+    Actor, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, OccupancyQuery, ProjectAdd,
+    ProjectUpdate, ReviewAction, ReviewTask, RunCancel, RunFail, RunFinish, RunStart, RunUpdate,
+    RunWait, TaskCreate, TaskSpawn, TaskUpdate,
 };
 use taskboard_core::ActorKind;
 use uuid::Uuid;
 
 use crate::dto::{
     empty_to_none, json_keys_to_camel, AddCheckBody, AddCommentBody, AddLinkBody, BackupBody,
-    CheckDto, CommentDto, CreateProjectBody, CreateTaskBody, InboxItemDto, InboxQuery,
-    ListProjectsQuery, PatchProjectBody, PatchRunBody, PatchTaskBody, PatchUiStateBody, ProjectDto,
-    ReorderProjectsBody, ReviewActionDto, ReviewBody, RunDto, RunOp, StartRunBody, SyncDeltaDto,
+    BoardStatusDto, CheckDto, CommentDto, CreateProjectBody, CreateTaskBody, InboxItemDto,
+    InboxQuery, ListProjectsQuery, OccupancyGroupDto, OccupancyQueryDto, PatchProjectBody,
+    PatchRunBody, PatchTaskBody, PatchUiStateBody, ProjectDto, ReorderProjectsBody,
+    ReviewActionDto, ReviewBody, RunDto, RunOp, SpawnBody, StartRunBody, StatusQuery, SyncDeltaDto,
     SyncQuery, TaskDetailDto, TrashDto, UiStateDto,
 };
 use crate::origin::origin_allowed;
@@ -56,6 +57,9 @@ pub(crate) fn api_router() -> Router<Arc<AppState>> {
         )
         .route("/api/v1/links/:id", delete(remove_link))
         .route("/api/v1/runs/:display_id", patch(patch_run))
+        .route("/api/v1/status", get(get_status))
+        .route("/api/v1/occupancy", get(get_occupancy))
+        .route("/api/v1/tasks/:display_id/spawn", post(spawn_task))
         .route("/api/v1/inbox", get(list_inbox))
         .route("/api/v1/trash", get(list_trash))
         .route("/api/v1/undo", post(undo))
@@ -762,6 +766,61 @@ async fn patch_run(
     let dto = RunDto::from(run);
     let revision = dto.revision;
     Ok(entity(dto, revision))
+}
+
+async fn get_status(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(query): Query<StatusQuery>,
+) -> ApiResult {
+    require_read(&state, &headers)?;
+    let snap = state.app.status(query.project).await.map_err(app_error)?;
+    Ok(entity(BoardStatusDto::from(snap), 0))
+}
+
+async fn get_occupancy(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(query): Query<OccupancyQueryDto>,
+) -> ApiResult {
+    require_read(&state, &headers)?;
+    let groups = state
+        .app
+        .occupancy(OccupancyQuery { path: query.path })
+        .await
+        .map_err(app_error)?;
+    Ok(entities(
+        groups
+            .into_iter()
+            .map(OccupancyGroupDto::from)
+            .collect::<Vec<_>>(),
+    ))
+}
+
+async fn spawn_task(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(display_id): Path<String>,
+    Json(body): Json<SpawnBody>,
+) -> ApiResult {
+    require_mutation(&state, &headers)?;
+    let children = state
+        .app
+        .task_spawn(
+            &web_actor(),
+            TaskSpawn {
+                parent_display_id: display_id,
+                titles: body.titles,
+            },
+        )
+        .await
+        .map_err(app_error)?;
+    Ok(entities(
+        children
+            .into_iter()
+            .map(TaskDetailDto::from)
+            .collect::<Vec<_>>(),
+    ))
 }
 
 async fn list_inbox(

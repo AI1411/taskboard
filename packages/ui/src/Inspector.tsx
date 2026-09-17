@@ -64,11 +64,13 @@ export function Inspector(props: {
   onCopyId?: (displayId: string) => void;
   onClose?: () => void;
   onWorkspaceChange?: (patch: { worktreePath?: string; branch?: string }) => void;
+  onSpawn?: (title: string) => void;
 }) {
   const [title, setTitle] = useState(props.task?.title ?? "");
   const [note, setNote] = useState(props.task?.noteMarkdown ?? "");
   const [worktree, setWorktree] = useState(props.task?.worktreePath ?? "");
   const [branch, setBranch] = useState(props.task?.branch ?? "");
+  const [spawnValue, setSpawnValue] = useState("");
   const [linkValue, setLinkValue] = useState("");
   const [commentValue, setCommentValue] = useState("");
   const [continueWaiting, setContinueWaiting] = useState(false);
@@ -85,6 +87,7 @@ export function Inspector(props: {
       setNote("");
       setWorktree("");
       setBranch("");
+      setSpawnValue("");
       setLinkValue("");
       setCommentValue("");
       setCheckValue("");
@@ -98,6 +101,7 @@ export function Inspector(props: {
       setNote(props.task.noteMarkdown);
       setWorktree(props.task.worktreePath ?? "");
       setBranch(props.task.branch ?? "");
+      setSpawnValue("");
       setLinkValue("");
       setCommentValue("");
       setCheckValue("");
@@ -173,6 +177,34 @@ export function Inspector(props: {
             }}
           />
         </label>
+        <div className={styles.linkAdd}>
+          <input
+            className={styles.linkInput}
+            placeholder="Spawn title"
+            value={spawnValue}
+            onChange={(e) => setSpawnValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              const title = spawnValue.trim();
+              if (!title) return;
+              props.onSpawn?.(title);
+              setSpawnValue("");
+            }}
+          />
+          <button
+            type="button"
+            className={styles.linkButton}
+            onClick={() => {
+              const title = spawnValue.trim();
+              if (!title) return;
+              props.onSpawn?.(title);
+              setSpawnValue("");
+            }}
+          >
+            Spawn
+          </button>
+        </div>
         <label className={styles.field}>
           Column
           <select
