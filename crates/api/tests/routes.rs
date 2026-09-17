@@ -407,6 +407,21 @@ async fn comment_add_does_not_change_note() {
         .unwrap();
     assert_eq!(shown["entity"]["noteMarkdown"], "# Spec");
     assert_eq!(shown["entity"]["comments"][0]["body"], "use TDD");
+    let removed = client
+        .delete(format!("{}/api/v1/tasks/TASK-1/comments/latest", s.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(removed.status(), 200);
+    let after = client
+        .get(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    assert!(after["entity"]["comments"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -442,6 +457,21 @@ async fn check_add_and_toggle() {
         .unwrap();
     assert_eq!(listed["entities"][0]["checklistDone"], 1);
     assert_eq!(listed["entities"][0]["checklistTotal"], 1);
+    let removed = client
+        .delete(format!("{}/api/v1/checks/CHECK-1", s.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(removed.status(), 200);
+    let shown = client
+        .get(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    assert!(shown["entity"]["checks"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]

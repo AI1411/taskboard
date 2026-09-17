@@ -149,12 +149,20 @@ export class HttpTransport implements Transport {
     });
   }
 
+  commentRemoveLatest(displayId: string): Promise<Comment> {
+    return this.request("DELETE", `/api/v1/tasks/${enc(displayId)}/comments/latest`);
+  }
+
   checkAdd(displayId: string, text: string): Promise<Check> {
     return this.request("POST", `/api/v1/tasks/${enc(displayId)}/checks`, { body: { text } });
   }
 
   checkToggle(displayId: string): Promise<Check> {
     return this.request("PATCH", `/api/v1/checks/${enc(displayId)}`, { body: {} });
+  }
+
+  checkRemove(displayId: string): Promise<Check> {
+    return this.request("DELETE", `/api/v1/checks/${enc(displayId)}`);
   }
 
   linkRemove(linkId: string, revision?: number): Promise<TaskDetail> {

@@ -93,6 +93,10 @@ async fn spawn_creates_todo_children_and_blocks_parent() {
         assert_eq!(child.project_id, children[0].project_id);
     }
     let parent = app.task_show("TASK-1").await.unwrap();
+    assert!(parent
+        .recent_activities
+        .iter()
+        .any(|activity| activity.operation == "task.spawn"));
     assert_eq!(parent.column, Column::InProgress);
     assert_eq!(parent.worktree_path.as_deref(), Some("/tmp/parent-wt"));
     let values: Vec<_> = parent

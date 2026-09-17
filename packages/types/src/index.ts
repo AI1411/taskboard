@@ -8,7 +8,7 @@ export type LinkKind = "url" | "path" | "blocked_by";
 
 export type ActorKind = "cli" | "desktop" | "web";
 
-export type EntityType = "project" | "task" | "run" | "link";
+export type EntityType = "project" | "task" | "run" | "link" | "comment" | "check";
 
 export interface Project {
   id: string;

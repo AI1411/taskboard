@@ -297,6 +297,11 @@ export function fakeTransport(): Transport {
       }
       return comment;
     },
+    async commentRemoveLatest(displayId) {
+      const detail = details.get(displayId);
+      if (!detail || detail.comments.length === 0) throw new Error("thread is empty");
+      return detail.comments.pop()!;
+    },
     async checkAdd(displayId, text) {
       const detail = details.get(displayId);
       const task = tasks.find((t) => t.displayId === displayId);
@@ -326,6 +331,21 @@ export function fakeTransport(): Transport {
           Object.assign(detail, task);
         }
         return { ...check };
+      }
+      throw new Error("not found");
+    },
+    async checkRemove(displayId) {
+      for (const detail of details.values()) {
+        const i = detail.checks.findIndex((item) => item.displayId === displayId);
+        if (i < 0) continue;
+        const [check] = detail.checks.splice(i, 1);
+        const task = tasks.find((t) => t.displayId === detail.displayId);
+        if (task) {
+          task.checklistDone = detail.checks.filter((item) => item.done).length;
+          task.checklistTotal = detail.checks.length;
+          Object.assign(detail, task);
+        }
+        return check;
       }
       throw new Error("not found");
     },

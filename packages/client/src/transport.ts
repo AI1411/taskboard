@@ -60,8 +60,10 @@ export interface Transport {
   linkAdd(displayId: string, input: { kind: LinkKind; value: string }): Promise<TaskDetail>;
   linkRemove(linkId: string, revision?: number): Promise<TaskDetail>;
   commentAdd(displayId: string, body: string, continueWaiting?: boolean): Promise<Comment>;
+  commentRemoveLatest(displayId: string): Promise<Comment>;
   checkAdd(displayId: string, text: string): Promise<Check>;
   checkToggle(displayId: string): Promise<Check>;
+  checkRemove(displayId: string): Promise<Check>;
   runStart(displayId: string, input: { agent: string; sessionId?: string }): Promise<Run>;
   runPatch(runDisplayId: string, op: RunOp, revision?: number): Promise<Run>;
   review(displayId: string, input: { action: ReviewAction; text: string }): Promise<TaskDetail>;

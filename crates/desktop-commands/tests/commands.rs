@@ -3,9 +3,10 @@ use std::ops::Deref;
 use taskboard_application::{App, AppError, SystemClock};
 use taskboard_core::LinkKind;
 use taskboard_desktop_commands::{
-    check_add_inner, check_toggle_inner, comment_add_inner, link_add_inner, occupancy_inner,
-    project_add_inner, run_start_inner, status_inner, sync_inner, task_create_inner,
-    task_show_inner, task_spawn_inner, task_update_inner, AppErrorDto, TaskPatchArgs,
+    check_add_inner, check_remove_inner, check_toggle_inner, comment_add_inner,
+    comment_remove_latest_inner, link_add_inner, occupancy_inner, project_add_inner,
+    run_start_inner, status_inner, sync_inner, task_create_inner, task_show_inner,
+    task_spawn_inner, task_update_inner, AppErrorDto, TaskPatchArgs,
 };
 use taskboard_store_sqlite::{open_db, SqliteStore};
 
@@ -83,6 +84,11 @@ async fn comment_add_command_uses_desktop_actor_and_keeps_note() {
     let shown = app.task_show("TASK-1").await.unwrap();
     assert_eq!(shown.note_markdown, "");
     assert_eq!(shown.comments[0].body, "use TDD");
+    let removed = comment_remove_latest_inner(&app, "TASK-1".into())
+        .await
+        .unwrap();
+    assert_eq!(removed.body, "use TDD");
+    assert!(app.comment_list("TASK-1").await.unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -101,6 +107,9 @@ async fn check_add_and_toggle_commands() {
     assert!(!check.done);
     let toggled = check_toggle_inner(&app, "CHECK-1".into()).await.unwrap();
     assert!(toggled.done);
+    let removed = check_remove_inner(&app, "CHECK-1".into()).await.unwrap();
+    assert_eq!(removed.display_id, "CHECK-1");
+    assert!(app.check_list("TASK-1").await.unwrap().is_empty());
 }
 
 #[tokio::test]

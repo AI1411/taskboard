@@ -151,3 +151,54 @@ async fn blank_check_is_validation_error() {
         .unwrap_err();
     assert_eq!(err.code(), "validation_error");
 }
+
+#[tokio::test]
+async fn check_add_and_toggle_record_activity_and_undo_toggle() {
+    let app = seeded_task().await;
+    app.check_add(
+        &cli_actor(),
+        CheckAdd {
+            task_display_id: "TASK-1".into(),
+            text: "Write tests".into(),
+        },
+    )
+    .await
+    .unwrap();
+    app.check_toggle(&cli_actor(), "CHECK-1").await.unwrap();
+    let shown = app.task_show("TASK-1").await.unwrap();
+    assert!(shown
+        .recent_activities
+        .iter()
+        .any(|activity| activity.operation == "check.toggle"));
+    assert!(shown.checks[0].done);
+    app.undo(&cli_actor()).await.unwrap();
+    let shown = app.task_show("TASK-1").await.unwrap();
+    assert!(!shown.checks[0].done);
+}
+
+#[tokio::test]
+async fn check_remove_records_activity_and_undo_restores_it() {
+    let app = seeded_task().await;
+    app.check_add(
+        &cli_actor(),
+        CheckAdd {
+            task_display_id: "TASK-1".into(),
+            text: "Write tests".into(),
+        },
+    )
+    .await
+    .unwrap();
+    let removed = app.check_remove(&cli_actor(), "CHECK-1").await.unwrap();
+    assert_eq!(removed.display_id, "CHECK-1");
+    let shown = app.task_show("TASK-1").await.unwrap();
+    assert!(shown.checks.is_empty());
+    assert!(shown
+        .recent_activities
+        .iter()
+        .any(|activity| activity.operation == "check.remove"));
+    app.undo(&cli_actor()).await.unwrap();
+    let shown = app.task_show("TASK-1").await.unwrap();
+    assert_eq!(shown.checks.len(), 1);
+    assert_eq!(shown.checks[0].text, "Write tests");
+    assert!(!shown.checks[0].done);
+}

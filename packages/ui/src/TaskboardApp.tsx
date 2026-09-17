@@ -983,6 +983,18 @@ export function TaskboardApp(props: {
             }
           })();
         }}
+        onCommentRemoveLatest={() => {
+          const id = selectedIdRef.current;
+          if (!id) return;
+          void (async () => {
+            try {
+              await transport.commentRemoveLatest(id);
+              applyDetail(await transport.taskShow(id));
+            } catch (err) {
+              setToast({ message: errorMessage(err), error: true });
+            }
+          })();
+        }}
         onCheckAdd={(text) => {
           const id = selectedIdRef.current;
           if (!id) return;
@@ -1003,6 +1015,20 @@ export function TaskboardApp(props: {
           void (async () => {
             try {
               await transport.checkToggle(checkId);
+              applyDetail(await transport.taskShow(id));
+              const project = selectedProjectRef.current;
+              if (project) await refreshTasks(project.slug);
+            } catch (err) {
+              setToast({ message: errorMessage(err), error: true });
+            }
+          })();
+        }}
+        onCheckRemove={(checkId) => {
+          const id = selectedIdRef.current;
+          if (!id) return;
+          void (async () => {
+            try {
+              await transport.checkRemove(checkId);
               applyDetail(await transport.taskShow(id));
               const project = selectedProjectRef.current;
               if (project) await refreshTasks(project.slug);
