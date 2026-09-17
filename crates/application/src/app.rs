@@ -10,8 +10,8 @@ use taskboard_core::{
     next_unique_slug, parse_agent, parse_path_link, parse_url, place_before, place_urgent,
     rewrite_positions, slugify, sort_column, trim_project_name, trim_title, winning_run_view,
     Activity, ActivityEntry, CardDisplayStatus, Check, Column, Comment, DisplayKind, EntityType,
-    FieldError, InboxItem, Link, LinkKind, OrderError, OrderKey, Project, Run, RunStatus,
-    RunStatusView, SlugError, Task, TaskDetail, TaskSummary, ValidationError,
+    FieldError, InboxGroup, InboxItem, Link, LinkKind, OrderError, OrderKey, Project, Run,
+    RunStatus, RunStatusView, SlugError, Task, TaskDetail, TaskSummary, ValidationError,
 };
 
 use crate::actor::Actor;
@@ -237,7 +237,7 @@ impl App {
                 }
                 let updated_at = task.updated_at;
                 let summary = to_task_summary(store, task, now).await?;
-                let Some(_group) = inbox_membership(
+                let Some(group) = inbox_membership(
                     summary.column,
                     summary.urgent,
                     summary.display_status,
@@ -245,17 +245,24 @@ impl App {
                 ) else {
                     continue;
                 };
-                let reason = if summary.stale {
-                    let runs = store.list_runs(summary.id).await?;
-                    let last = winning_run(&runs)
-                        .map(|run| run.updated_at)
-                        .unwrap_or(updated_at);
-                    inbox_stale_reason(last)
-                } else {
-                    inbox_reason(
+                let reason = match group {
+                    InboxGroup::Stale => {
+                        let runs = store.list_runs(summary.id).await?;
+                        let last = winning_run(&runs)
+                            .map(|run| run.updated_at)
+                            .unwrap_or(updated_at);
+                        inbox_stale_reason(last)
+                    }
+                    InboxGroup::Review => {
+                        let runs = store.list_runs(summary.id).await?;
+                        winning_run(&runs)
+                            .and_then(|run| run.summary.clone())
+                            .unwrap_or_default()
+                    }
+                    _ => inbox_reason(
                         summary.waiting_reason.as_deref(),
                         summary.run_message.as_deref(),
-                    )
+                    ),
                 };
                 items.push(InboxItem {
                     id: summary.id,
@@ -344,30 +351,11 @@ impl App {
         }
         let inbox_counts = InboxCounts {
             total: inbox.len(),
-            waiting: inbox
-                .iter()
-                .filter(|item| item.display_status == CardDisplayStatus::Waiting)
-                .count(),
-            failed: inbox
-                .iter()
-                .filter(|item| item.display_status == CardDisplayStatus::Failed)
-                .count(),
-            stale: inbox
-                .iter()
-                .filter(|item| {
-                    item.stale
-                        && item.display_status != CardDisplayStatus::Waiting
-                        && item.display_status != CardDisplayStatus::Failed
-                })
-                .count(),
-            urgent: inbox
-                .iter()
-                .filter(|item| {
-                    !item.stale
-                        && item.display_status != CardDisplayStatus::Waiting
-                        && item.display_status != CardDisplayStatus::Failed
-                })
-                .count(),
+            waiting: count_group(&inbox, InboxGroup::Waiting),
+            failed: count_group(&inbox, InboxGroup::Failed),
+            stale: count_group(&inbox, InboxGroup::Stale),
+            review: count_group(&inbox, InboxGroup::Review),
+            urgent: count_group(&inbox, InboxGroup::Urgent),
         };
         Ok(BoardStatus {
             inbox: inbox_counts,
@@ -2482,6 +2470,16 @@ fn to_task_summary_from_runs(
 
 fn is_stale(run: &Run, now: DateTime<Utc>, minutes: i64) -> bool {
     run.status == RunStatus::Running && now - run.updated_at >= chrono::Duration::minutes(minutes)
+}
+
+fn count_group(items: &[InboxItem], group: InboxGroup) -> usize {
+    items
+        .iter()
+        .filter(|item| {
+            inbox_membership(item.column, item.urgent, item.display_status, item.stale)
+                == Some(group)
+        })
+        .count()
 }
 
 fn inbox_line(item: &InboxItem) -> StatusLine {

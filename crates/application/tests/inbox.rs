@@ -3,7 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use chrono::{Duration, TimeZone, Utc};
 use taskboard_application::{
-    Actor, App, Clock, InboxScope, ProjectAdd, RunFail, RunStart, RunWait, SystemClock, TaskCreate,
+    Actor, App, Clock, InboxScope, ProjectAdd, RunFail, RunFinish, RunStart, RunWait, SystemClock,
+    TaskCreate,
 };
 use taskboard_core::{ActorKind, Column};
 use taskboard_store_sqlite::{open_db, SqliteStore};
@@ -484,4 +485,76 @@ async fn inbox_includes_stale_between_failed_and_urgent() {
     let stuck = items.iter().find(|i| i.title == "Stuck").unwrap();
     assert!(stuck.stale);
     assert_eq!(stuck.reason, "stale · last update 2026-09-16T12:00:00Z");
+}
+
+#[tokio::test]
+async fn inbox_completed_in_review_uses_run_summary() {
+    let app = test_app().await;
+    let actor = cli_actor();
+    app.project_add(
+        &actor,
+        ProjectAdd {
+            name: "Renai Sim".into(),
+            repo_path: None,
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+    app.task_create(
+        &actor,
+        TaskCreate {
+            project_slug: "renai-sim".into(),
+            title: "Review me".into(),
+            column: Some(Column::InReview),
+            urgent: false,
+        },
+    )
+    .await
+    .unwrap();
+    app.task_create(
+        &actor,
+        TaskCreate {
+            project_slug: "renai-sim".into(),
+            title: "Pin me".into(),
+            column: None,
+            urgent: true,
+        },
+    )
+    .await
+    .unwrap();
+    let done = app
+        .run_start(
+            &actor,
+            RunStart {
+                task_display_id: "TASK-1".into(),
+                agent: "cursor".into(),
+                session_id: None,
+            },
+        )
+        .await
+        .unwrap();
+    app.run_finish(
+        &actor,
+        RunFinish {
+            run_display_id: done.display_id,
+            summary: "shipped login".into(),
+            revision: None,
+        },
+    )
+    .await
+    .unwrap();
+    let items = app
+        .inbox(InboxScope {
+            project: None,
+            include_archived: false,
+        })
+        .await
+        .unwrap();
+    assert_eq!(items[0].display_id, "TASK-1");
+    assert_eq!(items[0].reason, "shipped login");
+    assert_eq!(items[1].display_id, "TASK-2");
+    let snap = app.status(None).await.unwrap();
+    assert_eq!(snap.inbox.review, 1);
+    assert_eq!(snap.inbox.urgent, 1);
 }

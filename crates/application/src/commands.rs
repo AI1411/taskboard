@@ -208,6 +208,7 @@ pub struct InboxCounts {
     pub waiting: usize,
     pub failed: usize,
     pub stale: usize,
+    pub review: usize,
     pub urgent: usize,
 }
 
