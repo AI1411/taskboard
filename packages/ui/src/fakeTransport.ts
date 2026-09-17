@@ -185,6 +185,12 @@ export function fakeTransport(): Transport {
       if (patch.urgent !== undefined) task.urgent = patch.urgent;
       if (patch.column !== undefined) task.column = patch.column;
       if (patch.noteMarkdown !== undefined) detail.noteMarkdown = patch.noteMarkdown;
+      if (patch.worktreePath !== undefined) {
+        task.worktreePath = patch.worktreePath.trim() === "" ? null : patch.worktreePath;
+      }
+      if (patch.branch !== undefined) {
+        task.branch = patch.branch.trim() === "" ? null : patch.branch;
+      }
       task.revision = (revision ?? task.revision) + 1;
       Object.assign(detail, task);
       details.set(displayId, { ...detail });

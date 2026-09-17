@@ -63,9 +63,12 @@ export function Inspector(props: {
   onReview?: (action: ReviewAction, text: string) => void;
   onCopyId?: (displayId: string) => void;
   onClose?: () => void;
+  onWorkspaceChange?: (patch: { worktreePath?: string; branch?: string }) => void;
 }) {
   const [title, setTitle] = useState(props.task?.title ?? "");
   const [note, setNote] = useState(props.task?.noteMarkdown ?? "");
+  const [worktree, setWorktree] = useState(props.task?.worktreePath ?? "");
+  const [branch, setBranch] = useState(props.task?.branch ?? "");
   const [linkValue, setLinkValue] = useState("");
   const [commentValue, setCommentValue] = useState("");
   const [continueWaiting, setContinueWaiting] = useState(false);
@@ -80,6 +83,8 @@ export function Inspector(props: {
       lastId.current = null;
       setTitle("");
       setNote("");
+      setWorktree("");
+      setBranch("");
       setLinkValue("");
       setCommentValue("");
       setCheckValue("");
@@ -91,6 +96,8 @@ export function Inspector(props: {
       lastId.current = props.task.displayId;
       setTitle(props.task.title);
       setNote(props.task.noteMarkdown);
+      setWorktree(props.task.worktreePath ?? "");
+      setBranch(props.task.branch ?? "");
       setLinkValue("");
       setCommentValue("");
       setCheckValue("");
@@ -142,11 +149,30 @@ export function Inspector(props: {
         >
           {props.task.displayId}
         </button>
-        {props.task.worktreePath || props.task.branch ? (
-          <p className={styles.list}>
-            {[props.task.worktreePath, props.task.branch].filter(Boolean).join(" · ")}
-          </p>
-        ) : null}
+        <label className={styles.field}>
+          Worktree
+          <input
+            value={worktree}
+            onChange={(e) => setWorktree(e.target.value)}
+            onBlur={() => {
+              const current = props.task.worktreePath ?? "";
+              if (worktree === current) return;
+              props.onWorkspaceChange?.({ worktreePath: worktree });
+            }}
+          />
+        </label>
+        <label className={styles.field}>
+          Branch
+          <input
+            value={branch}
+            onChange={(e) => setBranch(e.target.value)}
+            onBlur={() => {
+              const current = props.task.branch ?? "";
+              if (branch === current) return;
+              props.onWorkspaceChange?.({ branch });
+            }}
+          />
+        </label>
         <label className={styles.field}>
           Column
           <select
