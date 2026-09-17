@@ -116,7 +116,7 @@ describe("Card", () => {
   });
 
   it("shows recorded worktree and branch", () => {
-    const { getByText } = render(
+    const { getByText, queryByText } = render(
       <Card
         task={summary({ worktreePath: "/tmp/wt", branch: "cursor/foo-88ba" })}
         selected={false}
@@ -124,6 +124,7 @@ describe("Card", () => {
     );
     expect(getByText("/tmp/wt")).toBeTruthy();
     expect(getByText("cursor/foo-88ba")).toBeTruthy();
+    expect(queryByText(/shared/i)).toBeNull();
   });
 
   it("shows checklist progress on the card face", () => {
