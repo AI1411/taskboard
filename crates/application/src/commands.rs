@@ -93,6 +93,13 @@ pub struct ReplyContinueResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunCancel {
+    pub run_display_id: String,
+    pub summary: Option<String>,
+    pub revision: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunFail {
     pub run_display_id: String,
     pub summary: String,
