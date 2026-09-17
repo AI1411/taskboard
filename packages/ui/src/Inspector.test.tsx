@@ -435,6 +435,21 @@ describe("Inspector review", () => {
     );
   });
 
+  it("spawns a todo child and blocks the parent without moving columns", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Parent", column: "in-progress" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Parent"));
+    await userEvent.type(screen.getByPlaceholderText("Spawn title"), "Child");
+    await userEvent.click(screen.getByRole("button", { name: "Spawn" }));
+    await waitFor(() => expect(transport.taskSpawn).toHaveBeenCalledWith("TASK-1", ["Child"]));
+    expect(await screen.findByText("Child")).toBeTruthy();
+    await userEvent.click(await screen.findByText("Parent"));
+    expect(await screen.findByRole("button", { name: "TASK-2" })).toBeTruthy();
+    expect((screen.getByLabelText("Column") as HTMLSelectElement).value).toBe("in-progress");
+  });
+
   it("hides review verbs when the card is not in review", async () => {
     const transport = fakeTransport();
     const project = await transport.projectAdd({ name: "Alpha" });

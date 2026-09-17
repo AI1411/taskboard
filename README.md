@@ -2,7 +2,7 @@
 
 macOS 向けのローカル Kanban です。ボードはデスクトップアプリ、`tb serve` の Web UI、CLI（`taskboard` / `tb`）で同じデータを共有します。
 
-Cursor、Claude Code、Codex などの AI エージェントは、HTTP API ではなく CLI を SKILL 経由で呼び出します。
+Cursor、Claude Code、Codex などの AI エージェントは、HTTP API ではなく CLI を SKILL 経由で呼び出します。`GET /api/v1/status`、`GET /api/v1/occupancy`、`POST /api/v1/tasks/TASK-n/spawn` は人のボード面（`tb serve` / desktop）です。エージェントは CLI か `tb mcp` を使います。
 
 ## CLI を入れる
 

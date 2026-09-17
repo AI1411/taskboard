@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Transport } from "@taskboard/client";
-import type { Column, InboxItem, Project, TaskDetail, TaskSummary, Trash } from "@taskboard/types";
+import type {
+  BoardStatus,
+  Column,
+  InboxItem,
+  OccupancyGroup,
+  Project,
+  TaskDetail,
+  TaskSummary,
+  Trash,
+} from "@taskboard/types";
 
 import { Board } from "./Board";
 import { InboxStrip } from "./InboxStrip";
 import { Inspector } from "./Inspector";
+import { StatusStrip } from "./StatusStrip";
 import { Sidebar } from "./Sidebar";
 import { ShortcutLegend } from "./ShortcutLegend";
 import { Toast } from "./Toast";
@@ -47,6 +57,8 @@ export function TaskboardApp(props: {
   const [inboxAll, setInboxAll] = useState<InboxItem[]>([]);
   const [inboxExpanded, setInboxExpanded] = useState(false);
   const [inboxScope, setInboxScope] = useState<"this" | "all">("this");
+  const [boardStatus, setBoardStatus] = useState<BoardStatus | null>(null);
+  const [occupancy, setOccupancy] = useState<OccupancyGroup[]>([]);
   const [composingTask, setComposingTask] = useState(false);
   const [composingProject, setComposingProject] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
@@ -120,6 +132,9 @@ export function TaskboardApp(props: {
     } else {
       setInboxItems(all);
     }
+    const project = inboxScopeRef.current === "this" ? slug : undefined;
+    setBoardStatus(await transport.status(project));
+    setOccupancy(await transport.occupancy());
   }, [transport]);
 
   const refreshTasks = useCallback(
@@ -842,6 +857,11 @@ export function TaskboardApp(props: {
       <main className={styles.main}>
         {selectedProject ? (
           <>
+          <StatusStrip
+            status={boardStatus}
+            occupancy={occupancy}
+            onSelect={(displayId) => void selectCard(displayId)}
+          />
           <InboxStrip
             items={inboxItems}
             expanded={inboxExpanded}
@@ -904,6 +924,20 @@ export function TaskboardApp(props: {
         confirming={confirmDelete}
         onTitleCommit={(title) => void onTitleCommit(title)}
         onWorkspaceChange={(patch) => void onWorkspaceChange(patch)}
+        onSpawn={(title) => {
+          const id = selectedIdRef.current;
+          if (!id) return;
+          void (async () => {
+            try {
+              await transport.taskSpawn(id, [title]);
+              const project = selectedProjectRef.current;
+              if (project) await refreshTasks(project.slug);
+              applyDetail(await transport.taskShow(id));
+            } catch (err) {
+              setToast({ message: errorMessage(err), error: true });
+            }
+          })();
+        }}
         onColumnChange={(column) => void moveSelected(column)}
         onUrgentChange={(urgent) => {
           const id = selectedIdRef.current;
