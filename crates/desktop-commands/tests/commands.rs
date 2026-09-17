@@ -4,7 +4,7 @@ use taskboard_application::{App, AppError, SystemClock};
 use taskboard_core::LinkKind;
 use taskboard_desktop_commands::{
     check_add_inner, check_toggle_inner, comment_add_inner, link_add_inner, project_add_inner,
-    sync_inner, task_create_inner, AppErrorDto,
+    sync_inner, task_create_inner, task_update_inner, AppErrorDto, TaskPatchArgs,
 };
 use taskboard_store_sqlite::{open_db, SqliteStore};
 
@@ -134,4 +134,53 @@ async fn link_add_blocked_by_cycle_is_validation_error() {
     .unwrap_err();
     assert_eq!(err.code, "validation_error");
     assert_eq!(err.field.as_deref(), Some("blocked_by"));
+}
+
+#[tokio::test]
+async fn task_update_sets_and_clears_worktree_and_branch() {
+    let app = test_app().await;
+    project_add_inner(&app, "Renai Sim".into(), None, None)
+        .await
+        .unwrap();
+    task_create_inner(&app, "renai-sim".into(), "Fix login".into(), None, None)
+        .await
+        .unwrap();
+
+    let set = task_update_inner(
+        &app,
+        TaskPatchArgs {
+            display_id: "TASK-1".into(),
+            title: None,
+            note_markdown: None,
+            urgent: None,
+            column: None,
+            before_display_id: None,
+            worktree_path: Some("/tmp/wt".into()),
+            branch: Some("cursor/foo-88ba".into()),
+            revision: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(set.worktree_path.as_deref(), Some("/tmp/wt"));
+    assert_eq!(set.branch.as_deref(), Some("cursor/foo-88ba"));
+
+    let cleared = task_update_inner(
+        &app,
+        TaskPatchArgs {
+            display_id: "TASK-1".into(),
+            title: None,
+            note_markdown: None,
+            urgent: None,
+            column: None,
+            before_display_id: None,
+            worktree_path: Some("".into()),
+            branch: Some("".into()),
+            revision: Some(set.revision),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(cleared.worktree_path, None);
+    assert_eq!(cleared.branch, None);
 }
