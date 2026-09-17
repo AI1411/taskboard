@@ -254,6 +254,69 @@ async fn patch_task_chains_if_match_across_fields() {
 }
 
 #[tokio::test]
+async fn patch_task_sets_and_clears_worktree_and_branch() {
+    let s = seeded_task_server().await;
+    let client = authed(&s);
+
+    let set = client
+        .patch(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .json(&json!({ "worktreePath": "/tmp/wt", "branch": "cursor/foo-88ba" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(set.status(), 200);
+    let body = set.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(body["entity"]["worktreePath"], "/tmp/wt");
+    assert_eq!(body["entity"]["branch"], "cursor/foo-88ba");
+
+    let shown = client
+        .get(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    assert_eq!(shown["entity"]["worktreePath"], "/tmp/wt");
+    assert_eq!(shown["entity"]["branch"], "cursor/foo-88ba");
+
+    let cleared = client
+        .patch(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .json(&json!({ "worktreePath": "", "branch": "" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cleared.status(), 200);
+    let body = cleared.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(body["entity"]["worktreePath"], serde_json::Value::Null);
+    assert_eq!(body["entity"]["branch"], serde_json::Value::Null);
+}
+
+#[tokio::test]
+async fn patch_task_omits_workspace_when_fields_absent() {
+    let s = seeded_task_server().await;
+    let client = authed(&s);
+    client
+        .patch(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .json(&json!({ "worktreePath": "/tmp/keep", "branch": "keep-branch" }))
+        .send()
+        .await
+        .unwrap();
+
+    let title_only = client
+        .patch(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .json(&json!({ "title": "Still assigned" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(title_only.status(), 200);
+    let body = title_only.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(body["entity"]["title"], "Still assigned");
+    assert_eq!(body["entity"]["worktreePath"], "/tmp/keep");
+    assert_eq!(body["entity"]["branch"], "keep-branch");
+}
+
+#[tokio::test]
 async fn inbox_returns_waiting_card() {
     let s = seeded_task_server().await;
     let client = authed(&s);
