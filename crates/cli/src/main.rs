@@ -741,12 +741,16 @@ async fn run_cmd(
                 println!("Waiting {}", run.display_id);
             });
         }
-        RunCommand::Continue { run_id, message } => {
+        RunCommand::Continue {
+            run_id,
+            message,
+            reply,
+        } => {
             let run = app
                 .run_continue(
                     actor,
                     RunContinue {
-                        reply: None,
+                        reply,
                         run_display_id: run_id,
                         message,
                         revision,
@@ -835,20 +839,43 @@ async fn check_cmd(app: &App, actor: &Actor, json: bool, cmd: CheckCommand) -> R
 
 async fn comment_cmd(app: &App, actor: &Actor, json: bool, cmd: CommentCommand) -> Result<(), i32> {
     match cmd {
-        CommentCommand::Add { display_id, text } => {
-            let comment = app
-                .comment_add(
-                    actor,
-                    CommentAdd {
-                        task_display_id: display_id.clone(),
-                        body: text,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
-            output::print_entity(json, &comment, 0, || {
-                println!("Commented {display_id}");
-            });
+        CommentCommand::Add {
+            display_id,
+            text,
+            continue_waiting,
+        } => {
+            if continue_waiting {
+                let result = app
+                    .comment_add_and_continue(
+                        actor,
+                        CommentAdd {
+                            task_display_id: display_id.clone(),
+                            body: text,
+                        },
+                    )
+                    .await
+                    .map_err(|err| output::print_error(&err, json))?;
+                output::print_entity(json, &result, result.run.revision, || {
+                    println!(
+                        "Commented {display_id}  continued {}",
+                        result.run.display_id
+                    );
+                });
+            } else {
+                let comment = app
+                    .comment_add(
+                        actor,
+                        CommentAdd {
+                            task_display_id: display_id.clone(),
+                            body: text,
+                        },
+                    )
+                    .await
+                    .map_err(|err| output::print_error(&err, json))?;
+                output::print_entity(json, &comment, 0, || {
+                    println!("Commented {display_id}");
+                });
+            }
         }
         CommentCommand::List { display_id } => {
             let comments = app

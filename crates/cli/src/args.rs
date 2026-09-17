@@ -367,6 +367,8 @@ pub enum RunCommand {
         run_id: String,
         #[arg(long)]
         message: Option<String>,
+        #[arg(long)]
+        reply: Option<String>,
     },
     /// Mark a run as failed
     Fail {
@@ -389,6 +391,8 @@ pub enum CommentCommand {
         display_id: String,
         #[arg(long)]
         text: String,
+        #[arg(long = "continue")]
+        continue_waiting: bool,
     },
     /// List comments on a task
     List { display_id: String },

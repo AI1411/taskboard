@@ -950,6 +950,120 @@ fn stale_json_skips_fresh_running_run() {
 }
 
 #[test]
+fn comment_add_continue_json_resumes_waiting() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Wait",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "cursor"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "wait", "RUN-1", "--reason", "Need spec"])
+        .assert()
+        .success();
+    let v = json_ok(
+        &dir,
+        &[
+            "comment",
+            "add",
+            "TASK-1",
+            "--text",
+            "here is spec",
+            "--continue",
+        ],
+    );
+    assert_eq!(v["entity"]["comment"]["body"], "here is spec");
+    assert_eq!(v["entity"]["run"]["status"], "running");
+}
+
+#[test]
+fn comment_add_continue_on_idle_is_validation_error() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Idle",
+        ])
+        .assert()
+        .success();
+    let out = tb_in(&dir)
+        .args([
+            "comment",
+            "add",
+            "TASK-1",
+            "--text",
+            "nope",
+            "--continue",
+            "--json",
+        ])
+        .assert()
+        .failure()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["error"]["code"], "validation_error");
+}
+
+#[test]
+fn run_continue_reply_json() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Wait",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "cursor"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "wait", "RUN-1", "--reason", "Need spec"])
+        .assert()
+        .success();
+    let v = json_ok(
+        &dir,
+        &["run", "continue", "RUN-1", "--reply", "here is spec"],
+    );
+    assert_eq!(v["entity"]["status"], "running");
+    let comments = json_ok(&dir, &["comment", "list", "TASK-1"]);
+    assert_eq!(comments["entities"][0]["body"], "here is spec");
+}
+
+#[test]
 fn task_spawn_json_creates_children_and_blocks() {
     let dir = tempfile::tempdir().unwrap();
     tb_in(&dir)
