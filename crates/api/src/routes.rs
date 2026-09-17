@@ -9,8 +9,8 @@ use axum::{Json, Router};
 use serde::Serialize;
 use serde_json::{json, Value};
 use taskboard_application::{
-    Actor, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate, RunFail,
-    RunFinish, RunStart, RunUpdate, RunWait, TaskCreate, TaskUpdate,
+    Actor, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate,
+    RunCancel, RunFail, RunFinish, RunStart, RunUpdate, RunWait, TaskCreate, TaskUpdate,
 };
 use taskboard_core::ActorKind;
 use uuid::Uuid;
@@ -690,6 +690,19 @@ async fn patch_run(
                     RunFinish {
                         run_display_id: display_id,
                         summary,
+                        revision,
+                    },
+                )
+                .await
+        }
+        RunOp::Cancel => {
+            state
+                .app
+                .run_cancel(
+                    &actor,
+                    RunCancel {
+                        run_display_id: display_id,
+                        summary: body.summary,
                         revision,
                     },
                 )

@@ -17,9 +17,9 @@ use taskboard_core::{
 use crate::actor::Actor;
 use crate::commands::{
     ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope, LinkAdd, NextClaim,
-    ProjectAdd, ProjectUpdate, ReplyContinueResult, RunContinue, RunFail, RunFinish, RunListQuery,
-    RunStart, RunUpdate, RunWait, StatusLine, TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate,
-    STATUS_HEAD,
+    ProjectAdd, ProjectUpdate, ReplyContinueResult, RunCancel, RunContinue, RunFail, RunFinish,
+    RunListQuery, RunStart, RunUpdate, RunWait, StatusLine, TaskCreate, TaskListQuery, TaskSpawn,
+    TaskUpdate, STATUS_HEAD,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -572,6 +572,15 @@ impl App {
         let store = &mut **store;
         store.begin().await?;
         let result = run_fail_inner(store, actor, cmd, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn run_cancel(&self, actor: &Actor, cmd: RunCancel) -> Result<Run, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = run_cancel_inner(store, actor, cmd, now).await;
         commit_or_rollback(store, result).await
     }
 
@@ -2088,6 +2097,36 @@ async fn comment_add_inner(
     };
     store.insert_comment(&comment).await?;
     Ok(comment)
+}
+
+async fn run_cancel_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: RunCancel,
+    now: DateTime<Utc>,
+) -> Result<Run, AppError> {
+    let run = require_run(store, &cmd.run_display_id).await?;
+    if !matches!(run.status, RunStatus::Running | RunStatus::Waiting) {
+        return Err(AppError::Validation {
+            field: "status".into(),
+            message: "run must be running or waiting".into(),
+        });
+    }
+    let summary = match cmd.summary {
+        Some(raw) => require_non_blank("summary", &raw)?,
+        None => "canceled".into(),
+    };
+    run_fail_inner(
+        store,
+        actor,
+        RunFail {
+            run_display_id: cmd.run_display_id,
+            summary,
+            revision: cmd.revision,
+        },
+        now,
+    )
+    .await
 }
 
 async fn run_fail_inner(

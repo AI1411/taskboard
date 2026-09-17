@@ -199,6 +199,75 @@ describe("Inspector history", () => {
     expect(screen.getByText(/Zap · cursor · 2m ago/)).toBeTruthy();
     expect(screen.queryByText("mystery.zap")).toBeNull();
   });
+
+  it("cancels a running run from the inspector", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    const task = await transport.taskCreate(project.slug, { title: "Stuck", column: "todo" });
+    const startedAt = "2026-09-16T12:00:00Z";
+    task.displayStatus = "running";
+    task.runs = [
+      {
+        id: "r1",
+        displayId: "RUN-1",
+        taskId: task.id,
+        agent: "cursor",
+        sessionId: null,
+        status: "running",
+        message: "implementing",
+        waitingReason: null,
+        summary: null,
+        startedAt,
+        endedAt: null,
+        revision: 1,
+        createdAt: startedAt,
+        updatedAt: startedAt,
+        worktreePath: null,
+        branch: null,
+      },
+    ];
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Stuck"));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel RUN-1" }));
+    await waitFor(() =>
+      expect(transport.runPatch).toHaveBeenCalledWith("RUN-1", { op: "cancel" }),
+    );
+  });
+
+  it("cancels a stale-badged running run from the inspector", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    const task = await transport.taskCreate(project.slug, { title: "Heartbeat", column: "todo" });
+    const startedAt = "2026-09-16T12:00:00Z";
+    task.displayStatus = "running";
+    task.stale = true;
+    task.runs = [
+      {
+        id: "r1",
+        displayId: "RUN-2",
+        taskId: task.id,
+        agent: "cursor",
+        sessionId: null,
+        status: "running",
+        message: null,
+        waitingReason: null,
+        summary: null,
+        startedAt,
+        endedAt: null,
+        revision: 1,
+        createdAt: startedAt,
+        updatedAt: startedAt,
+        worktreePath: null,
+        branch: null,
+      },
+    ];
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Heartbeat"));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel RUN-2" }));
+    await waitFor(() =>
+      expect(transport.runPatch).toHaveBeenCalledWith("RUN-2", { op: "cancel" }),
+    );
+  });
 });
 
 describe("Inspector comments", () => {

@@ -2,8 +2,8 @@ use std::path::Path;
 
 use taskboard_application::{
     Actor, App, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, ProjectAdd, ProjectUpdate,
-    RunFail, RunFinish, RunStart, RunUpdate, RunWait, SyncDelta, TaskCreate, TaskUpdate, Trash,
-    UndoResult,
+    RunCancel, RunFail, RunFinish, RunStart, RunUpdate, RunWait, SyncDelta, TaskCreate, TaskUpdate,
+    Trash, UndoResult,
 };
 use taskboard_core::{
     ActorKind, Check, Column, Comment, InboxItem, LinkKind, Project, Run, TaskDetail, TaskSummary,
@@ -448,6 +448,17 @@ pub async fn run_patch_inner(
             .await
             .map_err(Into::into)
         }
+        RunOp::Cancel => app
+            .run_cancel(
+                &actor,
+                RunCancel {
+                    run_display_id,
+                    summary,
+                    revision,
+                },
+            )
+            .await
+            .map_err(Into::into),
     }
 }
 

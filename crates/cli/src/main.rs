@@ -11,8 +11,8 @@ use chrono::Utc;
 use clap::Parser;
 use taskboard_application::{
     ActivityQuery, Actor, App, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, NextClaim,
-    ProjectAdd, ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate,
-    RunWait, SystemClock, TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate,
+    ProjectAdd, ProjectUpdate, RunCancel, RunContinue, RunFail, RunFinish, RunListQuery, RunStart,
+    RunUpdate, RunWait, SystemClock, TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate,
 };
 use taskboard_core::LinkKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
@@ -792,6 +792,22 @@ async fn run_cmd(
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &run, run.revision, || {
                 println!("Finished {}", run.display_id);
+            });
+        }
+        RunCommand::Cancel { run_id, summary } => {
+            let run = app
+                .run_cancel(
+                    actor,
+                    RunCancel {
+                        run_display_id: run_id,
+                        summary,
+                        revision,
+                    },
+                )
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entity(json, &run, run.revision, || {
+                println!("Canceled {}", run.display_id);
             });
         }
     }
