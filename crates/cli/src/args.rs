@@ -382,6 +382,12 @@ pub enum RunCommand {
         #[arg(long)]
         summary: String,
     },
+    /// Cancel a running or waiting run
+    Cancel {
+        run_id: String,
+        #[arg(long)]
+        summary: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]

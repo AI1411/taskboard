@@ -52,7 +52,7 @@ User already chose sequential inline execution.
   - Column does not move
   - Activity stays `run.fail` (reuse `run_fail_inner`)
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `crates/application/tests/run_cancel.rs` using the same `TestApp` / `cli_actor` / `test_app` pattern as `run_continue.rs`:
 
@@ -234,13 +234,13 @@ async fn cancel_completed_or_failed_is_validation_error() {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cargo test -p taskboard-application --test run_cancel -- --nocapture`
 
 Expected: FAIL — `RunCancel` / `run_cancel` not found.
 
-- [ ] **Step 3: Minimal implementation**
+- [x] **Step 3: Minimal implementation**
 
 `commands.rs`:
 
@@ -302,13 +302,13 @@ async fn run_cancel_inner(
 
 Import `RunCancel` in `app.rs` `use crate::commands`.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cargo test -p taskboard-application --test run_cancel -- --nocapture`
 
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/application

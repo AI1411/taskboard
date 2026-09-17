@@ -1287,6 +1287,71 @@ fn status_project_scope_json() {
     assert_eq!(v["entity"]["ready_head"][0]["display_id"], "TASK-2");
 }
 
+#[test]
+fn run_cancel_json_defaults_summary() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Stuck",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "cursor"])
+        .assert()
+        .success();
+    let v = json_ok(&dir, &["run", "cancel", "RUN-1"]);
+    assert_eq!(v["entity"]["status"], "failed");
+    assert_eq!(v["entity"]["summary"], "canceled");
+}
+
+#[test]
+fn run_cancel_completed_is_validation_error() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Done",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "cursor"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "finish", "RUN-1", "--summary", "shipped"])
+        .assert()
+        .success();
+    let out = tb_in(&dir)
+        .args(["run", "cancel", "RUN-1", "--json"])
+        .assert()
+        .failure()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["error"]["code"], "validation_error");
+}
+
 fn json_ok(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     let mut argv = args.to_vec();
     argv.push("--json");

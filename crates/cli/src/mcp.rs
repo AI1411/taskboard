@@ -3,8 +3,9 @@ use std::str::FromStr;
 
 use serde_json::{json, Value};
 use taskboard_application::{
-    ActivityQuery, Actor, App, CheckAdd, CommentAdd, InboxScope, LinkAdd, NextClaim, RunContinue,
-    RunFail, RunFinish, RunListQuery, RunStart, RunWait, TaskCreate, TaskListQuery, TaskUpdate,
+    ActivityQuery, Actor, App, CheckAdd, CommentAdd, InboxScope, LinkAdd, NextClaim, RunCancel,
+    RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunWait, TaskCreate, TaskListQuery,
+    TaskUpdate,
 };
 use taskboard_core::{CardDisplayStatus, Column, LinkKind};
 
@@ -303,6 +304,18 @@ fn tools() -> Vec<Value> {
                     "summary": { "type": "string" }
                 },
                 "required": ["display_id", "summary"]
+            }),
+        ),
+        tool(
+            "run_cancel",
+            "Cancel a running or waiting run",
+            json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "summary": { "type": "string" }
+                },
+                "required": ["display_id"]
             }),
         ),
         tool(
@@ -631,6 +644,19 @@ async fn dispatch_tool(
                     RunFail {
                         run_display_id: require_string(&args, "display_id")?,
                         summary: require_string(&args, "summary")?,
+                        revision: None,
+                    },
+                )
+                .await?;
+            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
+        }
+        "run_cancel" => {
+            let run = app
+                .run_cancel(
+                    actor,
+                    RunCancel {
+                        run_display_id: require_string(&args, "display_id")?,
+                        summary: string_arg(&args, "summary"),
                         revision: None,
                     },
                 )
