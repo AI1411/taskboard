@@ -130,6 +130,7 @@ fn mcp_initialize_lists_core_tools_and_calls_app() {
         "run_finish",
         "run_fail",
         "run_cancel",
+        "review",
         "check_add",
         "check_toggle",
         "check_list",

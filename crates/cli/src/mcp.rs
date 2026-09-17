@@ -3,9 +3,9 @@ use std::str::FromStr;
 
 use serde_json::{json, Value};
 use taskboard_application::{
-    ActivityQuery, Actor, App, CheckAdd, CommentAdd, InboxScope, LinkAdd, NextClaim, RunCancel,
-    RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunWait, TaskCreate, TaskListQuery,
-    TaskUpdate,
+    ActivityQuery, Actor, App, CheckAdd, CommentAdd, InboxScope, LinkAdd, NextClaim, ReviewAction,
+    ReviewTask, RunCancel, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunWait,
+    TaskCreate, TaskListQuery, TaskUpdate,
 };
 use taskboard_core::{CardDisplayStatus, Column, LinkKind};
 
@@ -316,6 +316,19 @@ fn tools() -> Vec<Value> {
                     "summary": { "type": "string" }
                 },
                 "required": ["display_id"]
+            }),
+        ),
+        tool(
+            "review",
+            "Approve or request changes on an In Review card",
+            json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "action": { "type": "string" },
+                    "text": { "type": "string" }
+                },
+                "required": ["display_id", "action", "text"]
             }),
         ),
         tool(
@@ -662,6 +675,30 @@ async fn dispatch_tool(
                 )
                 .await?;
             Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
+        }
+        "review" => {
+            let action = match require_string(&args, "action")?.as_str() {
+                "approve" => ReviewAction::Approve,
+                "changes" => ReviewAction::Changes,
+                other => {
+                    return Err(taskboard_application::AppError::Validation {
+                        field: "action".into(),
+                        message: format!("unknown action `{other}`"),
+                    });
+                }
+            };
+            let task = app
+                .review(
+                    actor,
+                    ReviewTask {
+                        task_display_id: require_string(&args, "display_id")?,
+                        action,
+                        text: require_string(&args, "text")?,
+                        revision: None,
+                    },
+                )
+                .await?;
+            Ok(json!({ "ok": true, "entity": task, "revision": task.revision }))
         }
         "check_add" => {
             let check = app

@@ -11,8 +11,9 @@ use chrono::Utc;
 use clap::Parser;
 use taskboard_application::{
     ActivityQuery, Actor, App, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, NextClaim,
-    ProjectAdd, ProjectUpdate, RunCancel, RunContinue, RunFail, RunFinish, RunListQuery, RunStart,
-    RunUpdate, RunWait, SystemClock, TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate,
+    ProjectAdd, ProjectUpdate, ReviewAction, ReviewTask, RunCancel, RunContinue, RunFail,
+    RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, SystemClock, TaskCreate, TaskListQuery,
+    TaskSpawn, TaskUpdate,
 };
 use taskboard_core::LinkKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
@@ -193,6 +194,39 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
                     run.agent,
                     run.status.as_str()
                 );
+            });
+            Ok(())
+        }
+        Command::Review {
+            display_id,
+            approve,
+            changes,
+            text,
+        } => {
+            let action = if approve {
+                ReviewAction::Approve
+            } else {
+                let _ = changes;
+                ReviewAction::Changes
+            };
+            let task = app
+                .review(
+                    actor,
+                    ReviewTask {
+                        task_display_id: display_id,
+                        action,
+                        text,
+                        revision,
+                    },
+                )
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entity(json, &task, task.revision, || {
+                if approve {
+                    println!("Approved {}", task.display_id);
+                } else {
+                    println!("Requested changes on {}", task.display_id);
+                }
             });
             Ok(())
         }

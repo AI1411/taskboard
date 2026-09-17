@@ -97,6 +97,21 @@ pub enum Command {
         #[arg(long = "move")]
         move_to: bool,
     },
+    /// Approve or request changes on an In Review card
+    #[command(group(
+        clap::ArgGroup::new("verdict")
+            .required(true)
+            .args(["approve", "changes"])
+    ))]
+    Review {
+        display_id: String,
+        #[arg(long)]
+        approve: bool,
+        #[arg(long)]
+        changes: bool,
+        #[arg(long)]
+        text: String,
+    },
     /// Undo the latest undoable activity
     Undo,
     /// List stale running runs
