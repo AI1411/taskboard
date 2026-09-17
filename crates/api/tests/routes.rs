@@ -495,3 +495,94 @@ async fn blocked_by_link_and_cycle() {
     assert_eq!(err["error"]["field"], "blocked_by");
     assert_eq!(err["error"]["message"], "blocked-by cycle");
 }
+
+#[tokio::test]
+async fn get_status_returns_inbox_and_ready_counts() {
+    let s = seeded_task_server().await;
+    let client = authed(&s);
+    let res = client
+        .get(format!("{}/api/v1/status", s.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let v: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(v["entity"]["inbox"]["total"], 0);
+    assert_eq!(v["entity"]["ready"], 1);
+    assert_eq!(v["entity"]["readyHead"][0]["displayId"], "TASK-1");
+    assert_eq!(v["entity"]["openRuns"], 0);
+    assert_eq!(v["entity"]["inReview"], 0);
+    assert_eq!(v["entity"]["blocked"], 0);
+}
+
+#[tokio::test]
+async fn get_occupancy_lists_collisions_only() {
+    let s = seeded_task_server().await;
+    let client = authed(&s);
+    client
+        .post(format!("{}/api/v1/projects/renai-sim/tasks", s.base))
+        .json(&json!({ "title": "Second" }))
+        .send()
+        .await
+        .unwrap();
+    for id in ["TASK-1", "TASK-2"] {
+        client
+            .patch(format!("{}/api/v1/tasks/{id}", s.base))
+            .json(&json!({ "worktreePath": "/tmp/shared" }))
+            .send()
+            .await
+            .unwrap();
+        client
+            .post(format!("{}/api/v1/tasks/{id}/runs", s.base))
+            .json(&json!({ "agent": "cursor" }))
+            .send()
+            .await
+            .unwrap();
+    }
+    let res = client
+        .get(format!("{}/api/v1/occupancy", s.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let v: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(v["entities"][0]["worktreePath"], "/tmp/shared");
+    assert_eq!(v["entities"][0]["runs"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn post_spawn_creates_todo_child_and_blocks_parent() {
+    let s = seeded_task_server().await;
+    let client = authed(&s);
+    let shown = client
+        .get(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    let parent_column = shown["entity"]["column"].clone();
+    let res = client
+        .post(format!("{}/api/v1/tasks/TASK-1/spawn", s.base))
+        .json(&json!({ "titles": ["Child split"] }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let v: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(v["entities"][0]["displayId"], "TASK-2");
+    assert_eq!(v["entities"][0]["title"], "Child split");
+    assert_eq!(v["entities"][0]["column"], "todo");
+    let parent = client
+        .get(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    assert_eq!(parent["entity"]["column"], parent_column);
+    assert_eq!(parent["entity"]["links"][0]["kind"], "blocked_by");
+    assert_eq!(parent["entity"]["links"][0]["value"], "TASK-2");
+}
