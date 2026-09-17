@@ -951,6 +951,19 @@ export function TaskboardApp(props: {
             }
           })();
         }}
+        onRunCancel={(runDisplayId) => {
+          void (async () => {
+            try {
+              await transport.runPatch(runDisplayId, { op: "cancel" });
+              const id = selectedIdRef.current;
+              if (id) applyDetail(await transport.taskShow(id));
+              const project = selectedProjectRef.current;
+              if (project) await refreshTasks(project.slug);
+            } catch (err) {
+              setToast({ message: errorMessage(err), error: true });
+            }
+          })();
+        }}
         onBlockedByAdd={(value) => {
           const id = selectedIdRef.current;
           if (!id) return;

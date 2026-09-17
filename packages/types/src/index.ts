@@ -164,4 +164,5 @@ export type RunOp =
   | { op: "update"; message?: string }
   | { op: "wait"; reason: string }
   | { op: "fail"; summary: string }
-  | { op: "finish"; summary: string };
+  | { op: "finish"; summary: string }
+  | { op: "cancel"; summary?: string };

@@ -331,7 +331,25 @@ export function fakeTransport(): Transport {
     async runStart() {
       throw new Error("not implemented");
     },
-    async runPatch() {
+    async runPatch(runDisplayId, op) {
+      for (const detail of details.values()) {
+        const run = detail.runs.find((item) => item.displayId === runDisplayId);
+        if (!run) continue;
+        if (op.op === "cancel") {
+          run.status = "failed";
+          run.summary = op.summary ?? "canceled";
+          run.endedAt = now();
+          detail.displayStatus = "failed";
+          detail.stale = false;
+          const task = tasks.find((item) => item.displayId === detail.displayId);
+          if (task) {
+            task.displayStatus = "failed";
+            task.stale = false;
+            Object.assign(detail, task, { runs: detail.runs });
+          }
+          return { ...run };
+        }
+      }
       throw new Error("not implemented");
     },
     async inbox(opts) {

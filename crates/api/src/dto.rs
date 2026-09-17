@@ -418,6 +418,7 @@ pub enum RunOp {
     Wait,
     Fail,
     Finish,
+    Cancel,
 }
 
 #[derive(Debug, Deserialize)]

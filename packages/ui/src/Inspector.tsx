@@ -59,6 +59,7 @@ export function Inspector(props: {
   onCheckAdd?: (text: string) => void;
   onCheckToggle?: (displayId: string) => void;
   onBlockedByAdd?: (displayId: string) => void;
+  onRunCancel?: (runDisplayId: string) => void;
   onCopyId?: (displayId: string) => void;
   onClose?: () => void;
 }) {
@@ -351,6 +352,16 @@ export function Inspector(props: {
                   <div className={styles.historyMeta}>{run.waitingReason}</div>
                 ) : null}
                 {run.summary ? <div className={styles.historyMeta}>{run.summary}</div> : null}
+                {run.status === "running" || run.status === "waiting" ? (
+                  <button
+                    type="button"
+                    className={styles.linkButton}
+                    aria-label={`Cancel ${run.displayId}`}
+                    onClick={() => props.onRunCancel?.(run.displayId)}
+                  >
+                    Cancel
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>

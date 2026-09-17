@@ -408,6 +408,7 @@ pub enum RunOp {
     Wait,
     Fail,
     Finish,
+    Cancel,
 }
 
 /// Distinguishes JSON field absent (`None`) from explicit `null` (`Some(None)`).
