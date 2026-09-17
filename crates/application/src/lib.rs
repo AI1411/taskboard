@@ -9,9 +9,9 @@ pub use actor::Actor;
 pub use app::{App, Clock, SystemClock};
 pub use commands::{
     ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope, LinkAdd, NextClaim,
-    ProjectAdd, ProjectUpdate, ReplyContinueResult, RunCancel, RunContinue, RunFail, RunFinish,
-    RunListQuery, RunStart, RunUpdate, RunWait, StatusLine, TaskCreate, TaskListQuery, TaskSpawn,
-    TaskUpdate, STATUS_HEAD,
+    ProjectAdd, ProjectUpdate, ReplyContinueResult, ReviewAction, ReviewTask, RunCancel,
+    RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, StatusLine,
+    TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate, STATUS_HEAD,
 };
 pub use error::AppError;
 pub use store::{NewActivity, Store, SyncDelta, Trash, UndoResult};

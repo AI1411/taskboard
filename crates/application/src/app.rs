@@ -17,9 +17,9 @@ use taskboard_core::{
 use crate::actor::Actor;
 use crate::commands::{
     ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope, LinkAdd, NextClaim,
-    ProjectAdd, ProjectUpdate, ReplyContinueResult, RunCancel, RunContinue, RunFail, RunFinish,
-    RunListQuery, RunStart, RunUpdate, RunWait, StatusLine, TaskCreate, TaskListQuery, TaskSpawn,
-    TaskUpdate, STATUS_HEAD,
+    ProjectAdd, ProjectUpdate, ReplyContinueResult, ReviewAction, ReviewTask, RunCancel,
+    RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, StatusLine,
+    TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate, STATUS_HEAD,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -410,6 +410,15 @@ impl App {
         let store = &mut **store;
         store.begin().await?;
         let result = task_update_inner(store, actor, cmd, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn review(&self, actor: &Actor, cmd: ReviewTask) -> Result<TaskDetail, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = review_inner(store, actor, cmd, now).await;
         commit_or_rollback(store, result).await
     }
 
@@ -1336,6 +1345,36 @@ async fn task_update_inner(
     )
     .await?;
     load_task_detail(store, task).await
+}
+
+async fn review_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: ReviewTask,
+    now: DateTime<Utc>,
+) -> Result<TaskDetail, AppError> {
+    let task = require_live_task(store, &cmd.task_display_id).await?;
+    if task.column != Column::InReview {
+        return Err(AppError::Validation {
+            field: "column".into(),
+            message: "task must be in-review".into(),
+        });
+    }
+    comment_add_inner(
+        store,
+        actor,
+        CommentAdd {
+            task_display_id: cmd.task_display_id.clone(),
+            body: cmd.text,
+        },
+        now,
+    )
+    .await?;
+    let dest = match cmd.action {
+        ReviewAction::Approve => Column::Done,
+        ReviewAction::Changes => Column::InProgress,
+    };
+    task_move_inner(store, actor, &cmd.task_display_id, dest, cmd.revision, now).await
 }
 
 async fn task_move_inner(
