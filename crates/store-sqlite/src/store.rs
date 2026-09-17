@@ -680,6 +680,13 @@ impl Store for SqliteStore {
         Ok(())
     }
 
+    async fn get_comment(&mut self, id: Uuid) -> Result<Option<Comment>, AppError> {
+        let sql = format!("SELECT {COMMENT_COLUMNS} FROM comments WHERE id = ?");
+        let query = sqlx::query(&sql).bind(uuid_bytes(id));
+        let row = run!(self, query, fetch_optional).map_err(map_sqlx)?;
+        row.as_ref().map(comment_from_row).transpose()
+    }
+
     async fn list_comments(&mut self, task_id: Uuid) -> Result<Vec<Comment>, AppError> {
         let sql = format!(
             "SELECT {COMMENT_COLUMNS} FROM comments WHERE task_id = ? ORDER BY created_at ASC, id ASC"
@@ -687,6 +694,12 @@ impl Store for SqliteStore {
         let query = sqlx::query(&sql).bind(uuid_bytes(task_id));
         let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
         rows.iter().map(comment_from_row).collect()
+    }
+
+    async fn delete_comment(&mut self, id: Uuid) -> Result<(), AppError> {
+        let query = sqlx::query("DELETE FROM comments WHERE id = ?").bind(uuid_bytes(id));
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
     }
 
     async fn insert_check(&mut self, check: &Check) -> Result<(), AppError> {
@@ -717,6 +730,13 @@ impl Store for SqliteStore {
         Ok(())
     }
 
+    async fn get_check(&mut self, id: Uuid) -> Result<Option<Check>, AppError> {
+        let sql = format!("SELECT {CHECK_COLUMNS} FROM checks WHERE id = ?");
+        let query = sqlx::query(&sql).bind(uuid_bytes(id));
+        let row = run!(self, query, fetch_optional).map_err(map_sqlx)?;
+        row.as_ref().map(check_from_row).transpose()
+    }
+
     async fn get_check_by_display_id(
         &mut self,
         display_id: &str,
@@ -734,6 +754,12 @@ impl Store for SqliteStore {
         let query = sqlx::query(&sql).bind(uuid_bytes(task_id));
         let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
         rows.iter().map(check_from_row).collect()
+    }
+
+    async fn delete_check(&mut self, id: Uuid) -> Result<(), AppError> {
+        let query = sqlx::query("DELETE FROM checks WHERE id = ?").bind(uuid_bytes(id));
+        run!(self, query, execute).map_err(map_sqlx)?;
+        Ok(())
     }
 
     async fn get_run(&mut self, id: Uuid) -> Result<Option<Run>, AppError> {
@@ -885,6 +911,32 @@ impl Store for SqliteStore {
             "SELECT {ACTIVITY_COLUMNS} FROM activities WHERE entity_id = ? ORDER BY sequence DESC LIMIT ?"
         );
         let query = sqlx::query(&sql).bind(uuid_bytes(entity_id)).bind(limit);
+        let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
+        rows.iter().map(activity_from_row).collect()
+    }
+
+    async fn list_recent_task_activities(
+        &mut self,
+        task_id: Uuid,
+        limit: i64,
+    ) -> Result<Vec<Activity>, AppError> {
+        let sql = format!(
+            "SELECT {ACTIVITY_COLUMNS} FROM activities WHERE entity_id = ? \
+             OR entity_id IN (SELECT id FROM comments WHERE task_id = ?) \
+             OR entity_id IN (SELECT id FROM checks WHERE task_id = ?) \
+             OR json_extract(before_json, '$.task_id') = ? \
+             OR json_extract(after_json, '$.task_id') = ? \
+             ORDER BY sequence DESC LIMIT ?"
+        );
+        let id = uuid_bytes(task_id);
+        let task_id_str = task_id.to_string();
+        let query = sqlx::query(&sql)
+            .bind(id.clone())
+            .bind(id.clone())
+            .bind(id)
+            .bind(&task_id_str)
+            .bind(&task_id_str)
+            .bind(limit);
         let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
         rows.iter().map(activity_from_row).collect()
     }

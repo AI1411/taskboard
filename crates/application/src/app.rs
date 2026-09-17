@@ -642,19 +642,30 @@ impl App {
             })
     }
 
-    pub async fn check_add(&self, _actor: &Actor, cmd: CheckAdd) -> Result<Check, AppError> {
+    pub async fn check_add(&self, actor: &Actor, cmd: CheckAdd) -> Result<Check, AppError> {
+        let now = self.clock.now();
         let mut store = self.store.lock().await;
         let store = &mut **store;
         store.begin().await?;
-        let result = check_add_inner(store, cmd).await;
+        let result = check_add_inner(store, actor, cmd, now).await;
         commit_or_rollback(store, result).await
     }
 
-    pub async fn check_toggle(&self, _actor: &Actor, display_id: &str) -> Result<Check, AppError> {
+    pub async fn check_toggle(&self, actor: &Actor, display_id: &str) -> Result<Check, AppError> {
+        let now = self.clock.now();
         let mut store = self.store.lock().await;
         let store = &mut **store;
         store.begin().await?;
-        let result = check_toggle_inner(store, display_id).await;
+        let result = check_toggle_inner(store, actor, display_id, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn check_remove(&self, actor: &Actor, display_id: &str) -> Result<Check, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = check_remove_inner(store, actor, display_id, now).await;
         commit_or_rollback(store, result).await
     }
 
@@ -692,6 +703,19 @@ impl App {
         let store = &mut **store;
         let task = require_live_task(store, task_display_id).await?;
         store.list_comments(task.id).await
+    }
+
+    pub async fn comment_remove_latest(
+        &self,
+        actor: &Actor,
+        task_display_id: &str,
+    ) -> Result<Comment, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = comment_remove_latest_inner(store, actor, task_display_id, now).await;
+        commit_or_rollback(store, result).await
     }
 
     pub async fn run_by_session(&self, session_id: &str) -> Result<Run, AppError> {
@@ -1207,6 +1231,7 @@ async fn task_spawn_inner(
         });
     }
     let parent = require_live_task(store, &cmd.parent_display_id).await?;
+    let parent_before = parent.clone();
     let project =
         store
             .get_project(parent.project_id)
@@ -1243,6 +1268,27 @@ async fn task_spawn_inner(
         .await?;
         children.push(child);
     }
+    let parent_after = store
+        .get_task(parent.id)
+        .await?
+        .ok_or_else(|| AppError::NotFound {
+            entity: "task".into(),
+            id: parent.display_id.clone(),
+        })?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Task,
+            operation: "task.spawn",
+            entity_id: parent.id,
+            previous_revision: Some(parent_before.revision),
+            before_json: Some(json_value(&parent_before)?),
+            after_json: Some(json_value(&parent_after)?),
+        },
+    )
+    .await?;
     Ok(children)
 }
 
@@ -1368,7 +1414,31 @@ async fn review_inner(
         ReviewAction::Approve => Column::Done,
         ReviewAction::Changes => Column::InProgress,
     };
-    task_move_inner(store, actor, &cmd.task_display_id, dest, cmd.revision, now).await
+    let before = task.clone();
+    let moved =
+        task_move_inner(store, actor, &cmd.task_display_id, dest, cmd.revision, now).await?;
+    let after = store
+        .get_task(moved.id)
+        .await?
+        .ok_or_else(|| AppError::NotFound {
+            entity: "task".into(),
+            id: moved.display_id.clone(),
+        })?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Task,
+            operation: "task.review",
+            entity_id: moved.id,
+            previous_revision: Some(before.revision),
+            before_json: Some(json_value(&before)?),
+            after_json: Some(json_value(&after)?),
+        },
+    )
+    .await?;
+    load_task_detail(store, after).await
 }
 
 async fn task_move_inner(
@@ -2070,7 +2140,12 @@ async fn run_continue_inner(
     .await
 }
 
-async fn check_add_inner(store: &mut dyn Store, cmd: CheckAdd) -> Result<Check, AppError> {
+async fn check_add_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: CheckAdd,
+    now: DateTime<Utc>,
+) -> Result<Check, AppError> {
     let text = require_non_blank("text", &cmd.text)?;
     let task = require_live_task(store, &cmd.task_display_id).await?;
     let existing = store.list_checks(task.id).await?;
@@ -2090,10 +2165,29 @@ async fn check_add_inner(store: &mut dyn Store, cmd: CheckAdd) -> Result<Check, 
         sort_order,
     };
     store.insert_check(&check).await?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Check,
+            operation: "check.add",
+            entity_id: check.id,
+            previous_revision: None,
+            before_json: None,
+            after_json: Some(json_value(&check)?),
+        },
+    )
+    .await?;
     Ok(check)
 }
 
-async fn check_toggle_inner(store: &mut dyn Store, display_id: &str) -> Result<Check, AppError> {
+async fn check_toggle_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    display_id: &str,
+    now: DateTime<Utc>,
+) -> Result<Check, AppError> {
     let mut check = store
         .get_check_by_display_id(display_id)
         .await?
@@ -2101,8 +2195,54 @@ async fn check_toggle_inner(store: &mut dyn Store, display_id: &str) -> Result<C
             entity: "check".into(),
             id: display_id.to_string(),
         })?;
+    let before = check.clone();
     check.done = !check.done;
     store.update_check(&check).await?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Check,
+            operation: "check.toggle",
+            entity_id: check.id,
+            previous_revision: None,
+            before_json: Some(json_value(&before)?),
+            after_json: Some(json_value(&check)?),
+        },
+    )
+    .await?;
+    Ok(check)
+}
+
+async fn check_remove_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    display_id: &str,
+    now: DateTime<Utc>,
+) -> Result<Check, AppError> {
+    let check = store
+        .get_check_by_display_id(display_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound {
+            entity: "check".into(),
+            id: display_id.to_string(),
+        })?;
+    store.delete_check(check.id).await?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Check,
+            operation: "check.remove",
+            entity_id: check.id,
+            previous_revision: None,
+            before_json: Some(json_value(&check)?),
+            after_json: None,
+        },
+    )
+    .await?;
     Ok(check)
 }
 
@@ -2129,6 +2269,53 @@ async fn comment_add_inner(
         created_at: now,
     };
     store.insert_comment(&comment).await?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Comment,
+            operation: "comment.add",
+            entity_id: comment.id,
+            previous_revision: None,
+            before_json: None,
+            after_json: Some(json_value(&comment)?),
+        },
+    )
+    .await?;
+    Ok(comment)
+}
+
+async fn comment_remove_latest_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    task_display_id: &str,
+    now: DateTime<Utc>,
+) -> Result<Comment, AppError> {
+    let task = require_live_task(store, task_display_id).await?;
+    let comments = store.list_comments(task.id).await?;
+    let comment = comments
+        .last()
+        .cloned()
+        .ok_or_else(|| AppError::Validation {
+            field: "comment".into(),
+            message: "thread is empty".into(),
+        })?;
+    store.delete_comment(comment.id).await?;
+    record_activity(
+        store,
+        actor,
+        now,
+        ActivityWrite {
+            entity_type: EntityType::Comment,
+            operation: "comment.remove",
+            entity_id: comment.id,
+            previous_revision: None,
+            before_json: Some(json_value(&comment)?),
+            after_json: None,
+        },
+    )
+    .await?;
     Ok(comment)
 }
 
@@ -2392,7 +2579,7 @@ async fn load_task_detail(store: &mut dyn Store, task: Task) -> Result<TaskDetai
         .collect::<Vec<_>>();
     let comments = store.list_comments(task.id).await?;
     let checks = store.list_checks(task.id).await?;
-    let recent_activities = store.list_recent_activities(task.id, 20).await?;
+    let recent_activities = store.list_recent_task_activities(task.id, 20).await?;
     let (display_status, run_message, waiting_reason) = display_from_runs(&runs);
     let reply = reply_for(display_status, &comments);
     Ok(TaskDetail {
@@ -2869,6 +3056,28 @@ async fn apply_compensation(
         store.insert_link(&link).await?;
         return json_value(&link);
     }
+    if activity.operation == "check.remove" {
+        let check: Check = serde_json::from_value(
+            activity
+                .before_json
+                .clone()
+                .ok_or_else(|| AppError::Io("check.remove missing before_json".into()))?,
+        )
+        .map_err(map_json)?;
+        store.insert_check(&check).await?;
+        return json_value(&check);
+    }
+    if activity.operation == "comment.remove" {
+        let comment: Comment = serde_json::from_value(
+            activity
+                .before_json
+                .clone()
+                .ok_or_else(|| AppError::Io("comment.remove missing before_json".into()))?,
+        )
+        .map_err(map_json)?;
+        store.insert_comment(&comment).await?;
+        return json_value(&comment);
+    }
     restore_snapshot(store, activity, now).await
 }
 
@@ -2889,7 +3098,7 @@ async fn revision_just_undone(
             .get_run(activity.entity_id)
             .await?
             .map(|run| run.revision)),
-        EntityType::Link => Ok(None),
+        EntityType::Link | EntityType::Comment | EntityType::Check => Ok(None),
     }
 }
 
@@ -2942,6 +3151,22 @@ async fn compensate_create(
             store.delete_run(activity.entity_id).await?;
             match run {
                 Some(run) => json_value(&run),
+                None => Ok(serde_json::Value::Null),
+            }
+        }
+        EntityType::Comment => {
+            let comment = store.get_comment(activity.entity_id).await?;
+            store.delete_comment(activity.entity_id).await?;
+            match comment {
+                Some(comment) => json_value(&comment),
+                None => Ok(serde_json::Value::Null),
+            }
+        }
+        EntityType::Check => {
+            let check = store.get_check(activity.entity_id).await?;
+            store.delete_check(activity.entity_id).await?;
+            match check {
+                Some(check) => json_value(&check),
                 None => Ok(serde_json::Value::Null),
             }
         }
@@ -3008,6 +3233,18 @@ async fn restore_snapshot(
             run.updated_at = now;
             store.update_run(&run).await?;
             json_value(&run)
+        }
+        EntityType::Check => {
+            let check: Check = serde_json::from_value(before).map_err(map_json)?;
+            store.update_check(&check).await?;
+            json_value(&check)
+        }
+        EntityType::Comment => {
+            let comment: Comment = serde_json::from_value(before).map_err(map_json)?;
+            if store.get_comment(comment.id).await?.is_none() {
+                store.insert_comment(&comment).await?;
+            }
+            json_value(&comment)
         }
     }
 }
@@ -3127,13 +3364,13 @@ async fn resolve_activity_target(
                 task_display_id: Some(task.display_id),
             }))
         }
-        EntityType::Link => {
-            let Some(link) = store.get_link(activity.entity_id).await? else {
+        EntityType::Link | EntityType::Comment | EntityType::Check => {
+            let Some(task_id) = child_task_id(store, activity).await? else {
                 return Ok(None);
             };
-            let Some(task) = store.get_task(link.task_id).await? else {
+            let Some(task) = store.get_task(task_id).await? else {
                 return Ok(Some(ResolvedActivity {
-                    target: link.id.to_string(),
+                    target: activity.entity_id.to_string(),
                     project_slug: None,
                     task_display_id: None,
                 }));
@@ -3173,6 +3410,14 @@ async fn current_entity_json(
             Some(run) => json_value(&run),
             None => Ok(serde_json::Value::Null),
         },
+        EntityType::Comment => match store.get_comment(entity_id).await? {
+            Some(comment) => json_value(&comment),
+            None => Ok(serde_json::Value::Null),
+        },
+        EntityType::Check => match store.get_check(entity_id).await? {
+            Some(check) => json_value(&check),
+            None => Ok(serde_json::Value::Null),
+        },
     }
 }
 
@@ -3203,8 +3448,8 @@ async fn sync_inner(store: &mut dyn Store, after: i64) -> Result<SyncDelta, AppE
                     run_ids.push(activity.entity_id);
                 }
             }
-            EntityType::Link => {
-                if let Some(task_id) = link_task_id(store, &activity).await? {
+            EntityType::Link | EntityType::Comment | EntityType::Check => {
+                if let Some(task_id) = child_task_id(store, &activity).await? {
                     if seen_tasks.insert(task_id) {
                         task_ids.push(task_id);
                     }
@@ -3239,12 +3484,18 @@ async fn sync_inner(store: &mut dyn Store, after: i64) -> Result<SyncDelta, AppE
     })
 }
 
-async fn link_task_id(
+async fn child_task_id(
     store: &mut dyn Store,
     activity: &Activity,
 ) -> Result<Option<Uuid>, AppError> {
     if let Some(link) = store.get_link(activity.entity_id).await? {
         return Ok(Some(link.task_id));
+    }
+    if let Some(comment) = store.get_comment(activity.entity_id).await? {
+        return Ok(Some(comment.task_id));
+    }
+    if let Some(check) = store.get_check(activity.entity_id).await? {
+        return Ok(Some(check.task_id));
     }
     for payload in [&activity.after_json, &activity.before_json]
         .into_iter()

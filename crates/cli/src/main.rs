@@ -891,6 +891,15 @@ async fn check_cmd(app: &App, actor: &Actor, json: bool, cmd: CheckCommand) -> R
                 output::print_check_list(&checks);
             });
         }
+        CheckCommand::Remove { display_id } => {
+            let check = app
+                .check_remove(actor, &display_id)
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entity(json, &check, 0, || {
+                println!("Removed {}", check.display_id);
+            });
+        }
     }
     Ok(())
 }
@@ -942,6 +951,15 @@ async fn comment_cmd(app: &App, actor: &Actor, json: bool, cmd: CommentCommand) 
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entities(json, &comments, || {
                 output::print_comment_list(&comments);
+            });
+        }
+        CommentCommand::Remove { display_id } => {
+            let comment = app
+                .comment_remove_latest(actor, &display_id)
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
+            output::print_entity(json, &comment, 0, || {
+                println!("Removed latest comment on {display_id}");
             });
         }
     }

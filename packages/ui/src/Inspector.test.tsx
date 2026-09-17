@@ -140,6 +140,29 @@ describe("Inspector checklists", () => {
     expect(await screen.findByRole("checkbox", { name: "Ship it" })).toBeTruthy();
   });
 
+  it("removes a check from the inspector", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    const task = await transport.taskCreate(project.slug, { title: "DoD", column: "todo" });
+    task.checks = [
+      {
+        id: "k1",
+        displayId: "CHECK-1",
+        taskId: task.id,
+        text: "Write tests",
+        done: false,
+        sortOrder: 0,
+      },
+    ];
+    task.checklistDone = 0;
+    task.checklistTotal = 1;
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("DoD"));
+    await userEvent.click(await screen.findByRole("button", { name: "Remove CHECK-1" }));
+    await waitFor(() => expect(transport.checkRemove).toHaveBeenCalledWith("CHECK-1"));
+    expect(screen.queryByRole("checkbox", { name: "Write tests" })).toBeNull();
+  });
+
   it("shows checklist items as checkboxes without changing the note", async () => {
     const transport = fakeTransport();
     const project = await transport.projectAdd({ name: "Alpha" });
@@ -202,7 +225,7 @@ describe("Inspector history", () => {
     task.recentActivities = [
       {
         id: "a1",
-        sequence: 2,
+        sequence: 8,
         actorKind: "cli",
         actorLabel: "cursor",
         operation: "task.move",
@@ -215,6 +238,84 @@ describe("Inspector history", () => {
       },
       {
         id: "a2",
+        sequence: 7,
+        actorKind: "cli",
+        actorLabel: "cursor",
+        operation: "comment.add",
+        entityType: "comment",
+        entityId: task.id,
+        previousRevision: null,
+        beforeJson: null,
+        afterJson: null,
+        createdAt: startedAt,
+      },
+      {
+        id: "a3",
+        sequence: 6,
+        actorKind: "cli",
+        actorLabel: "cursor",
+        operation: "check.add",
+        entityType: "check",
+        entityId: task.id,
+        previousRevision: null,
+        beforeJson: null,
+        afterJson: null,
+        createdAt: startedAt,
+      },
+      {
+        id: "a4",
+        sequence: 5,
+        actorKind: "cli",
+        actorLabel: "cursor",
+        operation: "check.toggle",
+        entityType: "check",
+        entityId: task.id,
+        previousRevision: null,
+        beforeJson: null,
+        afterJson: null,
+        createdAt: startedAt,
+      },
+      {
+        id: "a5",
+        sequence: 4,
+        actorKind: "cli",
+        actorLabel: "cursor",
+        operation: "task.review",
+        entityType: "task",
+        entityId: task.id,
+        previousRevision: null,
+        beforeJson: null,
+        afterJson: null,
+        createdAt: startedAt,
+      },
+      {
+        id: "a6",
+        sequence: 3,
+        actorKind: "cli",
+        actorLabel: "cursor",
+        operation: "task.spawn",
+        entityType: "task",
+        entityId: task.id,
+        previousRevision: null,
+        beforeJson: null,
+        afterJson: null,
+        createdAt: startedAt,
+      },
+      {
+        id: "a7",
+        sequence: 2,
+        actorKind: "cli",
+        actorLabel: "cursor",
+        operation: "run.cancel",
+        entityType: "run",
+        entityId: task.id,
+        previousRevision: null,
+        beforeJson: null,
+        afterJson: null,
+        createdAt: startedAt,
+      },
+      {
+        id: "a8",
         sequence: 1,
         actorKind: "cli",
         actorLabel: "cursor",
@@ -237,6 +338,12 @@ describe("Inspector history", () => {
     expect(screen.getByText("Need spec")).toBeTruthy();
     expect(screen.getByText("halfway")).toBeTruthy();
     expect(screen.getByText(/Moved · cursor · 2m ago/)).toBeTruthy();
+    expect(screen.getByText(/Commented · cursor · 2m ago/)).toBeTruthy();
+    expect(screen.getByText(/Check added · cursor · 2m ago/)).toBeTruthy();
+    expect(screen.getByText(/Check toggled · cursor · 2m ago/)).toBeTruthy();
+    expect(screen.getByText(/Review · cursor · 2m ago/)).toBeTruthy();
+    expect(screen.getByText(/Spawned · cursor · 2m ago/)).toBeTruthy();
+    expect(screen.getByText(/Run canceled · cursor · 2m ago/)).toBeTruthy();
     expect(screen.getByText(/Zap · cursor · 2m ago/)).toBeTruthy();
     expect(screen.queryByText("mystery.zap")).toBeNull();
   });
@@ -316,6 +423,7 @@ describe("Inspector comments", () => {
     const transport = fakeTransport();
     const project = await transport.projectAdd({ name: "Alpha" });
     const task = await transport.taskCreate(project.slug, { title: "Talk", column: "todo" });
+    const createdAt = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     task.comments = [
       {
         id: "c1",
@@ -323,12 +431,13 @@ describe("Inspector comments", () => {
         actorKind: "cli",
         actorLabel: "alice",
         body: "use TDD",
-        createdAt: "2026-09-16T12:00:00Z",
+        createdAt,
       },
     ];
     render(<TaskboardApp transport={transport} />);
     await userEvent.click(await screen.findByText("Talk"));
-    expect(await screen.findByText(/2026-09-16T12:00:00Z · alice · use TDD/)).toBeTruthy();
+    expect(await screen.findByText(/2m ago · alice · use TDD/)).toBeTruthy();
+    expect(screen.queryByText(/2026-09-16T12:00:00Z/)).toBeNull();
     expect(screen.queryByText(/marked/i)).toBeNull();
   });
 
@@ -345,6 +454,41 @@ describe("Inspector comments", () => {
     );
     expect(await screen.findByText(/local-ui · use TDD/)).toBeTruthy();
     expect((screen.getByLabelText("Note") as HTMLTextAreaElement).value).toBe("# Spec");
+  });
+
+  it("removes only the latest comment", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    const task = await transport.taskCreate(project.slug, { title: "Talk", column: "todo" });
+    const createdAt = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    task.comments = [
+      {
+        id: "c1",
+        taskId: task.id,
+        actorKind: "cli",
+        actorLabel: "alice",
+        body: "first",
+        createdAt,
+      },
+      {
+        id: "c2",
+        taskId: task.id,
+        actorKind: "cli",
+        actorLabel: "bob",
+        body: "latest",
+        createdAt,
+      },
+    ];
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Talk"));
+    expect(screen.getByRole("button", { name: "Remove latest comment" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /Remove/ }).filter((btn) =>
+      btn.getAttribute("aria-label") === "Remove latest comment",
+    )).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: "Remove latest comment" }));
+    await waitFor(() => expect(transport.commentRemoveLatest).toHaveBeenCalledWith("TASK-1"));
+    expect(screen.queryByText(/bob · latest/)).toBeNull();
+    expect(screen.getByText(/alice · first/)).toBeTruthy();
   });
 
   it("can continue a waiting run when sending a comment", async () => {

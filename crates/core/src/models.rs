@@ -29,6 +29,8 @@ pub enum EntityType {
     Task,
     Run,
     Link,
+    Comment,
+    Check,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

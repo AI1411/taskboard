@@ -149,12 +149,20 @@ export class TauriTransport implements Transport {
     return this.call("comment_add", { displayId, body, continueWaiting: continueWaiting ?? false });
   }
 
+  commentRemoveLatest(displayId: string): Promise<Comment> {
+    return this.call("comment_remove_latest", { displayId });
+  }
+
   checkAdd(displayId: string, text: string): Promise<Check> {
     return this.call("check_add", { displayId, text });
   }
 
   checkToggle(displayId: string): Promise<Check> {
     return this.call("check_toggle", { displayId });
+  }
+
+  checkRemove(displayId: string): Promise<Check> {
+    return this.call("check_remove", { displayId });
   }
 
   linkRemove(linkId: string, revision?: number): Promise<TaskDetail> {

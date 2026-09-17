@@ -422,6 +422,8 @@ pub enum CommentCommand {
     },
     /// List comments on a task
     List { display_id: String },
+    /// Delete the latest comment on a task
+    Remove { display_id: String },
 }
 
 #[derive(Debug, Subcommand)]
@@ -436,6 +438,8 @@ pub enum CheckCommand {
     Toggle { display_id: String },
     /// List checklist items on a task
     List { display_id: String },
+    /// Delete a checklist item
+    Remove { display_id: String },
 }
 
 #[derive(Debug, Subcommand)]

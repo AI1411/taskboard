@@ -771,6 +771,10 @@ fn check_add_toggle_list_json_keeps_note() {
     let listed_tasks = json_ok(&dir, &["task", "list", "--project", "renai-sim"]);
     assert_eq!(listed_tasks["entities"][0]["checklist_done"], 1);
     assert_eq!(listed_tasks["entities"][0]["checklist_total"], 2);
+    let removed = json_ok(&dir, &["check", "remove", "CHECK-2"]);
+    assert_eq!(removed["entity"]["display_id"], "CHECK-2");
+    let listed = json_ok(&dir, &["check", "list", "TASK-1"]);
+    assert_eq!(listed["entities"].as_array().unwrap().len(), 1);
 }
 
 #[test]
@@ -796,6 +800,12 @@ fn comment_add_list_json_keeps_note() {
     assert_eq!(shown["entity"]["note_markdown"], "# Spec");
     assert_eq!(shown["entity"]["comments"][0]["body"], "use TDD");
     assert_eq!(shown["entity"]["reply"], serde_json::Value::Null);
+    json_ok(&dir, &["comment", "add", "TASK-1", "--text", "second"]);
+    let removed = json_ok(&dir, &["comment", "remove", "TASK-1"]);
+    assert_eq!(removed["entity"]["body"], "second");
+    let listed = json_ok(&dir, &["comment", "list", "TASK-1"]);
+    assert_eq!(listed["entities"].as_array().unwrap().len(), 1);
+    assert_eq!(listed["entities"][0]["body"], "use TDD");
 }
 
 #[test]

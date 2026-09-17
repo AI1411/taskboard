@@ -90,6 +90,10 @@ async fn review_approve_comments_and_moves_to_done() {
     assert_eq!(shown.comments[0].body, "lgtm");
     assert!(!shown.checks[0].done);
     assert!(shown.runs.is_empty());
+    assert!(shown
+        .recent_activities
+        .iter()
+        .any(|activity| activity.operation == "task.review"));
 }
 
 #[tokio::test]

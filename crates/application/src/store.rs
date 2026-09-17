@@ -112,15 +112,19 @@ pub trait Store: Send + Sync {
     async fn delete_link(&mut self, id: Uuid) -> Result<(), AppError>;
 
     async fn insert_comment(&mut self, comment: &Comment) -> Result<(), AppError>;
+    async fn get_comment(&mut self, id: Uuid) -> Result<Option<Comment>, AppError>;
     async fn list_comments(&mut self, task_id: Uuid) -> Result<Vec<Comment>, AppError>;
+    async fn delete_comment(&mut self, id: Uuid) -> Result<(), AppError>;
 
     async fn insert_check(&mut self, check: &Check) -> Result<(), AppError>;
     async fn update_check(&mut self, check: &Check) -> Result<(), AppError>;
+    async fn get_check(&mut self, id: Uuid) -> Result<Option<Check>, AppError>;
     async fn get_check_by_display_id(
         &mut self,
         display_id: &str,
     ) -> Result<Option<Check>, AppError>;
     async fn list_checks(&mut self, task_id: Uuid) -> Result<Vec<Check>, AppError>;
+    async fn delete_check(&mut self, id: Uuid) -> Result<(), AppError>;
 
     async fn get_run(&mut self, id: Uuid) -> Result<Option<Run>, AppError>;
     async fn get_run_by_display_id(&mut self, display_id: &str) -> Result<Option<Run>, AppError>;
@@ -138,6 +142,11 @@ pub trait Store: Send + Sync {
     async fn list_recent_activities(
         &mut self,
         entity_id: Uuid,
+        limit: i64,
+    ) -> Result<Vec<Activity>, AppError>;
+    async fn list_recent_task_activities(
+        &mut self,
+        task_id: Uuid,
         limit: i64,
     ) -> Result<Vec<Activity>, AppError>;
 

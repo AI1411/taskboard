@@ -1,6 +1,7 @@
 use taskboard_core::{Column, LinkKind};
 use taskboard_desktop_commands::{
-    check_add_inner, check_toggle_inner, comment_add_inner, deserialize_present_option,
+    check_add_inner, check_remove_inner, check_toggle_inner, comment_add_inner,
+    comment_remove_latest_inner, deserialize_present_option,
     inbox_inner, link_add_inner, link_remove_inner, occupancy_inner, project_add_inner,
     project_archive_inner,
     project_delete_inner, project_list_inner, project_note_set_inner, project_reorder_inner,
@@ -284,6 +285,26 @@ pub async fn check_toggle(
 ) -> Result<CheckDto, AppErrorDto> {
     let app = state.app.lock().await;
     check_toggle_inner(&app, display_id).await.map(Into::into)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn check_remove(
+    state: tauri::State<'_, DesktopState>,
+    display_id: String,
+) -> Result<CheckDto, AppErrorDto> {
+    let app = state.app.lock().await;
+    check_remove_inner(&app, display_id).await.map(Into::into)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn comment_remove_latest(
+    state: tauri::State<'_, DesktopState>,
+    display_id: String,
+) -> Result<CommentDto, AppErrorDto> {
+    let app = state.app.lock().await;
+    comment_remove_latest_inner(&app, display_id)
+        .await
+        .map(Into::into)
 }
 
 #[tauri::command(rename_all = "snake_case")]

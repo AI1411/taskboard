@@ -151,3 +151,78 @@ async fn blank_comment_is_validation_error() {
         .unwrap_err();
     assert_eq!(err.code(), "validation_error");
 }
+
+#[tokio::test]
+async fn comment_add_records_activity_and_undo_deletes_it() {
+    let app = seeded_task().await;
+    app.comment_add(
+        &cli_actor(),
+        CommentAdd {
+            task_display_id: "TASK-1".into(),
+            body: "use TDD".into(),
+        },
+    )
+    .await
+    .unwrap();
+    let shown = app.task_show("TASK-1").await.unwrap();
+    assert!(shown
+        .recent_activities
+        .iter()
+        .any(|activity| activity.operation == "comment.add"));
+    app.undo(&cli_actor()).await.unwrap();
+    let shown = app.task_show("TASK-1").await.unwrap();
+    assert!(shown.comments.is_empty());
+}
+
+#[tokio::test]
+async fn comment_remove_latest_and_undo_restores_it() {
+    let app = seeded_task().await;
+    app.comment_add(
+        &cli_actor(),
+        CommentAdd {
+            task_display_id: "TASK-1".into(),
+            body: "first".into(),
+        },
+    )
+    .await
+    .unwrap();
+    app.comment_add(
+        &cli_actor(),
+        CommentAdd {
+            task_display_id: "TASK-1".into(),
+            body: "latest".into(),
+        },
+    )
+    .await
+    .unwrap();
+    let removed = app
+        .comment_remove_latest(&cli_actor(), "TASK-1")
+        .await
+        .unwrap();
+    assert_eq!(removed.body, "latest");
+    let shown = app.task_show("TASK-1").await.unwrap();
+    assert_eq!(shown.comments.len(), 1);
+    assert_eq!(shown.comments[0].body, "first");
+    assert!(shown
+        .recent_activities
+        .iter()
+        .any(|activity| activity.operation == "comment.remove"));
+    app.undo(&cli_actor()).await.unwrap();
+    let shown = app.task_show("TASK-1").await.unwrap();
+    assert_eq!(shown.comments.len(), 2);
+    assert_eq!(shown.comments[1].body, "latest");
+}
+
+#[tokio::test]
+async fn comment_remove_latest_on_empty_thread_is_validation_error() {
+    let app = seeded_task().await;
+    let err = app
+        .comment_remove_latest(&cli_actor(), "TASK-1")
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), "validation_error");
+    assert!(matches!(
+        err,
+        taskboard_application::AppError::Validation { field, .. } if field == "comment"
+    ));
+}

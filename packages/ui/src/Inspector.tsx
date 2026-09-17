@@ -23,6 +23,14 @@ const ACTIVITY_LABELS: Record<string, string> = {
   "run.continue": "Run continued",
   "link.add": "Link added",
   "link.remove": "Link removed",
+  "comment.add": "Commented",
+  "check.add": "Check added",
+  "check.toggle": "Check toggled",
+  "check.remove": "Check removed",
+  "comment.remove": "Comment removed",
+  "task.review": "Review",
+  "task.spawn": "Spawned",
+  "run.cancel": "Run canceled",
   undo: "Undo",
 };
 
@@ -56,8 +64,10 @@ export function Inspector(props: {
   onLinkAdd?: (value: string) => void;
   onLinkRemove?: (linkId: string) => void;
   onCommentAdd?: (body: string, continueWaiting?: boolean) => void;
+  onCommentRemoveLatest?: () => void;
   onCheckAdd?: (text: string) => void;
   onCheckToggle?: (displayId: string) => void;
+  onCheckRemove?: (displayId: string) => void;
   onBlockedByAdd?: (displayId: string) => void;
   onRunCancel?: (runDisplayId: string) => void;
   onReview?: (action: ReviewAction, text: string) => void;
@@ -238,7 +248,7 @@ export function Inspector(props: {
           <h3 className={styles.heading}>Checklist</h3>
           <ul className={styles.list}>
             {props.task.checks.map((check) => (
-              <li key={check.id}>
+              <li key={check.id} className={styles.linkRow}>
                 <label className={styles.switch}>
                   <input
                     type="checkbox"
@@ -247,6 +257,14 @@ export function Inspector(props: {
                   />
                   {check.text}
                 </label>
+                <button
+                  type="button"
+                  className={styles.linkRemove}
+                  aria-label={`Remove ${check.displayId}`}
+                  onClick={() => props.onCheckRemove?.(check.displayId)}
+                >
+                  Remove
+                </button>
               </li>
             ))}
           </ul>
@@ -282,9 +300,21 @@ export function Inspector(props: {
         <div>
           <h3 className={styles.heading}>Comments</h3>
           <ul className={styles.list}>
-            {props.task.comments.map((comment) => (
-              <li key={comment.id}>
-                {comment.createdAt} · {comment.actorLabel} · {comment.body}
+            {props.task.comments.map((comment, index) => (
+              <li key={comment.id} className={styles.linkRow}>
+                <span>
+                  {relativeTime(comment.createdAt)} · {comment.actorLabel} · {comment.body}
+                </span>
+                {index === props.task.comments.length - 1 ? (
+                  <button
+                    type="button"
+                    className={styles.linkRemove}
+                    aria-label="Remove latest comment"
+                    onClick={() => props.onCommentRemoveLatest?.()}
+                  >
+                    Remove
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>

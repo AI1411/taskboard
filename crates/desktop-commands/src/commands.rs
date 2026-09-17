@@ -363,6 +363,21 @@ pub async fn check_toggle_inner(app: &App, display_id: String) -> Result<Check, 
         .map_err(Into::into)
 }
 
+pub async fn check_remove_inner(app: &App, display_id: String) -> Result<Check, AppErrorDto> {
+    app.check_remove(&actor(), &display_id)
+        .await
+        .map_err(Into::into)
+}
+
+pub async fn comment_remove_latest_inner(
+    app: &App,
+    display_id: String,
+) -> Result<Comment, AppErrorDto> {
+    app.comment_remove_latest(&actor(), &display_id)
+        .await
+        .map_err(Into::into)
+}
+
 pub async fn link_add_inner(
     app: &App,
     display_id: String,

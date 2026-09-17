@@ -301,6 +301,20 @@ pub fn undo_human(entity_type: EntityType, entity: &serde_json::Value) -> String
             "Undid link  {}",
             entity.get("id").and_then(|v| v.as_str()).unwrap_or("link")
         ),
+        EntityType::Comment => format!(
+            "Undid comment  {}",
+            entity
+                .get("body")
+                .and_then(|v| v.as_str())
+                .unwrap_or("comment")
+        ),
+        EntityType::Check => format!(
+            "Undid check  {}",
+            entity
+                .get("display_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("check")
+        ),
     }
 }
 

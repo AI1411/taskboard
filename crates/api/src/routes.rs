@@ -46,9 +46,16 @@ pub(crate) fn api_router() -> Router<Arc<AppState>> {
         )
         .route("/api/v1/tasks/:display_id/links", post(add_link))
         .route("/api/v1/tasks/:display_id/comments", post(add_comment))
+        .route(
+            "/api/v1/tasks/:display_id/comments/latest",
+            delete(remove_latest_comment),
+        )
         .route("/api/v1/tasks/:display_id/checks", post(add_check))
         .route("/api/v1/tasks/:display_id/review", post(review_task))
-        .route("/api/v1/checks/:display_id", patch(toggle_check))
+        .route(
+            "/api/v1/checks/:display_id",
+            patch(toggle_check).delete(remove_check),
+        )
         .route("/api/v1/tasks/:display_id/runs", post(start_run))
         .route("/api/v1/tasks/:display_id/restore", post(restore_task))
         .route(
@@ -641,6 +648,34 @@ async fn toggle_check(
         .await
         .map_err(app_error)?;
     Ok(entity(CheckDto::from(check), 0))
+}
+
+async fn remove_check(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(display_id): Path<String>,
+) -> ApiResult {
+    require_mutation(&state, &headers)?;
+    let check = state
+        .app
+        .check_remove(&web_actor(), &display_id)
+        .await
+        .map_err(app_error)?;
+    Ok(entity(CheckDto::from(check), 0))
+}
+
+async fn remove_latest_comment(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(display_id): Path<String>,
+) -> ApiResult {
+    require_mutation(&state, &headers)?;
+    let comment = state
+        .app
+        .comment_remove_latest(&web_actor(), &display_id)
+        .await
+        .map_err(app_error)?;
+    Ok(entity(CommentDto::from(comment), 0))
 }
 
 async fn remove_link(

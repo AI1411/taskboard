@@ -18,6 +18,23 @@ fn help_lists_project_add() {
 }
 
 #[test]
+fn check_help_lists_remove() {
+    let mut cmd = Command::cargo_bin("taskboard").unwrap();
+    let out = String::from_utf8(cmd.args(["check", "--help"]).output().unwrap().stdout).unwrap();
+    assert!(out.contains("remove"), "check help missing remove:\n{out}");
+}
+
+#[test]
+fn comment_help_lists_remove() {
+    let mut cmd = Command::cargo_bin("taskboard").unwrap();
+    let out = String::from_utf8(cmd.args(["comment", "--help"]).output().unwrap().stdout).unwrap();
+    assert!(
+        out.contains("remove"),
+        "comment help missing remove:\n{out}"
+    );
+}
+
+#[test]
 fn project_help_lists_detect() {
     let mut cmd = Command::cargo_bin("taskboard").unwrap();
     let out = String::from_utf8(cmd.args(["project", "--help"]).output().unwrap().stdout).unwrap();
