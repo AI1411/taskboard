@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -182,6 +183,19 @@ fn app_error(err: AppError) -> Response {
         _ => {}
     }
     (status, Json(json!({ "error": body }))).into_response()
+}
+
+fn unknown_patch_field(err: JsonRejection) -> Response {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(json!({
+            "error": {
+                "code": "validation_error",
+                "message": err.body_text(),
+            }
+        })),
+    )
+        .into_response()
 }
 
 async fn bootstrap(State(state): State<Arc<AppState>>, headers: HeaderMap) -> ApiResult {
@@ -410,8 +424,9 @@ async fn patch_task(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(display_id): Path<String>,
-    Json(body): Json<PatchTaskBody>,
+    body: Result<Json<PatchTaskBody>, JsonRejection>,
 ) -> ApiResult {
+    let Json(body) = body.map_err(unknown_patch_field)?;
     require_mutation(&state, &headers)?;
     let actor = web_actor();
     let mut revision = if_match(&headers)?;

@@ -365,7 +365,7 @@ pub struct CreateTaskBody {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PatchTaskBody {
     pub title: Option<String>,
     pub note_markdown: Option<String>,

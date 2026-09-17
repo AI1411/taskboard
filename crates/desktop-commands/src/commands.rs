@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use serde::Deserialize;
 use taskboard_application::{
     Actor, App, AppError, BoardStatus, CheckAdd, CommentAdd, InboxScope, LinkAdd, OccupancyGroup,
     OccupancyQuery, ProjectAdd, ProjectUpdate, ReviewAction, ReviewTask, RunCancel, RunFail,
@@ -159,6 +160,8 @@ pub async fn task_show_inner(app: &App, display_id: String) -> Result<TaskDetail
     app.task_show(&display_id).await.map_err(Into::into)
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TaskPatchArgs {
     pub display_id: String,
     pub title: Option<String>,
