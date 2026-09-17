@@ -1436,6 +1436,74 @@ fn review_todo_is_validation_error() {
     assert_eq!(v["error"]["code"], "validation_error");
 }
 
+#[test]
+fn occupancy_json_lists_collisions() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "renai-sim", "--title", "A"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "create", "--project", "renai-sim", "--title", "B"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "update", "TASK-1", "--worktree", "/tmp/shared"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "update", "TASK-2", "--worktree", "/tmp/shared"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "cursor"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-2", "--agent", "cursor"])
+        .assert()
+        .success();
+    let v = json_ok(&dir, &["occupancy"]);
+    assert_eq!(v["entities"][0]["worktree_path"], "/tmp/shared");
+    assert_eq!(v["entities"][0]["runs"].as_array().unwrap().len(), 2);
+}
+
+#[test]
+fn occupancy_path_json_includes_singleton() {
+    let dir = tempfile::tempdir().unwrap();
+    tb_in(&dir)
+        .args(["project", "add", "--name", "Renai Sim"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args([
+            "task",
+            "create",
+            "--project",
+            "renai-sim",
+            "--title",
+            "Alone",
+        ])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["task", "update", "TASK-1", "--worktree", "/tmp/alone"])
+        .assert()
+        .success();
+    tb_in(&dir)
+        .args(["run", "start", "TASK-1", "--agent", "cursor"])
+        .assert()
+        .success();
+    let empty = json_ok(&dir, &["occupancy"]);
+    assert_eq!(empty["entities"].as_array().unwrap().len(), 0);
+    let v = json_ok(&dir, &["occupancy", "--path", "/tmp/alone"]);
+    assert_eq!(v["entities"][0]["runs"][0]["task_display_id"], "TASK-1");
+}
+
 fn json_ok(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     let mut argv = args.to_vec();
     argv.push("--json");

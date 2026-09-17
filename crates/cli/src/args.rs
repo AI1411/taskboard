@@ -114,6 +114,11 @@ pub enum Command {
     },
     /// Undo the latest undoable activity
     Undo,
+    /// Group running and waiting runs by worktree path
+    Occupancy {
+        #[arg(long)]
+        path: Option<String>,
+    },
     /// List stale running runs
     Stale {
         #[arg(long, default_value_t = 30)]

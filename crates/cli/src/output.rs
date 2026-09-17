@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use serde::Serialize;
-use taskboard_application::{AppError, BoardStatus, InboxCounts, StatusLine};
+use taskboard_application::{AppError, BoardStatus, InboxCounts, OccupancyGroup, StatusLine};
 use taskboard_core::{
     ActivityEntry, CardDisplayStatus, Check, Column, Comment, EntityType, InboxItem, Project, Run,
     TaskDetail, TaskSummary,
@@ -166,6 +166,22 @@ pub fn print_inbox(items: &[InboxItem]) {
             item.title,
             item.reason
         );
+    }
+}
+
+pub fn print_occupancy(groups: &[OccupancyGroup]) {
+    if groups.is_empty() {
+        println!("No colliding worktrees");
+        return;
+    }
+    for group in groups {
+        println!("{}", group.worktree_path);
+        for run in &group.runs {
+            println!(
+                "  {}  {}  {}  {}",
+                run.run_display_id, run.task_display_id, run.status, run.agent
+            );
+        }
     }
 }
 
