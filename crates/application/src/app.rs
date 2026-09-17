@@ -18,9 +18,8 @@ use crate::actor::Actor;
 use crate::commands::{
     ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope, LinkAdd, NextClaim,
     ProjectAdd, ProjectUpdate, ReplyContinueResult, RunCancel, RunContinue, RunFail, RunFinish,
-    RunListQuery,
-    RunStart, RunUpdate, RunWait, StatusLine, TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate,
-    STATUS_HEAD,
+    RunListQuery, RunStart, RunUpdate, RunWait, StatusLine, TaskCreate, TaskListQuery, TaskSpawn,
+    TaskUpdate, STATUS_HEAD,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
