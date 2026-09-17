@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "taskboard": {
+      "command": "tb",
+      "args": ["mcp"],
+      "env": {
+        "TASKBOARD_ACTOR": "claude"
+      }
+    }
+  }
+}

@@ -21,6 +21,26 @@ cargo install --path crates/cli --locked
 
 `tb` が PATH にあればそれを使い、なければ `taskboard` です。
 
+## Local MCP
+
+`tb mcp` is a local stdio server. Do not use the HTTP API as an agent. Add one of the checked-in snippets to the host config (if `tb` is not on `PATH`, use `taskboard`):
+
+| Host | Config file | Snippet |
+| --- | --- | --- |
+| Cursor | `.cursor/mcp.json` or `~/.cursor/mcp.json` | [`packaging/mcp/cursor.mcp.json`](packaging/mcp/cursor.mcp.json) |
+| Claude Code | `.mcp.json` or `~/.claude.json` | [`packaging/mcp/claude.mcp.json`](packaging/mcp/claude.mcp.json) |
+| Codex | `~/.codex/config.toml` | [`packaging/mcp/codex.config.toml`](packaging/mcp/codex.config.toml) |
+
+Every snippet is `command: tb` (or `taskboard`), `args: ["mcp"]`, and `TASKBOARD_ACTOR` set to `cursor` / `claude` / `codex`.
+
+Smoke check after the host loads the server — `tools/list` must include `next`, `review`, and `run_cancel`:
+
+```bash
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | tb mcp
+```
+
+If the host config is missing, agents keep using the CLI.
+
 ## AI エージェントから SKILL として使う
 
 スキル本体は [`skills/using-taskboard/SKILL.md`](skills/using-taskboard/SKILL.md) です。エージェントは実装・修正の前にカードと run を切り、終了時に `run finish` / `run fail` します。契約の全文は [`AGENTS.md`](AGENTS.md) にもあります。
