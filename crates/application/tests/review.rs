@@ -88,7 +88,7 @@ async fn review_approve_comments_and_moves_to_done() {
         .unwrap();
     assert_eq!(shown.column, Column::Done);
     assert_eq!(shown.comments[0].body, "lgtm");
-    assert_eq!(shown.checks[0].done, false);
+    assert!(!shown.checks[0].done);
     assert!(shown.runs.is_empty());
 }
 
