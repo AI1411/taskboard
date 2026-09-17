@@ -11,6 +11,19 @@ use taskboard_desktop_commands::{
 use taskboard_store_sqlite::{open_db, SqliteStore};
 
 #[test]
+fn task_patch_args_rejects_unknown_fields() {
+    let err = serde_json::from_value::<TaskPatchArgs>(serde_json::json!({
+        "display_id": "TASK-1",
+        "nope": true
+    }))
+    .unwrap_err();
+    assert!(
+        err.to_string().contains("nope"),
+        "unknown field should be named: {err}"
+    );
+}
+
+#[test]
 fn app_error_dto_serializes_code_message_field_current() {
     let err = AppErrorDto::from(AppError::Validation {
         field: "title".into(),

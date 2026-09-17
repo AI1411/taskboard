@@ -293,6 +293,20 @@ async fn patch_task_sets_and_clears_worktree_and_branch() {
 }
 
 #[tokio::test]
+async fn patch_task_unknown_field_is_400() {
+    let s = seeded_task_server().await;
+    let res = authed(&s)
+        .patch(format!("{}/api/v1/tasks/TASK-1", s.base))
+        .json(&json!({"nope": true}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 400);
+    let body = res.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(body["error"]["code"], "validation_error");
+}
+
+#[tokio::test]
 async fn patch_task_omits_workspace_when_fields_absent() {
     let s = seeded_task_server().await;
     let client = authed(&s);
