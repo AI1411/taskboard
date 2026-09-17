@@ -165,7 +165,18 @@ pub struct TaskPatchArgs {
     pub urgent: Option<bool>,
     pub column: Option<Column>,
     pub before_display_id: Option<Option<String>>,
+    pub worktree_path: Option<String>,
+    pub branch: Option<String>,
     pub revision: Option<i64>,
+}
+
+fn empty_to_none(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
 
 pub async fn task_update_inner(app: &App, patch: TaskPatchArgs) -> Result<TaskDetail, AppErrorDto> {
@@ -177,6 +188,8 @@ pub async fn task_update_inner(app: &App, patch: TaskPatchArgs) -> Result<TaskDe
         urgent,
         column,
         before_display_id,
+        worktree_path,
+        branch,
         mut revision,
     } = patch;
     let mut task = None;
@@ -187,6 +200,22 @@ pub async fn task_update_inner(app: &App, patch: TaskPatchArgs) -> Result<TaskDe
                 TaskUpdate {
                     display_id: display_id.clone(),
                     title,
+                    revision,
+                    ..Default::default()
+                },
+            )
+            .await?;
+        revision = Some(updated.revision);
+        task = Some(updated);
+    }
+    if worktree_path.is_some() || branch.is_some() {
+        let updated = app
+            .task_update(
+                &actor,
+                TaskUpdate {
+                    display_id: display_id.clone(),
+                    worktree_path: worktree_path.map(empty_to_none),
+                    branch: branch.map(empty_to_none),
                     revision,
                     ..Default::default()
                 },

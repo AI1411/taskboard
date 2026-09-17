@@ -60,7 +60,7 @@ describe("Inspector links", () => {
 });
 
 describe("Inspector workspace", () => {
-  it("shows recorded worktree and branch", async () => {
+  it("shows recorded worktree and branch in editable fields", async () => {
     const transport = fakeTransport();
     const project = await transport.projectAdd({ name: "Alpha" });
     const task = await transport.taskCreate(project.slug, { title: "Wt", column: "todo" });
@@ -68,7 +68,48 @@ describe("Inspector workspace", () => {
     task.branch = "cursor/foo-88ba";
     render(<TaskboardApp transport={transport} />);
     await userEvent.click(await screen.findByText("Wt"));
-    expect(await screen.findByText("/tmp/wt · cursor/foo-88ba")).toBeTruthy();
+    expect((await screen.findByLabelText("Worktree") as HTMLInputElement).value).toBe("/tmp/wt");
+    expect((screen.getByLabelText("Branch") as HTMLInputElement).value).toBe("cursor/foo-88ba");
+  });
+
+  it("writes worktree and branch through taskUpdate and clears with empty string", async () => {
+    const transport = fakeTransport();
+    const project = await transport.projectAdd({ name: "Alpha" });
+    await transport.taskCreate(project.slug, { title: "Wt", column: "todo" });
+    render(<TaskboardApp transport={transport} />);
+    await userEvent.click(await screen.findByText("Wt"));
+    const worktree = await screen.findByLabelText("Worktree");
+    await userEvent.clear(worktree);
+    await userEvent.type(worktree, "/tmp/wt");
+    await userEvent.tab();
+    await waitFor(() =>
+      expect(transport.taskUpdate).toHaveBeenCalledWith(
+        "TASK-1",
+        { worktreePath: "/tmp/wt" },
+        expect.anything(),
+      ),
+    );
+    const branch = screen.getByLabelText("Branch");
+    await userEvent.clear(branch);
+    await userEvent.type(branch, "cursor/foo-88ba");
+    await userEvent.tab();
+    await waitFor(() =>
+      expect(transport.taskUpdate).toHaveBeenCalledWith(
+        "TASK-1",
+        { branch: "cursor/foo-88ba" },
+        expect.anything(),
+      ),
+    );
+    await userEvent.clear(worktree);
+    await userEvent.tab();
+    await waitFor(() =>
+      expect(transport.taskUpdate).toHaveBeenCalledWith(
+        "TASK-1",
+        { worktreePath: "" },
+        expect.anything(),
+      ),
+    );
+    expect((worktree as HTMLInputElement).value).toBe("");
   });
 });
 

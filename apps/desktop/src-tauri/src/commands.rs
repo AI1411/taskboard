@@ -156,6 +156,8 @@ pub async fn task_update(
     column: Option<Column>,
     #[serde(default, deserialize_with = "deserialize_present_option")]
     before_display_id: Option<Option<String>>,
+    worktree_path: Option<String>,
+    branch: Option<String>,
     revision: Option<i64>,
 ) -> Result<TaskDetailDto, AppErrorDto> {
     let app = state.app.lock().await;
@@ -168,6 +170,8 @@ pub async fn task_update(
             urgent,
             column,
             before_display_id,
+            worktree_path,
+            branch,
             revision,
         },
     )

@@ -17,9 +17,9 @@ use taskboard_core::ActorKind;
 use uuid::Uuid;
 
 use crate::dto::{
-    json_keys_to_camel, AddCheckBody, AddCommentBody, AddLinkBody, BackupBody, CheckDto,
-    CommentDto, CreateProjectBody, CreateTaskBody, InboxItemDto, InboxQuery, ListProjectsQuery,
-    PatchProjectBody, PatchRunBody, PatchTaskBody, PatchUiStateBody, ProjectDto,
+    empty_to_none, json_keys_to_camel, AddCheckBody, AddCommentBody, AddLinkBody, BackupBody,
+    CheckDto, CommentDto, CreateProjectBody, CreateTaskBody, InboxItemDto, InboxQuery,
+    ListProjectsQuery, PatchProjectBody, PatchRunBody, PatchTaskBody, PatchUiStateBody, ProjectDto,
     ReorderProjectsBody, ReviewActionDto, ReviewBody, RunDto, RunOp, StartRunBody, SyncDeltaDto,
     SyncQuery, TaskDetailDto, TrashDto, UiStateDto,
 };
@@ -413,6 +413,24 @@ async fn patch_task(
                 TaskUpdate {
                     display_id: display_id.clone(),
                     title: body.title,
+                    revision,
+                    ..Default::default()
+                },
+            )
+            .await
+            .map_err(app_error)?;
+        revision = advance_if_match(updated.revision);
+        task = Some(updated);
+    }
+    if body.worktree_path.is_some() || body.branch.is_some() {
+        let updated = state
+            .app
+            .task_update(
+                &actor,
+                TaskUpdate {
+                    display_id: display_id.clone(),
+                    worktree_path: body.worktree_path.map(empty_to_none),
+                    branch: body.branch.map(empty_to_none),
                     revision,
                     ..Default::default()
                 },

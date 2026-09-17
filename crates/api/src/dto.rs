@@ -372,6 +372,17 @@ pub struct PatchTaskBody {
     /// Absent: do not reorder. `null`: move to end. String: place before that card.
     #[serde(default, deserialize_with = "deserialize_present_option")]
     pub before_display_id: Option<Option<String>>,
+    pub worktree_path: Option<String>,
+    pub branch: Option<String>,
+}
+
+pub(crate) fn empty_to_none(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
 
 /// Distinguishes JSON field absent (`None`) from explicit `null` (`Some(None)`).

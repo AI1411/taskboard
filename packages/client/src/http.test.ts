@@ -73,6 +73,27 @@ describe("HttpTransport", () => {
     assert.equal("beforeDisplayId" in body, true);
   });
 
+  it("sends worktreePath and branch on taskUpdate", async () => {
+    const fetches: Request[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      fetches.push(new Request(input, init));
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          entity: { displayId: "TASK-1", worktreePath: "/tmp/wt", branch: "cursor/foo-88ba" },
+          revision: 2,
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    };
+    const t = new HttpTransport("http://127.0.0.1:9", "deadbeef", fetchImpl);
+    await t.taskUpdate("TASK-1", { worktreePath: "/tmp/wt", branch: "cursor/foo-88ba" }, 1);
+    const body = (await fetches[0].json()) as Record<string, unknown>;
+    assert.equal(body.worktreePath, "/tmp/wt");
+    assert.equal(body.branch, "cursor/foo-88ba");
+    assert.equal("worktree_path" in body, false);
+  });
+
   it("unwraps list entities and archived query", async () => {
     const fetches: Request[] = [];
     const fetchImpl: typeof fetch = async (input, init) => {

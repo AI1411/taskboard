@@ -139,7 +139,11 @@ describe("TauriTransport", () => {
     await t.taskCreate("a", { title: "T", column: "todo", urgent: true });
     await t.taskList("a");
     await t.taskShow("TASK-1");
-    await t.taskUpdate("TASK-1", { title: "U", noteMarkdown: "md" }, 1);
+    await t.taskUpdate(
+      "TASK-1",
+      { title: "U", noteMarkdown: "md", worktreePath: "/tmp/wt", branch: "cursor/foo-88ba" },
+      1,
+    );
     await t.taskMove("TASK-1", "done");
     await t.taskReorder("TASK-1", undefined, 1);
     await t.taskUrgent("TASK-1", false, 1);
@@ -214,6 +218,8 @@ describe("TauriTransport", () => {
       display_id: "TASK-1",
       title: "U",
       note_markdown: "md",
+      worktree_path: "/tmp/wt",
+      branch: "cursor/foo-88ba",
       revision: 1,
     });
     assert.deepEqual(calls[23].args, {

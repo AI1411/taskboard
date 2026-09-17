@@ -158,6 +158,8 @@ export interface TaskPatch {
   urgent?: boolean;
   column?: Column;
   beforeDisplayId?: string | null;
+  worktreePath?: string;
+  branch?: string;
 }
 
 export type ReviewAction = "approve" | "changes";

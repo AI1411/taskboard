@@ -686,6 +686,31 @@ export function TaskboardApp(props: {
     [transport, refreshTasks],
   );
 
+  const onWorkspaceChange = useCallback(
+    async (patch: { worktreePath?: string; branch?: string }) => {
+      const id = selectedIdRef.current;
+      if (!id) return;
+      try {
+        const updated = await transport.taskUpdate(id, patch, detailRef.current?.revision);
+        applyDetail(updated);
+        const project = selectedProjectRef.current;
+        if (project) await refreshTasks(project.slug);
+      } catch (err) {
+        if (errorCode(err) === "revision_conflict") {
+          setToast({ message: "Updated elsewhere", error: true });
+          try {
+            applyDetail(await transport.taskShow(id));
+          } catch {
+            /* keep current detail */
+          }
+        } else {
+          setToast({ message: errorMessage(err), error: true });
+        }
+      }
+    },
+    [transport, refreshTasks],
+  );
+
   const onDelete = useCallback(async () => {
     const id = selectedIdRef.current;
     if (!id) return;
@@ -878,6 +903,7 @@ export function TaskboardApp(props: {
         trashed={trashedSelection}
         confirming={confirmDelete}
         onTitleCommit={(title) => void onTitleCommit(title)}
+        onWorkspaceChange={(patch) => void onWorkspaceChange(patch)}
         onColumnChange={(column) => void moveSelected(column)}
         onUrgentChange={(urgent) => {
           const id = selectedIdRef.current;
