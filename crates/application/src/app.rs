@@ -17,8 +17,9 @@ use taskboard_core::{
 use crate::actor::Actor;
 use crate::commands::{
     ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope, LinkAdd, NextClaim,
-    ProjectAdd, ProjectUpdate, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate,
-    RunWait, StatusLine, TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate, STATUS_HEAD,
+    ProjectAdd, ProjectUpdate, ReplyContinueResult, RunContinue, RunFail, RunFinish, RunListQuery,
+    RunStart, RunUpdate, RunWait, StatusLine, TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate,
+    STATUS_HEAD,
 };
 use crate::error::AppError;
 use crate::store::{NewActivity, Store, SyncDelta, Trash, UndoResult};
@@ -561,7 +562,7 @@ impl App {
         let mut store = self.store.lock().await;
         let store = &mut **store;
         store.begin().await?;
-        let result = run_continue_inner(store, actor, cmd, now).await;
+        let result = run_continue_with_reply_inner(store, actor, cmd, now).await;
         commit_or_rollback(store, result).await
     }
 
@@ -658,6 +659,19 @@ impl App {
         let store = &mut **store;
         store.begin().await?;
         let result = comment_add_inner(store, actor, cmd, now).await;
+        commit_or_rollback(store, result).await
+    }
+
+    pub async fn comment_add_and_continue(
+        &self,
+        actor: &Actor,
+        cmd: CommentAdd,
+    ) -> Result<ReplyContinueResult, AppError> {
+        let now = self.clock.now();
+        let mut store = self.store.lock().await;
+        let store = &mut **store;
+        store.begin().await?;
+        let result = comment_add_and_continue_inner(store, actor, cmd, now).await;
         commit_or_rollback(store, result).await
     }
 
@@ -1917,6 +1931,70 @@ async fn run_wait_inner(
         },
     )
     .await
+}
+
+async fn run_continue_with_reply_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: RunContinue,
+    now: DateTime<Utc>,
+) -> Result<Run, AppError> {
+    if let Some(reply) = cmd.reply.clone() {
+        let run = require_run(store, &cmd.run_display_id).await?;
+        let task = store
+            .get_task(run.task_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound {
+                entity: "task".into(),
+                id: run.task_id.to_string(),
+            })?;
+        comment_add_inner(
+            store,
+            actor,
+            CommentAdd {
+                task_display_id: task.display_id,
+                body: reply,
+            },
+            now,
+        )
+        .await?;
+    }
+    run_continue_inner(store, actor, RunContinue { reply: None, ..cmd }, now).await
+}
+
+async fn comment_add_and_continue_inner(
+    store: &mut dyn Store,
+    actor: &Actor,
+    cmd: CommentAdd,
+    now: DateTime<Utc>,
+) -> Result<ReplyContinueResult, AppError> {
+    let task_display_id = cmd.task_display_id.clone();
+    let comment = comment_add_inner(store, actor, cmd, now).await?;
+    let task = require_live_task(store, &task_display_id).await?;
+    let runs = store.list_runs(task.id).await?;
+    let winning = winning_run(&runs).ok_or_else(|| AppError::Validation {
+        field: "status".into(),
+        message: "run must be waiting".into(),
+    })?;
+    if winning.status != RunStatus::Waiting {
+        return Err(AppError::Validation {
+            field: "status".into(),
+            message: "run must be waiting".into(),
+        });
+    }
+    let run = run_continue_inner(
+        store,
+        actor,
+        RunContinue {
+            run_display_id: winning.display_id.clone(),
+            message: None,
+            reply: None,
+            revision: None,
+        },
+        now,
+    )
+    .await?;
+    Ok(ReplyContinueResult { comment, run })
 }
 
 async fn run_continue_inner(

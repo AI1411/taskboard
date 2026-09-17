@@ -499,6 +499,7 @@ async fn dispatch_tool(
                     RunContinue {
                         run_display_id: require_string(&args, "display_id")?,
                         message: string_arg(&args, "message"),
+                        reply: None,
                         revision: None,
                     },
                 )

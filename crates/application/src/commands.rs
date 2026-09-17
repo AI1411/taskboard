@@ -81,7 +81,15 @@ pub struct RunWait {
 pub struct RunContinue {
     pub run_display_id: String,
     pub message: Option<String>,
+    pub reply: Option<String>,
     pub revision: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ReplyContinueResult {
+    pub comment: taskboard_core::Comment,
+    pub run: taskboard_core::Run,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

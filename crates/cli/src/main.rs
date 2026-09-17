@@ -746,6 +746,7 @@ async fn run_cmd(
                 .run_continue(
                     actor,
                     RunContinue {
+                        reply: None,
                         run_display_id: run_id,
                         message,
                         revision,
