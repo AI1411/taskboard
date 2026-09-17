@@ -295,16 +295,20 @@ pub async fn comment_add_inner(
     app: &App,
     display_id: String,
     body: String,
+    continue_waiting: bool,
 ) -> Result<Comment, AppErrorDto> {
-    app.comment_add(
-        &actor(),
-        CommentAdd {
-            task_display_id: display_id,
-            body,
-        },
-    )
-    .await
-    .map_err(Into::into)
+    let cmd = CommentAdd {
+        task_display_id: display_id,
+        body,
+    };
+    if continue_waiting {
+        let result = app
+            .comment_add_and_continue(&actor(), cmd)
+            .await
+            .map_err(AppErrorDto::from)?;
+        return Ok(result.comment);
+    }
+    app.comment_add(&actor(), cmd).await.map_err(Into::into)
 }
 
 pub async fn check_add_inner(

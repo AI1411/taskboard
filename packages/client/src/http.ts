@@ -140,8 +140,10 @@ export class HttpTransport implements Transport {
     return this.request("POST", `/api/v1/tasks/${enc(displayId)}/links`, { body: input });
   }
 
-  commentAdd(displayId: string, body: string): Promise<Comment> {
-    return this.request("POST", `/api/v1/tasks/${enc(displayId)}/comments`, { body: { body } });
+  commentAdd(displayId: string, body: string, continueWaiting?: boolean): Promise<Comment> {
+    return this.request("POST", `/api/v1/tasks/${enc(displayId)}/comments`, {
+      body: { body, continue: continueWaiting ?? false },
+    });
   }
 
   checkAdd(displayId: string, text: string): Promise<Check> {

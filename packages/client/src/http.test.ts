@@ -144,7 +144,7 @@ describe("HttpTransport", () => {
     await t.linkAdd("TASK-1", { kind: "blocked_by", value: "TASK-2" });
     assert.equal(fetches[0].method, "POST");
     assert.equal(new URL(fetches[0].url).pathname, "/api/v1/tasks/TASK-1/comments");
-    assert.deepEqual(await fetches[0].json(), { body: "hi" });
+    assert.deepEqual(await fetches[0].json(), { body: "hi", continue: false });
     assert.equal(new URL(fetches[1].url).pathname, "/api/v1/tasks/TASK-1/checks");
     assert.deepEqual(await fetches[1].json(), { text: "Write tests" });
     assert.equal(fetches[2].method, "PATCH");

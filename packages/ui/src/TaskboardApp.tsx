@@ -911,12 +911,12 @@ export function TaskboardApp(props: {
         onLinkRemove={(linkId) => {
           void transport.linkRemove(linkId).then(applyDetail);
         }}
-        onCommentAdd={(body) => {
+        onCommentAdd={(body, continueWaiting) => {
           const id = selectedIdRef.current;
           if (!id) return;
           void (async () => {
             try {
-              await transport.commentAdd(id, body);
+              await transport.commentAdd(id, body, continueWaiting);
               applyDetail(await transport.taskShow(id));
             } catch (err) {
               setToast({ message: errorMessage(err), error: true });

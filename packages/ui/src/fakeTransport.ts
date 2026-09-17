@@ -264,7 +264,7 @@ export function fakeTransport(): Transport {
       }
       return { ...detail, links: [...detail.links] };
     },
-    async commentAdd(displayId, body) {
+    async commentAdd(displayId, body, continueWaiting) {
       const detail = details.get(displayId);
       if (!detail) throw new Error("not found");
       const comment = {
@@ -276,6 +276,14 @@ export function fakeTransport(): Transport {
         createdAt: now(),
       };
       detail.comments.push(comment);
+      if (continueWaiting) {
+        if (detail.displayStatus !== "waiting") {
+          throw new Error("run must be waiting");
+        }
+        detail.displayStatus = "running";
+        const waiting = detail.runs.find((run) => run.status === "waiting");
+        if (waiting) waiting.status = "running";
+      }
       return comment;
     },
     async checkAdd(displayId, text) {

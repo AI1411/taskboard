@@ -48,7 +48,7 @@ User already chose sequential inline execution.
   - Same transaction as comment insert + continue
   - Failed card (no waiting winning run) → `validation_error` (do not start a new run)
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `crates/application/tests/reply_continue.rs` using the `seeded_waiting` setup from `run_continue.rs` (copy TestApp helpers):
 
@@ -114,13 +114,13 @@ async fn run_continue_reply_writes_comment() {
 
 Also add `reply: None` to existing `RunContinue {` literals in `run_continue.rs` after the field exists (impl step). The new test will fail to compile until the field exists — keep `reply` only in the new file for the red step; update old literals in the impl step.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cargo test -p taskboard-application --test reply_continue -- --nocapture`
 
 Expected: FAIL — `comment_add_and_continue` / `ReplyContinueResult` not found.
 
-- [ ] **Step 3: Minimal implementation**
+- [x] **Step 3: Minimal implementation**
 
 `commands.rs`:
 
@@ -211,7 +211,7 @@ Check `Store::get_task`. If missing, `require_live_task` after mapping task_id v
 
 Update all existing `RunContinue {` to include `reply: None`.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cargo test -p taskboard-application --test reply_continue -- --nocapture`
 
@@ -240,7 +240,7 @@ git commit -m "feat: comment and continue a waiting run in one transaction"
 - `--json` for comment --continue prints `{ ok, entity: ReplyContinueResult }`
 - MCP `comment_add` gains `continue` bool; `run_continue` gains `reply`
 
-- [ ] **Step 1: Failing CLI tests**
+- [x] **Step 1: Failing CLI tests**
 
 ```rust
 #[test]
@@ -286,19 +286,19 @@ fn run_continue_reply_json() {
 }
 ```
 
-- [ ] **Step 2: Run to fail**
+- [x] **Step 2: Run to fail**
 
 Run: `cargo test -p taskboard-cli --test cli_json comment_add_continue -- --nocapture`
 
 Expected: FAIL — unexpected argument `--continue`.
 
-- [ ] **Step 3: Implement CLI/MCP**
+- [x] **Step 3: Implement CLI/MCP**
 
 Wire `--continue` to `comment_add_and_continue`. Wire `--reply` into `RunContinue.reply`. MCP `comment_add` if `continue` then `comment_add_and_continue`.
 
-- [ ] **Step 4: Tests pass**
+- [x] **Step 4: Tests pass**
 
-- [ ] **Step 5: Commit** `feat(cli): add comment --continue and run continue --reply`
+- [x] **Step 5: Commit** `feat(cli): add comment --continue and run continue --reply`
 
 ---
 
@@ -312,7 +312,7 @@ Wire `--continue` to `comment_add_and_continue`. Wire `--reply` into `RunContinu
 - Modify: `packages/ui/src/Inspector.test.tsx`, `TaskboardApp.tsx`, `fakeTransport.ts`
 - Modify: `crates/desktop-commands/src/commands.rs` — optional continue flag
 
-- [ ] **Step 1: Failing Inspector test**
+- [x] **Step 1: Failing Inspector test**
 
 ```tsx
   it("can continue a waiting run when sending a comment", async () => {
@@ -328,15 +328,15 @@ Wire `--continue` to `comment_add_and_continue`. Wire `--reply` into `RunContinu
 
 Change `onCommentAdd?: (body: string, continueWaiting?: boolean) => void`.
 
-- [ ] **Step 2: Fail** — checkbox missing.
+- [x] **Step 2: Fail** — checkbox missing.
 
-- [ ] **Step 3: Implement checkbox + HTTP `continue` + TaskboardApp `transport.commentAdd(id, body, continueWaiting)`**
+- [x] **Step 3: Implement checkbox + HTTP `continue` + TaskboardApp `transport.commentAdd(id, body, continueWaiting)`**
 
 Desktop `comment_add_inner` takes `continue_waiting: bool`.
 
 - [ ] **Step 4: `npm test` Inspector + `cargo test -p taskboard-api` if a route test is added.
 
-- [ ] **Step 5: Commit** `feat(ui): continue waiting run from inspector comment`
+- [x] **Step 5: Commit** `feat(ui): continue waiting run from inspector comment`
 
 ---
 

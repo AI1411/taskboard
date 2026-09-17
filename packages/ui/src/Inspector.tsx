@@ -55,7 +55,7 @@ export function Inspector(props: {
   onRestore?: () => void;
   onLinkAdd?: (value: string) => void;
   onLinkRemove?: (linkId: string) => void;
-  onCommentAdd?: (body: string) => void;
+  onCommentAdd?: (body: string, continueWaiting?: boolean) => void;
   onCheckAdd?: (text: string) => void;
   onCheckToggle?: (displayId: string) => void;
   onBlockedByAdd?: (displayId: string) => void;
@@ -66,6 +66,7 @@ export function Inspector(props: {
   const [note, setNote] = useState(props.task?.noteMarkdown ?? "");
   const [linkValue, setLinkValue] = useState("");
   const [commentValue, setCommentValue] = useState("");
+  const [continueWaiting, setContinueWaiting] = useState(false);
   const [checkValue, setCheckValue] = useState("");
   const [blockedByValue, setBlockedByValue] = useState("");
   const lastId = useRef<string | null>(null);
@@ -234,10 +235,18 @@ export function Inspector(props: {
               e.preventDefault();
               const body = commentValue.trim();
               if (!body) return;
-              props.onCommentAdd?.(body);
+              props.onCommentAdd?.(body, continueWaiting);
               setCommentValue("");
             }}
           />
+          <label className={styles.field}>
+            <input
+              type="checkbox"
+              checked={continueWaiting}
+              onChange={(e) => setContinueWaiting(e.target.checked)}
+            />
+            If Waiting, Continue
+          </label>
         </div>
         <div>
           <h3 className={styles.heading}>Links</h3>

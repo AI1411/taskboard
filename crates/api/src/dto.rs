@@ -394,6 +394,8 @@ pub struct AddLinkBody {
 #[serde(rename_all = "camelCase")]
 pub struct AddCommentBody {
     pub body: String,
+    #[serde(default, rename = "continue")]
+    pub continue_waiting: bool,
 }
 
 #[derive(Debug, Deserialize)]

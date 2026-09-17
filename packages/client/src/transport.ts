@@ -56,7 +56,7 @@ export interface Transport {
   taskNoteSet(displayId: string, markdown: string, revision?: number): Promise<TaskDetail>;
   linkAdd(displayId: string, input: { kind: LinkKind; value: string }): Promise<TaskDetail>;
   linkRemove(linkId: string, revision?: number): Promise<TaskDetail>;
-  commentAdd(displayId: string, body: string): Promise<Comment>;
+  commentAdd(displayId: string, body: string, continueWaiting?: boolean): Promise<Comment>;
   checkAdd(displayId: string, text: string): Promise<Check>;
   checkToggle(displayId: string): Promise<Check>;
   runStart(displayId: string, input: { agent: string; sessionId?: string }): Promise<Run>;
