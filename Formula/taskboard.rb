@@ -49,6 +49,15 @@ class Taskboard < Formula
       Apple silicon (arm64) on macOS 14+ is the supported release target.
       `taskboard` is always linked. `tb` is created in postinstall unless a
       foreign `tb` already exists; then postinstall prints alias_skipped.
+
+      Local MCP (stdio, not remote): copy packaging/mcp/cursor.mcp.json to
+      Cursor `.cursor/mcp.json`, packaging/mcp/claude.mcp.json to Claude
+      `.mcp.json`, or packaging/mcp/codex.config.toml into Codex
+      `~/.codex/config.toml`. Each snippet is command tb (or taskboard),
+      args ["mcp"], env TASKBOARD_ACTOR=cursor|claude|codex.
+
+      Smoke: tools/list must include next, review, and run_cancel:
+        printf '%s\\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | tb mcp
     EOS
   end
 

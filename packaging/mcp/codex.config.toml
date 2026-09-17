@@ -1,0 +1,6 @@
+[mcp_servers.taskboard]
+command = "tb"
+args = ["mcp"]
+
+[mcp_servers.taskboard.env]
+TASKBOARD_ACTOR = "codex"

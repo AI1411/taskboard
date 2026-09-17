@@ -41,6 +41,20 @@ shasum -a 256 taskboard-aarch64-apple-darwin.tar.gz
 - Homebrew: `Formula/taskboard.rb` `post_install`
 - Tarball / prefix installs: `packaging/homebrew/install_tb_alias.sh BINDIR`
 
+## Local MCP
+
+Same stdio snippets as the root README (`command: tb` or `taskboard`, `args: ["mcp"]`, `TASKBOARD_ACTOR`). Copy:
+
+- Cursor: `packaging/mcp/cursor.mcp.json` → `.cursor/mcp.json`
+- Claude Code: `packaging/mcp/claude.mcp.json` → `.mcp.json`
+- Codex: `packaging/mcp/codex.config.toml` → `~/.codex/config.toml`
+
+Homebrew `caveats` repeat this. Smoke: `tools/list` includes `next`, `review`, `run_cancel`.
+
+```bash
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | tb mcp
+```
+
 ## Tests
 
 ```bash
