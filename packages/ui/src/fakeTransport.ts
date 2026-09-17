@@ -1,11 +1,14 @@
 import { vi } from "vitest";
 import { TransportError, type Transport } from "@taskboard/client";
 import type {
+  BoardStatus,
   Column,
   DisplayStatus,
   InboxItem,
+  OccupancyGroup,
   Project,
   ReviewAction,
+  StatusLine,
   TaskDetail,
   TaskSummary,
 } from "@taskboard/types";
@@ -359,6 +362,107 @@ export function fakeTransport(): Transport {
         }
       }
       throw new Error("not implemented");
+    },
+    async status(project?: string): Promise<BoardStatus> {
+      const scoped = tasks.filter((task) => {
+        const projectRow = projects.find((p) => p.id === task.projectId);
+        if (!projectRow) return false;
+        if (project && projectRow.slug !== project) return false;
+        return true;
+      });
+      const inboxItems = await impl.inbox(project ? { project } : undefined);
+      const line = (task: TaskSummary): StatusLine => ({
+        displayId: task.displayId,
+        status: task.displayStatus,
+        agent: null,
+        detail: task.title,
+      });
+      const ready = scoped.filter(
+        (task) =>
+          task.blockedBy.length === 0 &&
+          (task.displayStatus === "idle" || task.column === "todo"),
+      );
+      const blocked = scoped.filter((task) => task.blockedBy.length > 0);
+      const inReview = scoped.filter((task) => task.column === "in-review");
+      const open = scoped.filter(
+        (task) => task.displayStatus === "running" || task.displayStatus === "waiting",
+      );
+      const staleTasks = scoped.filter((task) => task.stale);
+      const inbox = {
+        total: inboxItems.length,
+        waiting: inboxItems.filter((item) => item.displayStatus === "waiting").length,
+        failed: inboxItems.filter((item) => item.displayStatus === "failed").length,
+        stale: inboxItems.filter(
+          (item) =>
+            item.stale && item.displayStatus !== "waiting" && item.displayStatus !== "failed",
+        ).length,
+        review: inboxItems.filter(
+          (item) =>
+            item.column === "in-review" &&
+            item.displayStatus !== "waiting" &&
+            item.displayStatus !== "failed" &&
+            item.displayStatus !== "running" &&
+            !item.stale,
+        ).length,
+        urgent: inboxItems.filter(
+          (item) =>
+            item.displayStatus !== "waiting" &&
+            item.displayStatus !== "failed" &&
+            !item.stale &&
+            !(item.column === "in-review" && item.displayStatus !== "running"),
+        ).length,
+      };
+      return {
+        inbox,
+        inboxHead: inboxItems.slice(0, 3).map((item) => ({
+          displayId: item.displayId,
+          status: item.displayStatus,
+          agent: null,
+          detail: item.title,
+        })),
+        openRuns: open.length,
+        openRunHead: open.slice(0, 3).map(line),
+        stale: staleTasks.length,
+        staleHead: staleTasks.slice(0, 3).map(line),
+        ready: ready.length,
+        readyHead: ready.slice(0, 3).map(line),
+        inReview: inReview.length,
+        inReviewHead: inReview.slice(0, 3).map(line),
+        blocked: blocked.length,
+        blockedHead: blocked.slice(0, 3).map(line),
+      };
+    },
+    async occupancy(path?: string): Promise<OccupancyGroup[]> {
+      const groups = new Map<string, OccupancyGroup>();
+      for (const task of tasks) {
+        const wt = task.worktreePath;
+        if (!wt) continue;
+        if (path && wt !== path) continue;
+        if (task.displayStatus !== "running" && task.displayStatus !== "waiting") continue;
+        const group = groups.get(wt) ?? { worktreePath: wt, runs: [] };
+        group.runs.push({
+          runDisplayId: `RUN-${task.displayId}`,
+          taskDisplayId: task.displayId,
+          status: task.displayStatus,
+          agent: "cursor",
+        });
+        groups.set(wt, group);
+      }
+      return [...groups.values()].filter((group) => path || group.runs.length >= 2);
+    },
+    async taskSpawn(displayId, titles: string[]) {
+      const parent = details.get(displayId);
+      const task = tasks.find((item) => item.displayId === displayId);
+      if (!parent || !task) throw new Error("not found");
+      const project = projects.find((item) => item.id === task.projectId);
+      if (!project) throw new Error("not found");
+      const children: TaskDetail[] = [];
+      for (const title of titles) {
+        const child = await impl.taskCreate(project.slug, { title, column: "todo" });
+        await impl.linkAdd(displayId, { kind: "blocked_by", value: child.displayId });
+        children.push(await impl.taskShow(child.displayId));
+      }
+      return children;
     },
     async review(displayId, input: { action: ReviewAction; text: string }) {
       const detail = details.get(displayId);

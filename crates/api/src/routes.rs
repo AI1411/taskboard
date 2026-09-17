@@ -18,11 +18,11 @@ use uuid::Uuid;
 
 use crate::dto::{
     empty_to_none, json_keys_to_camel, AddCheckBody, AddCommentBody, AddLinkBody, BackupBody,
-    CheckDto, CommentDto, CreateProjectBody, CreateTaskBody, InboxItemDto, InboxQuery,
-    ListProjectsQuery,     OccupancyGroupDto, OccupancyQueryDto, PatchProjectBody, PatchRunBody, PatchTaskBody,
-    PatchUiStateBody, ProjectDto, ReorderProjectsBody, ReviewActionDto, ReviewBody, RunDto, RunOp,
-    SpawnBody, StartRunBody, StatusQuery, SyncDeltaDto, SyncQuery, TaskDetailDto, TrashDto,
-    UiStateDto, BoardStatusDto,
+    BoardStatusDto, CheckDto, CommentDto, CreateProjectBody, CreateTaskBody, InboxItemDto,
+    InboxQuery, ListProjectsQuery, OccupancyGroupDto, OccupancyQueryDto, PatchProjectBody,
+    PatchRunBody, PatchTaskBody, PatchUiStateBody, ProjectDto, ReorderProjectsBody,
+    ReviewActionDto, ReviewBody, RunDto, RunOp, SpawnBody, StartRunBody, StatusQuery, SyncDeltaDto,
+    SyncQuery, TaskDetailDto, TrashDto, UiStateDto,
 };
 use crate::origin::origin_allowed;
 use crate::server::{

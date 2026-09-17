@@ -560,17 +560,41 @@ impl From<BoardStatus> for BoardStatusDto {
     fn from(snap: BoardStatus) -> Self {
         Self {
             inbox: InboxCountsDto::from(snap.inbox),
-            inbox_head: snap.inbox_head.into_iter().map(StatusLineDto::from).collect(),
+            inbox_head: snap
+                .inbox_head
+                .into_iter()
+                .map(StatusLineDto::from)
+                .collect(),
             open_runs: snap.open_runs,
-            open_run_head: snap.open_run_head.into_iter().map(StatusLineDto::from).collect(),
+            open_run_head: snap
+                .open_run_head
+                .into_iter()
+                .map(StatusLineDto::from)
+                .collect(),
             stale: snap.stale,
-            stale_head: snap.stale_head.into_iter().map(StatusLineDto::from).collect(),
+            stale_head: snap
+                .stale_head
+                .into_iter()
+                .map(StatusLineDto::from)
+                .collect(),
             ready: snap.ready,
-            ready_head: snap.ready_head.into_iter().map(StatusLineDto::from).collect(),
+            ready_head: snap
+                .ready_head
+                .into_iter()
+                .map(StatusLineDto::from)
+                .collect(),
             in_review: snap.in_review,
-            in_review_head: snap.in_review_head.into_iter().map(StatusLineDto::from).collect(),
+            in_review_head: snap
+                .in_review_head
+                .into_iter()
+                .map(StatusLineDto::from)
+                .collect(),
             blocked: snap.blocked,
-            blocked_head: snap.blocked_head.into_iter().map(StatusLineDto::from).collect(),
+            blocked_head: snap
+                .blocked_head
+                .into_iter()
+                .map(StatusLineDto::from)
+                .collect(),
         }
     }
 }

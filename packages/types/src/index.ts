@@ -162,6 +162,49 @@ export interface TaskPatch {
   branch?: string;
 }
 
+export interface StatusLine {
+  displayId: string;
+  status: string;
+  agent: string | null;
+  detail: string;
+}
+
+export interface InboxCounts {
+  total: number;
+  waiting: number;
+  failed: number;
+  stale: number;
+  review: number;
+  urgent: number;
+}
+
+export interface BoardStatus {
+  inbox: InboxCounts;
+  inboxHead: StatusLine[];
+  openRuns: number;
+  openRunHead: StatusLine[];
+  stale: number;
+  staleHead: StatusLine[];
+  ready: number;
+  readyHead: StatusLine[];
+  inReview: number;
+  inReviewHead: StatusLine[];
+  blocked: number;
+  blockedHead: StatusLine[];
+}
+
+export interface OccupancyRun {
+  runDisplayId: string;
+  taskDisplayId: string;
+  status: string;
+  agent: string;
+}
+
+export interface OccupancyGroup {
+  worktreePath: string;
+  runs: OccupancyRun[];
+}
+
 export type ReviewAction = "approve" | "changes";
 
 export type RunOp =

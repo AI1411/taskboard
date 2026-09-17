@@ -163,6 +163,9 @@ describe("TauriTransport", () => {
     await t.sync(0);
     await t.uiState();
     await t.uiStateSet("alpha");
+    await t.status("a");
+    await t.occupancy();
+    await t.taskSpawn("TASK-1", ["Child"]);
 
     const cmds = calls.map((c) => c.cmd);
     assert.deepEqual(cmds, [
@@ -197,6 +200,9 @@ describe("TauriTransport", () => {
       "sync",
       "ui_state",
       "ui_state_set",
+      "status",
+      "occupancy",
+      "task_spawn",
     ]);
 
     assert.deepEqual(calls[1].args, { include_archived: true });

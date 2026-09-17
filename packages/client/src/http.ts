@@ -15,6 +15,8 @@ import type {
   InboxItem,
   Trash,
   UndoResult,
+  BoardStatus,
+  OccupancyGroup,
 } from "@taskboard/types";
 
 import { TransportError, type Transport } from "./transport";
@@ -165,6 +167,23 @@ export class HttpTransport implements Transport {
 
   runPatch(runDisplayId: string, op: RunOp, revision?: number): Promise<Run> {
     return this.request("PATCH", `/api/v1/runs/${enc(runDisplayId)}`, { body: op, revision });
+  }
+
+  status(project?: string): Promise<BoardStatus> {
+    const q = project ? `?project=${enc(project)}` : "";
+    return this.request("GET", `/api/v1/status${q}`);
+  }
+
+  occupancy(path?: string): Promise<OccupancyGroup[]> {
+    const q = path ? `?path=${enc(path)}` : "";
+    return this.request("GET", `/api/v1/occupancy${q}`, { unwrap: "entities" });
+  }
+
+  taskSpawn(displayId: string, titles: string[]): Promise<TaskDetail[]> {
+    return this.request("POST", `/api/v1/tasks/${enc(displayId)}/spawn`, {
+      body: { titles },
+      unwrap: "entities",
+    });
   }
 
   review(displayId: string, input: { action: ReviewAction; text: string }): Promise<TaskDetail> {

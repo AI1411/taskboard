@@ -15,6 +15,8 @@ import type {
   InboxItem,
   Trash,
   UndoResult,
+  BoardStatus,
+  OccupancyGroup,
 } from "@taskboard/types";
 
 import { TransportError, type Transport } from "./transport";
@@ -169,6 +171,18 @@ export class TauriTransport implements Transport {
 
   review(displayId: string, input: { action: ReviewAction; text: string }): Promise<TaskDetail> {
     return this.call("review", { displayId, ...input });
+  }
+
+  status(project?: string): Promise<BoardStatus> {
+    return this.call("status", { project });
+  }
+
+  occupancy(path?: string): Promise<OccupancyGroup[]> {
+    return this.call("occupancy", { path });
+  }
+
+  taskSpawn(displayId: string, titles: string[]): Promise<TaskDetail[]> {
+    return this.call("task_spawn", { displayId, titles });
   }
 
   inbox(opts?: { project?: string; includeArchived?: boolean }): Promise<InboxItem[]> {
