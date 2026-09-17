@@ -134,8 +134,9 @@ async fn status_counts_inbox_open_ready_review_blocked() {
         .await
         .unwrap();
     let snap = app.status(None).await.unwrap();
-    assert_eq!(snap.inbox.total, 1);
+    assert_eq!(snap.inbox.total, 2);
     assert_eq!(snap.inbox.waiting, 1);
+    assert_eq!(snap.inbox.review, 1);
     assert_eq!(snap.open_runs, 1);
     assert_eq!(snap.ready, ready.len());
     assert_eq!(snap.in_review, 1);

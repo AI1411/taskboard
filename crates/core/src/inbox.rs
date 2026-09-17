@@ -8,7 +8,8 @@ pub enum InboxGroup {
     Waiting = 0,
     Failed = 1,
     Stale = 2,
-    Urgent = 3,
+    Review = 3,
+    Urgent = 4,
 }
 
 pub fn inbox_membership(
@@ -21,6 +22,9 @@ pub fn inbox_membership(
         CardDisplayStatus::Waiting => Some(InboxGroup::Waiting),
         CardDisplayStatus::Failed => Some(InboxGroup::Failed),
         _ if stale => Some(InboxGroup::Stale),
+        _ if column == Column::InReview && status != CardDisplayStatus::Running => {
+            Some(InboxGroup::Review)
+        }
         _ if urgent && column != Column::Done => Some(InboxGroup::Urgent),
         _ => None,
     }
@@ -88,14 +92,48 @@ mod tests {
     }
 
     #[test]
-    fn completed_in_review_is_out_unless_urgent() {
+    fn completed_in_review_is_review_even_if_urgent() {
         assert_eq!(
             inbox_membership(Column::InReview, false, CardDisplayStatus::Completed, false),
-            None
+            Some(InboxGroup::Review)
         );
         assert_eq!(
             inbox_membership(Column::InReview, true, CardDisplayStatus::Completed, false),
-            Some(InboxGroup::Urgent)
+            Some(InboxGroup::Review)
+        );
+        assert_eq!(
+            inbox_membership(Column::InReview, false, CardDisplayStatus::Idle, false),
+            Some(InboxGroup::Review)
+        );
+    }
+
+    #[test]
+    fn running_waiting_failed_stale_in_review_are_not_review() {
+        assert_eq!(
+            inbox_membership(Column::InReview, false, CardDisplayStatus::Running, false),
+            None
+        );
+        assert_eq!(
+            inbox_membership(Column::InReview, false, CardDisplayStatus::Waiting, false),
+            Some(InboxGroup::Waiting)
+        );
+        assert_eq!(
+            inbox_membership(Column::InReview, false, CardDisplayStatus::Failed, false),
+            Some(InboxGroup::Failed)
+        );
+        assert_eq!(
+            inbox_membership(Column::InReview, false, CardDisplayStatus::Running, true),
+            Some(InboxGroup::Stale)
+        );
+        assert!(InboxGroup::Stale < InboxGroup::Review);
+        assert!(InboxGroup::Review < InboxGroup::Urgent);
+    }
+
+    #[test]
+    fn done_completed_is_still_out() {
+        assert_eq!(
+            inbox_membership(Column::Done, false, CardDisplayStatus::Completed, false),
+            None
         );
     }
 

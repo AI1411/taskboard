@@ -19,14 +19,26 @@ export function InboxStrip(props: {
     (item) =>
       item.stale && item.displayStatus !== "waiting" && item.displayStatus !== "failed",
   ).length;
+  const review = props.items.filter(
+    (item) =>
+      item.column === "in-review" &&
+      item.displayStatus !== "waiting" &&
+      item.displayStatus !== "failed" &&
+      item.displayStatus !== "running" &&
+      !item.stale,
+  ).length;
   const urgent = props.items.filter(
     (item) =>
-      item.displayStatus !== "waiting" && item.displayStatus !== "failed" && !item.stale,
+      item.displayStatus !== "waiting" &&
+      item.displayStatus !== "failed" &&
+      !item.stale &&
+      !(item.column === "in-review" && item.displayStatus !== "running"),
   ).length;
   const parts = [
     waiting ? `Waiting ${waiting}` : null,
     failed ? `Failed ${failed}` : null,
     stale ? `Stale ${stale}` : null,
+    review ? `Review ${review}` : null,
     urgent ? `Urgent ${urgent}` : null,
   ].filter(Boolean);
 

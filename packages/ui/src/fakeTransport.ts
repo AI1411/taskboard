@@ -38,6 +38,7 @@ function inboxMember(
 ): boolean {
   if (status === "waiting" || status === "failed") return true;
   if (stale) return true;
+  if (column === "in-review" && status !== "running") return true;
   return urgent && column !== "done";
 }
 

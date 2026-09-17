@@ -124,6 +124,7 @@ fn inbox_parts(counts: &InboxCounts) -> String {
         (counts.waiting, "waiting"),
         (counts.failed, "failed"),
         (counts.stale, "stale"),
+        (counts.review, "review"),
         (counts.urgent, "urgent"),
     ]
     .into_iter()
