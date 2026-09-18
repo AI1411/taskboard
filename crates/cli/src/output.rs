@@ -1,4 +1,5 @@
 use std::path::Path;
+use taskboard_wire::WireError;
 
 use serde::Serialize;
 use taskboard_application::{AppError, BoardStatus, InboxCounts, OccupancyGroup, StatusLine};
@@ -319,20 +320,15 @@ pub fn undo_human(entity_type: EntityType, entity: &serde_json::Value) -> String
 }
 
 pub fn error_value(err: &AppError) -> serde_json::Value {
-    let (field, current) = match err {
-        AppError::Validation { field, .. } => (Some(field.clone()), None),
-        AppError::RevisionConflict { current } | AppError::UndoConflict { current } => {
-            (None, Some(current.clone()))
-        }
-        _ => (None, None),
-    };
+    let wire = WireError::from(err);
     serde_json::json!({
         "ok": false,
         "error": {
-            "code": err.code(),
-            "message": err.to_string(),
-            "field": field,
-            "current": current,
+            "code": wire.code,
+            "message": wire.message,
+            "field": wire.field,
+            "current": wire.current,
+            "slug": wire.slug,
         }
     })
 }
