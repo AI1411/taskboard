@@ -10,10 +10,10 @@ use std::path::PathBuf;
 use chrono::Utc;
 use clap::Parser;
 use taskboard_application::{
-    ActivityQuery, Actor, App, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, NextClaim,
-    OccupancyQuery, ProjectAdd, ProjectUpdate, ReviewAction, ReviewTask, RunCancel, RunContinue,
-    RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, SystemClock, TaskCreate,
-    TaskListQuery, TaskSpawn, TaskUpdate,
+    empty_to_none, ActivityQuery, Actor, App, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd,
+    NextClaim, OccupancyQuery, ProjectAdd, ProjectUpdate, ReviewAction, ReviewTask, RunCancel,
+    RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait, SystemClock,
+    TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate,
 };
 use taskboard_core::LinkKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
@@ -984,15 +984,6 @@ async fn backup_cmd(app: &App, json: bool, cmd: BackupCommand) -> Result<(), i32
         }
     }
     Ok(())
-}
-
-fn empty_to_none(value: String) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
 }
 
 fn load_body(text: Option<String>, file: Option<PathBuf>) -> Result<String, AppError> {
