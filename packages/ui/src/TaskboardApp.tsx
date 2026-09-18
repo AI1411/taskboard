@@ -652,7 +652,6 @@ export function TaskboardApp(props: {
           try {
             applyDetail(await transport.taskShow(id));
           } catch {
-            /* keep current detail */
           }
         } else {
           setToast({ message: errorMessage(err), error: true });
@@ -691,7 +690,6 @@ export function TaskboardApp(props: {
           try {
             applyDetail(await transport.taskShow(id));
           } catch {
-            /* keep current detail */
           }
         } else {
           setToast({ message: errorMessage(err), error: true });
@@ -716,7 +714,6 @@ export function TaskboardApp(props: {
           try {
             applyDetail(await transport.taskShow(id));
           } catch {
-            /* keep current detail */
           }
         } else {
           setToast({ message: errorMessage(err), error: true });

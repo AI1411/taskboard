@@ -4,8 +4,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { TauriTransport, type InvokeFn } from "@taskboard/client";
 import { TaskboardApp } from "@taskboard/ui";
 
-// Never import HttpTransport under apps/desktop. Desktop uses TauriTransport + invoke only.
-
 function refetchInterval(visibility: DocumentVisibilityState): number | false {
   return visibility === "visible" ? 1000 : false;
 }

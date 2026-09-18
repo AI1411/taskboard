@@ -10,7 +10,6 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 
-/// Row used to insert into `activities`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NewActivity {
     pub id: Uuid,
@@ -46,11 +45,6 @@ pub struct UndoResult {
     pub entity: serde_json::Value,
 }
 
-/// Persistence surface implemented by `taskboard-store-sqlite`.
-///
-/// Get/list/insert/update (and soft-delete/restore where the schema supports it)
-/// cover projects, tasks, links, and runs so later use cases can land without
-/// rewriting this trait. Links and runs have no `deleted_at`; they are hard-deleted.
 #[async_trait]
 pub trait Store: Send + Sync {
     async fn next_display_n(&mut self, counter: &str) -> Result<i64, AppError>;

@@ -499,10 +499,6 @@ async fn patch_task(
             .task_reorder(&actor, &display_id, before_display_id.as_deref(), revision)
             .await
             .map_err(app_error)?;
-        #[allow(unused_assignments)]
-        {
-            revision = advance_if_match(updated.revision);
-        }
         task = Some(updated);
     }
     let task = match task {
