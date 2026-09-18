@@ -74,7 +74,6 @@ mod tests {
 
     #[test]
     fn explicit_duplicate_slug_is_error_when_unique_not_requested() {
-        // next_unique_slug always suffixes; callers that passed --slug do not call it.
         assert_eq!(slugify("Renai Sim").unwrap(), "renai-sim");
     }
 }

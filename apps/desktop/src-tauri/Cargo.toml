@@ -8,7 +8,6 @@ rust-version = "1.83"
 
 # Excluded from the workspace: Linux CI has no webkit2gtk-4.1, and Tauri 2.6's
 # crate graph currently pulls edition2024 packages that need rustc > 1.83.
-# Wrappers live here; command logic is tested via taskboard-desktop-commands.
 
 [lib]
 name = "taskboard_desktop_lib"

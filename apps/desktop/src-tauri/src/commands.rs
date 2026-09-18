@@ -17,7 +17,6 @@ use taskboard_desktop_commands::{
 
 use crate::state::DesktopState;
 
-// IPC keys match TauriTransport snake_case.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn project_add(
     state: tauri::State<'_, DesktopState>,

@@ -165,7 +165,6 @@ fn create_log_file(logs_dir: &Path) -> Result<PathBuf, AppError> {
 }
 
 fn write_log(path: &Path, configured_level: &str, message_level: &str, message: &str) {
-    // Diagnostic logs must never include note bodies, run summaries, or repository paths.
     if message.contains("note_markdown")
         || message.contains("repo_path")
         || message.contains("summary")
@@ -408,8 +407,6 @@ mod tests {
         pool.close().await;
     }
 
-    /// `apply_init_migration` runs `INIT_SQL` inside a sqlx transaction so a failed
-    /// statement rolls back the entire script instead of leaving partial schema.
     #[tokio::test]
     async fn failed_statement_inside_transaction_does_not_commit_partial_schema() {
         let tmp = tempfile::tempdir().unwrap();
