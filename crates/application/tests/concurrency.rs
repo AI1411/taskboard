@@ -1,40 +1,12 @@
-use std::ops::Deref;
+#![allow(unused_imports)]
+mod common;
+use common::{cli_actor, test_app, TestApp};
 use std::time::{Duration, Instant};
 
 use chrono::{Duration as ChronoDuration, Utc};
-use taskboard_application::{Actor, App, ProjectAdd, Store, SystemClock, TaskCreate, TaskUpdate};
-use taskboard_core::{ActorKind, Column};
+use taskboard_application::{App, ProjectAdd, Store, SystemClock, TaskCreate, TaskUpdate};
+use taskboard_core::Column;
 use taskboard_store_sqlite::{open_db, SqliteStore};
-
-struct TestApp {
-    app: App,
-    tmp: tempfile::TempDir,
-}
-
-impl Deref for TestApp {
-    type Target = App;
-
-    fn deref(&self) -> &Self::Target {
-        &self.app
-    }
-}
-
-fn cli_actor() -> Actor {
-    Actor {
-        kind: ActorKind::Cli,
-        label: "local-cli".into(),
-    }
-}
-
-async fn test_app() -> TestApp {
-    let tmp = tempfile::tempdir().unwrap();
-    let pool = open_db(tmp.path()).await.unwrap();
-    let store = SqliteStore::with_data_dir(pool, tmp.path().to_path_buf());
-    TestApp {
-        app: App::new(store, SystemClock),
-        tmp,
-    }
-}
 
 async fn seeded_task() -> TestApp {
     let app = test_app().await;
@@ -222,7 +194,7 @@ async fn activity_head_and_sync_see_task_update() {
 #[tokio::test]
 async fn backup_export_import_round_trip() {
     let app = seeded_task().await;
-    let dest = app.tmp.path().join("export.sqlite3");
+    let dest = app.path().join("export.sqlite3");
     app.backup_export(&dest).await.unwrap();
     app.task_update(
         &cli_actor(),
@@ -241,7 +213,7 @@ async fn backup_export_import_round_trip() {
         app.task_show("TASK-1").await.unwrap().title,
         "Fix login error"
     );
-    let backups = app.tmp.path().join("backups");
+    let backups = app.path().join("backups");
     let names: Vec<String> = std::fs::read_dir(&backups)
         .unwrap()
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
@@ -257,7 +229,7 @@ async fn backup_export_import_round_trip() {
 #[tokio::test]
 async fn backup_import_rejects_non_taskboard_db() {
     let app = seeded_task().await;
-    let junk = app.tmp.path().join("junk.sqlite3");
+    let junk = app.path().join("junk.sqlite3");
     std::fs::write(&junk, b"not a database").unwrap();
     let err = app.backup_import(&junk).await.unwrap_err();
     assert_eq!(err.code(), "io_error");
@@ -273,7 +245,7 @@ async fn backup_import_rejects_non_taskboard_db() {
 #[tokio::test]
 async fn backup_import_rejects_sqlite_without_projects_without_wiping() {
     let app = seeded_task().await;
-    let junk = app.tmp.path().join("not-taskboard.sqlite3");
+    let junk = app.path().join("not-taskboard.sqlite3");
     let status = std::process::Command::new("sqlite3")
         .arg(&junk)
         .arg("CREATE TABLE leftover (id INTEGER);")
@@ -294,7 +266,7 @@ async fn backup_import_rejects_sqlite_without_projects_without_wiping() {
 #[tokio::test]
 async fn backup_import_rejects_wrong_schema_projects_table_without_wiping() {
     let app = seeded_task().await;
-    let junk = app.tmp.path().join("fake-projects.sqlite3");
+    let junk = app.path().join("fake-projects.sqlite3");
     let status = std::process::Command::new("sqlite3")
         .arg(&junk)
         .arg("CREATE TABLE projects (id INTEGER PRIMARY KEY);")
