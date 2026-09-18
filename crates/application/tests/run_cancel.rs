@@ -1,4 +1,6 @@
-use std::ops::Deref;
+#![allow(unused_imports)]
+mod common;
+use common::{cli_actor, test_app, TestApp};
 
 use taskboard_application::{
     Actor, App, ProjectAdd, RunCancel, RunFail, RunFinish, RunStart, RunWait, SystemClock,
@@ -6,35 +8,6 @@ use taskboard_application::{
 };
 use taskboard_core::{ActorKind, CardDisplayStatus, Column, RunStatus};
 use taskboard_store_sqlite::{open_db, SqliteStore};
-
-struct TestApp {
-    app: App,
-    _tmp: tempfile::TempDir,
-}
-
-impl Deref for TestApp {
-    type Target = App;
-    fn deref(&self) -> &Self::Target {
-        &self.app
-    }
-}
-
-fn cli_actor() -> Actor {
-    Actor {
-        kind: ActorKind::Cli,
-        label: "local-cli".into(),
-    }
-}
-
-async fn test_app() -> TestApp {
-    let tmp = tempfile::tempdir().unwrap();
-    let pool = open_db(tmp.path()).await.unwrap();
-    let store = SqliteStore::new(pool, tmp.path());
-    TestApp {
-        app: App::new(store, SystemClock),
-        _tmp: tmp,
-    }
-}
 
 async fn seeded_running() -> TestApp {
     let app = test_app().await;

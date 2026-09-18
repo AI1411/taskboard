@@ -1,3 +1,6 @@
+#![allow(unused_imports)]
+mod common;
+use common::cli_actor;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
@@ -25,13 +28,6 @@ struct SharedClock(Arc<Mutex<chrono::DateTime<Utc>>>);
 impl Clock for SharedClock {
     fn now(&self) -> chrono::DateTime<Utc> {
         *self.0.lock().unwrap()
-    }
-}
-
-fn cli_actor() -> Actor {
-    Actor {
-        kind: ActorKind::Cli,
-        label: "local-cli".into(),
     }
 }
 

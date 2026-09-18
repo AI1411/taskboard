@@ -1,20 +1,11 @@
-use std::ops::Deref;
-
-use taskboard_application::{
-    Actor, App, AppError, ProjectAdd, Store, SystemClock, TaskCreate, TaskUpdate,
-};
-use taskboard_core::{ActorKind, CardDisplayStatus, Column, Task};
-use taskboard_store_sqlite::{open_db, SqliteStore};
-
-struct TestApp {
-    app: App,
-    _tmp: tempfile::TempDir,
-}
+#![allow(unused_imports)]
+mod common;
+use common::{cli_actor, test_app, TestApp};
 
 impl TestApp {
     async fn task_row(&self, display_id: &str) -> Task {
-        let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool, self._tmp.path());
+        let pool = open_db(self.path()).await.unwrap();
+        let mut store = SqliteStore::new(pool, self.path());
         store
             .get_task_by_display_id(display_id, false)
             .await
@@ -23,30 +14,11 @@ impl TestApp {
     }
 }
 
-impl Deref for TestApp {
-    type Target = App;
-
-    fn deref(&self) -> &Self::Target {
-        &self.app
-    }
-}
-
-fn cli_actor() -> Actor {
-    Actor {
-        kind: ActorKind::Cli,
-        label: "local-cli".into(),
-    }
-}
-
-async fn test_app() -> TestApp {
-    let tmp = tempfile::tempdir().unwrap();
-    let pool = open_db(tmp.path()).await.unwrap();
-    let store = SqliteStore::new(pool, tmp.path());
-    TestApp {
-        app: App::new(store, SystemClock),
-        _tmp: tmp,
-    }
-}
+use taskboard_application::{
+    Actor, App, AppError, ProjectAdd, Store, SystemClock, TaskCreate, TaskUpdate,
+};
+use taskboard_core::{ActorKind, CardDisplayStatus, Column, Task};
+use taskboard_store_sqlite::{open_db, SqliteStore};
 
 async fn seeded() -> TestApp {
     let app = test_app().await;

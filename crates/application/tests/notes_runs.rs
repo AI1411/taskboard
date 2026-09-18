@@ -1,22 +1,11 @@
-use std::ops::Deref;
-
-use taskboard_application::{
-    Actor, App, AppError, LinkAdd, ProjectAdd, RunFail, RunFinish, RunStart, RunUpdate, RunWait,
-    Store, SystemClock, TaskCreate,
-};
-use taskboard_core::{ActorKind, CardDisplayStatus, Column, LinkKind, Run, RunStatus, Task};
-use taskboard_store_sqlite::{open_db, SqliteStore};
-use uuid::Uuid;
-
-struct TestApp {
-    app: App,
-    _tmp: tempfile::TempDir,
-}
+#![allow(unused_imports)]
+mod common;
+use common::{cli_actor, test_app, TestApp};
 
 impl TestApp {
     async fn task_row(&self, display_id: &str) -> Task {
-        let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool, self._tmp.path());
+        let pool = open_db(self.path()).await.unwrap();
+        let mut store = SqliteStore::new(pool, self.path());
         store
             .get_task_by_display_id(display_id, false)
             .await
@@ -25,14 +14,14 @@ impl TestApp {
     }
 
     async fn latest_activity_for(&self, entity_id: Uuid) -> taskboard_core::Activity {
-        let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool, self._tmp.path());
+        let pool = open_db(self.path()).await.unwrap();
+        let mut store = SqliteStore::new(pool, self.path());
         store.latest_activity_for(entity_id).await.unwrap().unwrap()
     }
 
     async fn get_run(&self, display_id: &str) -> Run {
-        let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool, self._tmp.path());
+        let pool = open_db(self.path()).await.unwrap();
+        let mut store = SqliteStore::new(pool, self.path());
         store
             .get_run_by_display_id(display_id)
             .await
@@ -41,14 +30,14 @@ impl TestApp {
     }
 
     async fn get_link(&self, id: Uuid) -> Option<taskboard_core::Link> {
-        let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool, self._tmp.path());
+        let pool = open_db(self.path()).await.unwrap();
+        let mut store = SqliteStore::new(pool, self.path());
         store.get_link(id).await.unwrap()
     }
 
     async fn soft_delete_task(&self, display_id: &str) {
-        let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool, self._tmp.path());
+        let pool = open_db(self.path()).await.unwrap();
+        let mut store = SqliteStore::new(pool, self.path());
         let task = store
             .get_task_by_display_id(display_id, false)
             .await
@@ -61,30 +50,13 @@ impl TestApp {
     }
 }
 
-impl Deref for TestApp {
-    type Target = App;
-
-    fn deref(&self) -> &Self::Target {
-        &self.app
-    }
-}
-
-fn cli_actor() -> Actor {
-    Actor {
-        kind: ActorKind::Cli,
-        label: "local-cli".into(),
-    }
-}
-
-async fn test_app() -> TestApp {
-    let tmp = tempfile::tempdir().unwrap();
-    let pool = open_db(tmp.path()).await.unwrap();
-    let store = SqliteStore::new(pool, tmp.path());
-    TestApp {
-        app: App::new(store, SystemClock),
-        _tmp: tmp,
-    }
-}
+use taskboard_application::{
+    Actor, App, AppError, LinkAdd, ProjectAdd, RunFail, RunFinish, RunStart, RunUpdate, RunWait,
+    Store, SystemClock, TaskCreate,
+};
+use taskboard_core::{ActorKind, CardDisplayStatus, Column, LinkKind, Run, RunStatus, Task};
+use taskboard_store_sqlite::{open_db, SqliteStore};
+use uuid::Uuid;
 
 async fn seeded() -> TestApp {
     let app = test_app().await;

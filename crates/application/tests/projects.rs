@@ -1,48 +1,20 @@
-use std::ops::Deref;
+#![allow(unused_imports)]
+mod common;
+use common::{cli_actor, test_app, TestApp};
+
+impl TestApp {
+    async fn activity_head(&self) -> i64 {
+        let pool = open_db(self.path()).await.unwrap();
+        let mut store = SqliteStore::new(pool, self.path());
+        store.activity_head().await.unwrap()
+    }
+}
 
 use std::collections::HashSet;
 
 use taskboard_application::{Actor, App, ProjectAdd, ProjectUpdate, Store, SystemClock};
 use taskboard_core::ActorKind;
 use taskboard_store_sqlite::{open_db, SqliteStore};
-
-struct TestApp {
-    app: App,
-    _tmp: tempfile::TempDir,
-}
-
-impl TestApp {
-    async fn activity_head(&self) -> i64 {
-        let pool = open_db(self._tmp.path()).await.unwrap();
-        let mut store = SqliteStore::new(pool, self._tmp.path());
-        store.activity_head().await.unwrap()
-    }
-}
-
-impl Deref for TestApp {
-    type Target = App;
-
-    fn deref(&self) -> &Self::Target {
-        &self.app
-    }
-}
-
-fn cli_actor() -> Actor {
-    Actor {
-        kind: ActorKind::Cli,
-        label: "local-cli".into(),
-    }
-}
-
-async fn test_app() -> TestApp {
-    let tmp = tempfile::tempdir().unwrap();
-    let pool = open_db(tmp.path()).await.unwrap();
-    let store = SqliteStore::new(pool, tmp.path());
-    TestApp {
-        app: App::new(store, SystemClock),
-        _tmp: tmp,
-    }
-}
 
 #[tokio::test]
 async fn add_project_assigns_slug_and_revision_one() {

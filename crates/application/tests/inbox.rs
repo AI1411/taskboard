@@ -1,3 +1,6 @@
+#![allow(unused_imports)]
+mod common;
+use common::cli_actor;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
@@ -28,13 +31,6 @@ impl Deref for TestApp {
 
     fn deref(&self) -> &Self::Target {
         &self.app
-    }
-}
-
-fn cli_actor() -> Actor {
-    Actor {
-        kind: ActorKind::Cli,
-        label: "local-cli".into(),
     }
 }
 
