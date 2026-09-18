@@ -9,6 +9,7 @@ use taskboard_application::{
 };
 use taskboard_core::{CardDisplayStatus, Column, LinkKind};
 
+use crate::ops;
 use crate::output;
 
 pub async fn serve(app: &App, actor: &Actor) -> Result<(), i32> {
@@ -68,10 +69,6 @@ fn write_line(stdout: &mut io::Stdout, value: Value) -> Result<(), i32> {
     writeln!(stdout, "{value}").map_err(|err| {
         eprintln!("error: {err}");
         1
-    })?;
-    stdout.flush().map_err(|err| {
-        eprintln!("error: {err}");
-        1
     })
 }
 
@@ -79,357 +76,19 @@ fn initialize() -> Value {
     json!({
         "protocolVersion": "2024-11-05",
         "capabilities": { "tools": {} },
-        "serverInfo": { "name": "taskboard", "version": env!("CARGO_PKG_VERSION") },
+        "serverInfo": { "name": "taskboard", "version": env!("CARGO_PKG_VERSION") }
     })
 }
 
 fn tools() -> Vec<Value> {
-    vec![
-        tool(
-            "project_list",
-            "List live projects",
-            json!({
-                "type": "object",
-                "properties": { "include_archived": { "type": "boolean" } }
-            }),
-        ),
-        tool(
-            "task_list",
-            "List tasks in a project or across all live projects",
-            json!({
-                "type": "object",
-                "properties": {
-                    "project": { "type": "string" },
-                    "all": { "type": "boolean" },
-                    "status": { "type": "string" },
-                    "column": { "type": "string" },
-                    "agent": { "type": "string" }
-                }
-            }),
-        ),
-        tool(
-            "task_show",
-            "Show one task by TASK-n",
-            json!({
-                "type": "object",
-                "properties": { "display_id": { "type": "string" } },
-                "required": ["display_id"]
-            }),
-        ),
-        tool(
-            "run_list",
-            "List runs",
-            json!({
-                "type": "object",
-                "properties": {
-                    "open": { "type": "boolean" },
-                    "session": { "type": "string" },
-                    "agent": { "type": "string" }
-                }
-            }),
-        ),
-        tool(
-            "run_show",
-            "Show one run by RUN-n",
-            json!({
-                "type": "object",
-                "properties": { "display_id": { "type": "string" } },
-                "required": ["display_id"]
-            }),
-        ),
-        tool(
-            "run_current",
-            "Show the winning run on a task",
-            json!({
-                "type": "object",
-                "properties": { "display_id": { "type": "string" } },
-                "required": ["display_id"]
-            }),
-        ),
-        tool(
-            "run_start",
-            "Start a run on a task",
-            json!({
-                "type": "object",
-                "properties": {
-                    "display_id": { "type": "string" },
-                    "agent": { "type": "string" },
-                    "session": { "type": "string" },
-                    "exclusive": { "type": "boolean" }
-                },
-                "required": ["display_id", "agent"]
-            }),
-        ),
-        tool(
-            "next",
-            "Claim the first ready card and start a run",
-            json!({
-                "type": "object",
-                "properties": {
-                    "project": { "type": "string" },
-                    "agent": { "type": "string" },
-                    "move": { "type": "boolean" }
-                }
-            }),
-        ),
-        tool(
-            "run_continue",
-            "Resume a waiting run as the same RUN-n",
-            json!({
-                "type": "object",
-                "properties": {
-                    "display_id": { "type": "string" },
-                    "message": { "type": "string" },
-                    "reply": { "type": "string" }
-                },
-                "required": ["display_id"]
-            }),
-        ),
-        tool(
-            "inbox",
-            "List cards that need a person",
-            json!({
-                "type": "object",
-                "properties": {
-                    "project": { "type": "string" },
-                    "archived": { "type": "boolean" }
-                }
-            }),
-        ),
-        tool(
-            "status",
-            "Board-wide snapshot of inbox, open runs, ready, review, and blocked",
-            json!({
-                "type": "object",
-                "properties": {
-                    "project": { "type": "string" }
-                }
-            }),
-        ),
-        tool(
-            "occupancy",
-            "Group running and waiting runs by worktree path",
-            json!({
-                "type": "object",
-                "properties": {
-                    "path": { "type": "string" }
-                }
-            }),
-        ),
-        tool(
-            "task_spawn",
-            "Create child tasks and block the parent on them",
-            json!({
-                "type": "object",
-                "properties": {
-                    "display_id": { "type": "string" },
-                    "titles": {
-                        "type": "array",
-                        "items": { "type": "string" }
-                    }
-                },
-                "required": ["display_id", "titles"]
-            }),
-        ),
-        tool(
-            "activity",
-            "List board activity after a sequence",
-            json!({
-                "type": "object",
-                "properties": {
-                    "after": { "type": "integer" },
-                    "project": { "type": "string" },
-                    "task": { "type": "string" }
-                }
-            }),
-        ),
-        tool(
-            "comment_add",
-            "Append a comment without changing the note",
-            json!({
-                "type": "object",
-                "properties": {
-                    "display_id": { "type": "string" },
-                    "text": { "type": "string" },
-                    "continue": { "type": "boolean" }
-                },
-                "required": ["display_id", "text"]
-            }),
-        ),
-        tool(
-            "comment_list",
-            "List comments on a task",
-            json!({
-                "type": "object",
-                "properties": { "display_id": { "type": "string" } },
-                "required": ["display_id"]
-            }),
-        ),
-        tool(
-            "task_create",
-            "Create a task",
-            json!({
-                "type": "object",
-                "properties": {
-                    "project": { "type": "string" },
-                    "title": { "type": "string" },
-                    "column": { "type": "string" },
-                    "urgent": { "type": "boolean" }
-                },
-                "required": ["title"]
-            }),
-        ),
-        tool(
-            "task_move",
-            "Move a task to a column",
-            json!({
-                "type": "object",
-                "properties": {
-                    "display_id": { "type": "string" },
-                    "column": { "type": "string" }
-                },
-                "required": ["display_id", "column"]
-            }),
-        ),
-        tool(
-            "task_update",
-            "Update a task title, worktree, or branch",
-            json!({
-                "type": "object",
-                "properties": {
-                    "display_id": { "type": "string" },
-                    "title": { "type": "string" },
-                    "worktree": { "type": "string" },
-                    "branch": { "type": "string" }
-                },
-                "required": ["display_id"]
-            }),
-        ),
-        tool(
-            "run_wait",
-            "Mark a run as waiting",
-            json!({
-                "type": "object",
-                "properties": {
-                    "display_id": { "type": "string" },
-                    "reason": { "type": "string" }
-                },
-                "required": ["display_id", "reason"]
-            }),
-        ),
-        tool(
-            "run_finish",
-            "Mark a run as completed",
-            json!({
-                "type": "object",
-                "properties": {
-                    "display_id": { "type": "string" },
-                    "summary": { "type": "string" }
-                },
-                "required": ["display_id", "summary"]
-            }),
-        ),
-        tool(
-            "run_fail",
-            "Mark a run as failed",
-            json!({
-                "type": "object",
-                "properties": {
-                    "display_id": { "type": "string" },
-                    "summary": { "type": "string" }
-                },
-                "required": ["display_id", "summary"]
-            }),
-        ),
-        tool(
-            "run_cancel",
-            "Cancel a running or waiting run",
-            json!({
-                "type": "object",
-                "properties": {
-                    "display_id": { "type": "string" },
-                    "summary": { "type": "string" }
-                },
-                "required": ["display_id"]
-            }),
-        ),
-        tool(
-            "review",
-            "Approve or request changes on an In Review card",
-            json!({
-                "type": "object",
-                "properties": {
-                    "display_id": { "type": "string" },
-                    "action": { "type": "string" },
-                    "text": { "type": "string" }
-                },
-                "required": ["display_id", "action", "text"]
-            }),
-        ),
-        tool(
-            "check_add",
-            "Add a checklist item",
-            json!({
-                "type": "object",
-                "properties": {
-                    "display_id": { "type": "string" },
-                    "text": { "type": "string" }
-                },
-                "required": ["display_id", "text"]
-            }),
-        ),
-        tool(
-            "check_toggle",
-            "Toggle a checklist item",
-            json!({
-                "type": "object",
-                "properties": { "display_id": { "type": "string" } },
-                "required": ["display_id"]
-            }),
-        ),
-        tool(
-            "check_list",
-            "List checklist items on a task",
-            json!({
-                "type": "object",
-                "properties": { "display_id": { "type": "string" } },
-                "required": ["display_id"]
-            }),
-        ),
-        tool(
-            "link_add",
-            "Add a URL, path, or blocked-by link",
-            json!({
-                "type": "object",
-                "properties": {
-                    "display_id": { "type": "string" },
-                    "url": { "type": "string" },
-                    "path": { "type": "string" },
-                    "blocked_by": { "type": "string" }
-                },
-                "required": ["display_id"]
-            }),
-        ),
-        tool(
-            "stale",
-            "List stale running runs",
-            json!({
-                "type": "object",
-                "properties": { "minutes": { "type": "integer" } }
-            }),
-        ),
-        tool(
-            "project_detect",
-            "Resolve the current project from cwd or TASKBOARD_PROJECT",
-            json!({
-                "type": "object",
-                "properties": {}
-            }),
-        ),
-    ]
+    ToolKind::ALL
+        .iter()
+        .copied()
+        .map(|tool| tool_value(tool.name(), tool.description(), tool.schema()))
+        .collect()
 }
 
-fn tool(name: &str, description: &str, input_schema: Value) -> Value {
+fn tool_value(name: &str, description: &str, input_schema: Value) -> Value {
     json!({
         "name": name,
         "description": description,
@@ -462,85 +121,465 @@ async fn dispatch_tool(
     name: &str,
     args: Value,
 ) -> Result<Value, taskboard_application::AppError> {
-    match name {
-        "project_list" => {
-            let include_archived = args
-                .get("include_archived")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
-            let projects = app.project_list(include_archived).await?;
-            Ok(json!({ "ok": true, "entities": projects }))
+    for tool in ToolKind::ALL {
+        if tool.name() == name {
+            return tool.run(app, actor, args).await;
         }
-        "task_list" => {
-            let all = args.get("all").and_then(Value::as_bool).unwrap_or(false);
-            let project = if all {
-                None
-            } else {
-                args.get("project")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-            };
-            let statuses = parse_statuses(args.get("status"))?;
-            let column = parse_column(args.get("column"))?;
-            let tasks = app
-                .task_query(TaskListQuery {
-                    project,
-                    statuses,
-                    column,
-                    agent: string_arg(&args, "agent"),
-                    blocked: args
-                        .get("blocked")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(false),
-                    ready: args.get("ready").and_then(Value::as_bool).unwrap_or(false),
-                })
+    }
+    Err(taskboard_application::AppError::Validation {
+        field: "name".into(),
+        message: format!("unknown tool `{name}`"),
+    })
+}
+
+/// Single registry: name, description, schema, and handler cannot drift.
+#[derive(Clone, Copy)]
+enum ToolKind {
+    ProjectList,
+    TaskList,
+    TaskShow,
+    RunList,
+    RunShow,
+    RunCurrent,
+    RunStart,
+    Next,
+    RunContinue,
+    Inbox,
+    Status,
+    Occupancy,
+    TaskSpawn,
+    Activity,
+    CommentAdd,
+    CommentList,
+    TaskCreate,
+    TaskMove,
+    TaskUpdate,
+    RunWait,
+    RunFinish,
+    RunFail,
+    RunCancel,
+    Review,
+    CheckAdd,
+    CheckToggle,
+    CheckList,
+    LinkAdd,
+    Stale,
+    ProjectDetect,
+}
+
+impl ToolKind {
+    const ALL: &'static [ToolKind] = &[
+        Self::ProjectList,
+        Self::TaskList,
+        Self::TaskShow,
+        Self::RunList,
+        Self::RunShow,
+        Self::RunCurrent,
+        Self::RunStart,
+        Self::Next,
+        Self::RunContinue,
+        Self::Inbox,
+        Self::Status,
+        Self::Occupancy,
+        Self::TaskSpawn,
+        Self::Activity,
+        Self::CommentAdd,
+        Self::CommentList,
+        Self::TaskCreate,
+        Self::TaskMove,
+        Self::TaskUpdate,
+        Self::RunWait,
+        Self::RunFinish,
+        Self::RunFail,
+        Self::RunCancel,
+        Self::Review,
+        Self::CheckAdd,
+        Self::CheckToggle,
+        Self::CheckList,
+        Self::LinkAdd,
+        Self::Stale,
+        Self::ProjectDetect,
+    ];
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::ProjectList => "project_list",
+            Self::TaskList => "task_list",
+            Self::TaskShow => "task_show",
+            Self::RunList => "run_list",
+            Self::RunShow => "run_show",
+            Self::RunCurrent => "run_current",
+            Self::RunStart => "run_start",
+            Self::Next => "next",
+            Self::RunContinue => "run_continue",
+            Self::Inbox => "inbox",
+            Self::Status => "status",
+            Self::Occupancy => "occupancy",
+            Self::TaskSpawn => "task_spawn",
+            Self::Activity => "activity",
+            Self::CommentAdd => "comment_add",
+            Self::CommentList => "comment_list",
+            Self::TaskCreate => "task_create",
+            Self::TaskMove => "task_move",
+            Self::TaskUpdate => "task_update",
+            Self::RunWait => "run_wait",
+            Self::RunFinish => "run_finish",
+            Self::RunFail => "run_fail",
+            Self::RunCancel => "run_cancel",
+            Self::Review => "review",
+            Self::CheckAdd => "check_add",
+            Self::CheckToggle => "check_toggle",
+            Self::CheckList => "check_list",
+            Self::LinkAdd => "link_add",
+            Self::Stale => "stale",
+            Self::ProjectDetect => "project_detect",
+        }
+    }
+
+    fn description(self) -> &'static str {
+        match self {
+            Self::ProjectList => "List live projects",
+            Self::TaskList => "List tasks in a project or across all live projects",
+            Self::TaskShow => "Show one task by TASK-n",
+            Self::RunList => "List runs",
+            Self::RunShow => "Show one run by RUN-n",
+            Self::RunCurrent => "Show the winning run on a task",
+            Self::RunStart => "Start a run on a task",
+            Self::Next => "Claim the first ready card and start a run",
+            Self::RunContinue => "Resume a waiting run as the same RUN-n",
+            Self::Inbox => "List cards that need a person",
+            Self::Status => "Board-wide snapshot of inbox, open runs, ready, review, and blocked",
+            Self::Occupancy => "Group running and waiting runs by worktree path",
+            Self::TaskSpawn => "Create child tasks and block the parent on them",
+            Self::Activity => "List board activity after a sequence",
+            Self::CommentAdd => "Append a comment without changing the note",
+            Self::CommentList => "List comments on a task",
+            Self::TaskCreate => "Create a task",
+            Self::TaskMove => "Move a task to a column",
+            Self::TaskUpdate => "Update a task title, worktree, or branch",
+            Self::RunWait => "Mark a run as waiting",
+            Self::RunFinish => "Mark a run as completed",
+            Self::RunFail => "Mark a run as failed",
+            Self::RunCancel => "Cancel a running or waiting run",
+            Self::Review => "Approve or request changes on an In Review card",
+            Self::CheckAdd => "Add a checklist item",
+            Self::CheckToggle => "Toggle a checklist item",
+            Self::CheckList => "List checklist items on a task",
+            Self::LinkAdd => "Add a URL, path, or blocked-by link",
+            Self::Stale => "List stale running runs",
+            Self::ProjectDetect => "Resolve the current project from cwd or TASKBOARD_PROJECT",
+        }
+    }
+
+    fn schema(self) -> Value {
+        match self {
+            Self::ProjectList => json!({
+                "type": "object",
+                "properties": { "include_archived": { "type": "boolean" } }
+            }),
+            Self::TaskList => json!({
+                "type": "object",
+                "properties": {
+                    "project": { "type": "string" },
+                    "all": { "type": "boolean" },
+                    "status": { "type": "string" },
+                    "column": { "type": "string" },
+                    "agent": { "type": "string" }
+                }
+            }),
+            Self::TaskShow => json!({
+                "type": "object",
+                "properties": { "display_id": { "type": "string" } },
+                "required": ["display_id"]
+            }),
+            Self::RunList => json!({
+                "type": "object",
+                "properties": {
+                    "open": { "type": "boolean" },
+                    "session": { "type": "string" },
+                    "agent": { "type": "string" }
+                }
+            }),
+            Self::RunShow => json!({
+                "type": "object",
+                "properties": { "display_id": { "type": "string" } },
+                "required": ["display_id"]
+            }),
+            Self::RunCurrent => json!({
+                "type": "object",
+                "properties": { "display_id": { "type": "string" } },
+                "required": ["display_id"]
+            }),
+            Self::RunStart => json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "agent": { "type": "string" },
+                    "session": { "type": "string" },
+                    "exclusive": { "type": "boolean" }
+                },
+                "required": ["display_id", "agent"]
+            }),
+            Self::Next => json!({
+                "type": "object",
+                "properties": {
+                    "project": { "type": "string" },
+                    "agent": { "type": "string" },
+                    "move": { "type": "boolean" }
+                }
+            }),
+            Self::RunContinue => json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "message": { "type": "string" },
+                    "reply": { "type": "string" }
+                },
+                "required": ["display_id"]
+            }),
+            Self::Inbox => json!({
+                "type": "object",
+                "properties": {
+                    "project": { "type": "string" },
+                    "archived": { "type": "boolean" }
+                }
+            }),
+            Self::Status => json!({
+                "type": "object",
+                "properties": {
+                    "project": { "type": "string" }
+                }
+            }),
+            Self::Occupancy => json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                }
+            }),
+            Self::TaskSpawn => json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "titles": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                    }
+                },
+                "required": ["display_id", "titles"]
+            }),
+            Self::Activity => json!({
+                "type": "object",
+                "properties": {
+                    "after": { "type": "integer" },
+                    "project": { "type": "string" },
+                    "task": { "type": "string" }
+                }
+            }),
+            Self::CommentAdd => json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "text": { "type": "string" },
+                    "continue": { "type": "boolean" }
+                },
+                "required": ["display_id", "text"]
+            }),
+            Self::CommentList => json!({
+                "type": "object",
+                "properties": { "display_id": { "type": "string" } },
+                "required": ["display_id"]
+            }),
+            Self::TaskCreate => json!({
+                "type": "object",
+                "properties": {
+                    "project": { "type": "string" },
+                    "title": { "type": "string" },
+                    "column": { "type": "string" },
+                    "urgent": { "type": "boolean" }
+                },
+                "required": ["title"]
+            }),
+            Self::TaskMove => json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "column": { "type": "string" }
+                },
+                "required": ["display_id", "column"]
+            }),
+            Self::TaskUpdate => json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "title": { "type": "string" },
+                    "worktree": { "type": "string" },
+                    "branch": { "type": "string" }
+                },
+                "required": ["display_id"]
+            }),
+            Self::RunWait => json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "reason": { "type": "string" }
+                },
+                "required": ["display_id", "reason"]
+            }),
+            Self::RunFinish => json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "summary": { "type": "string" }
+                },
+                "required": ["display_id", "summary"]
+            }),
+            Self::RunFail => json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "summary": { "type": "string" }
+                },
+                "required": ["display_id", "summary"]
+            }),
+            Self::RunCancel => json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "summary": { "type": "string" }
+                },
+                "required": ["display_id"]
+            }),
+            Self::Review => json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "action": { "type": "string" },
+                    "text": { "type": "string" }
+                },
+                "required": ["display_id", "action", "text"]
+            }),
+            Self::CheckAdd => json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "text": { "type": "string" }
+                },
+                "required": ["display_id", "text"]
+            }),
+            Self::CheckToggle => json!({
+                "type": "object",
+                "properties": { "display_id": { "type": "string" } },
+                "required": ["display_id"]
+            }),
+            Self::CheckList => json!({
+                "type": "object",
+                "properties": { "display_id": { "type": "string" } },
+                "required": ["display_id"]
+            }),
+            Self::LinkAdd => json!({
+                "type": "object",
+                "properties": {
+                    "display_id": { "type": "string" },
+                    "url": { "type": "string" },
+                    "path": { "type": "string" },
+                    "blocked_by": { "type": "string" }
+                },
+                "required": ["display_id"]
+            }),
+            Self::Stale => json!({
+                "type": "object",
+                "properties": { "minutes": { "type": "integer" } }
+            }),
+            Self::ProjectDetect => json!({
+                "type": "object",
+                "properties": {}
+            }),
+        }
+    }
+
+    async fn run(
+        self,
+        app: &App,
+        actor: &Actor,
+        args: Value,
+    ) -> Result<Value, taskboard_application::AppError> {
+        match self {
+            Self::ProjectList => {
+                let include_archived = args
+                    .get("include_archived")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                let projects = ops::project_list(app, include_archived).await?;
+                Ok(ops::entities_ok(&projects))
+            }
+            Self::TaskList => {
+                let all = args.get("all").and_then(Value::as_bool).unwrap_or(false);
+                let project = if all {
+                    None
+                } else {
+                    args.get("project")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                };
+                let statuses = parse_statuses(args.get("status"))?;
+                let column = parse_column(args.get("column"))?;
+                let tasks = ops::task_list(
+                    app,
+                    TaskListQuery {
+                        project,
+                        statuses,
+                        column,
+                        agent: string_arg(&args, "agent"),
+                        blocked: args
+                            .get("blocked")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false),
+                        ready: args.get("ready").and_then(Value::as_bool).unwrap_or(false),
+                    },
+                )
                 .await?;
-            Ok(json!({ "ok": true, "entities": tasks }))
-        }
-        "task_show" => {
-            let task = app.task_show(&require_string(&args, "display_id")?).await?;
-            Ok(json!({ "ok": true, "entity": task, "revision": task.revision }))
-        }
-        "run_list" => {
-            let runs = app
-                .run_list(RunListQuery {
-                    open: args.get("open").and_then(Value::as_bool).unwrap_or(false),
+                Ok(ops::entities_ok(&tasks))
+            }
+            Self::TaskShow => {
+                let task = ops::task_show(app, &require_string(&args, "display_id")?).await?;
+                Ok(ops::entity_ok(&task, task.revision))
+            }
+            Self::RunList => {
+                let runs = ops::run_list(
+                    app,
+                    RunListQuery {
+                        open: args.get("open").and_then(Value::as_bool).unwrap_or(false),
+                        session_id: string_arg(&args, "session"),
+                        agent: string_arg(&args, "agent"),
+                    },
+                )
+                .await?;
+                Ok(ops::entities_ok(&runs))
+            }
+            Self::RunShow => {
+                let run = ops::run_show(app, &require_string(&args, "display_id")?).await?;
+                Ok(ops::entity_ok(&run, run.revision))
+            }
+            Self::RunCurrent => {
+                let run = ops::run_current(app, &require_string(&args, "display_id")?).await?;
+                Ok(ops::entity_ok(&run, run.revision))
+            }
+            Self::RunStart => {
+                let cmd = RunStart {
+                    task_display_id: require_string(&args, "display_id")?,
+                    agent: require_string(&args, "agent")?,
                     session_id: string_arg(&args, "session"),
-                    agent: string_arg(&args, "agent"),
-                })
-                .await?;
-            Ok(json!({ "ok": true, "entities": runs }))
-        }
-        "run_show" => {
-            let run = app.run_show(&require_string(&args, "display_id")?).await?;
-            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
-        }
-        "run_current" => {
-            let run = app
-                .run_current(&require_string(&args, "display_id")?)
-                .await?;
-            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
-        }
-        "run_start" => {
-            let cmd = RunStart {
-                task_display_id: require_string(&args, "display_id")?,
-                agent: require_string(&args, "agent")?,
-                session_id: string_arg(&args, "session"),
-            };
-            let exclusive = args
-                .get("exclusive")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
-            let run = if exclusive {
-                app.run_start_exclusive(actor, cmd).await?
-            } else {
-                app.run_start(actor, cmd).await?
-            };
-            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
-        }
-        "next" => {
-            let run = app
-                .next(
+                };
+                let exclusive = args
+                    .get("exclusive")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                let run = ops::run_start(app, actor, cmd, exclusive).await?;
+                Ok(ops::entity_ok(&run, run.revision))
+            }
+            Self::Next => {
+                let run = ops::next(
+                    app,
                     actor,
                     NextClaim {
                         project: string_arg(&args, "project"),
@@ -553,11 +592,11 @@ async fn dispatch_tool(
                     },
                 )
                 .await?;
-            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
-        }
-        "run_continue" => {
-            let run = app
-                .run_continue(
+                Ok(ops::entity_ok(&run, run.revision))
+            }
+            Self::RunContinue => {
+                let run = ops::run_continue(
+                    app,
                     actor,
                     RunContinue {
                         run_display_id: require_string(&args, "display_id")?,
@@ -567,60 +606,63 @@ async fn dispatch_tool(
                     },
                 )
                 .await?;
-            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
-        }
-        "inbox" => {
-            let items = app
-                .inbox(InboxScope {
-                    project: string_arg(&args, "project"),
-                    include_archived: args
-                        .get("archived")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(false),
-                })
-                .await?;
-            Ok(json!({ "ok": true, "entities": items }))
-        }
-        "activity" => {
-            let rows = app
-                .activity_list(ActivityQuery {
-                    after: args.get("after").and_then(Value::as_i64).unwrap_or(0),
-                    project: string_arg(&args, "project"),
-                    task_display_id: string_arg(&args, "task"),
-                })
-                .await?;
-            Ok(json!({ "ok": true, "entities": rows }))
-        }
-        "comment_add" => {
-            let cmd = CommentAdd {
-                task_display_id: require_string(&args, "display_id")?,
-                body: require_string(&args, "text")?,
-            };
-            if args
-                .get("continue")
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
-            {
-                let result = app.comment_add_and_continue(actor, cmd).await?;
-                Ok(json!({ "ok": true, "entity": result, "revision": result.run.revision }))
-            } else {
-                let comment = app.comment_add(actor, cmd).await?;
-                Ok(json!({ "ok": true, "entity": comment, "revision": 0 }))
+                Ok(ops::entity_ok(&run, run.revision))
             }
-        }
-        "comment_list" => {
-            let comments = app
-                .comment_list(&require_string(&args, "display_id")?)
+            Self::Inbox => {
+                let items = ops::inbox(
+                    app,
+                    InboxScope {
+                        project: string_arg(&args, "project"),
+                        include_archived: args
+                            .get("archived")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false),
+                    },
+                )
                 .await?;
-            Ok(json!({ "ok": true, "entities": comments }))
-        }
-        "task_create" => {
-            let project = match string_arg(&args, "project") {
-                Some(slug) => slug,
-                None => detect_current_project(app).await?.slug,
-            };
-            let task = app
-                .task_create(
+                Ok(ops::entities_ok(&items))
+            }
+            Self::Activity => {
+                let rows = ops::activity(
+                    app,
+                    ActivityQuery {
+                        after: args.get("after").and_then(Value::as_i64).unwrap_or(0),
+                        project: string_arg(&args, "project"),
+                        task_display_id: string_arg(&args, "task"),
+                    },
+                )
+                .await?;
+                Ok(ops::entities_ok(&rows))
+            }
+            Self::CommentAdd => {
+                let cmd = CommentAdd {
+                    task_display_id: require_string(&args, "display_id")?,
+                    body: require_string(&args, "text")?,
+                };
+                if args
+                    .get("continue")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+                {
+                    let result = ops::comment_add_and_continue(app, actor, cmd).await?;
+                    Ok(ops::entity_ok(&result, result.run.revision))
+                } else {
+                    let comment = ops::comment_add(app, actor, cmd).await?;
+                    Ok(ops::entity_ok(&comment, 0))
+                }
+            }
+            Self::CommentList => {
+                let comments =
+                    ops::comment_list(app, &require_string(&args, "display_id")?).await?;
+                Ok(ops::entities_ok(&comments))
+            }
+            Self::TaskCreate => {
+                let project = match string_arg(&args, "project") {
+                    Some(slug) => slug,
+                    None => ops::detect_project(app).await?.slug,
+                };
+                let task = ops::task_create(
+                    app,
                     actor,
                     TaskCreate {
                         project_slug: project,
@@ -630,23 +672,28 @@ async fn dispatch_tool(
                     },
                 )
                 .await?;
-            Ok(json!({ "ok": true, "entity": task, "revision": task.revision }))
-        }
-        "task_move" => {
-            let column = parse_column(args.get("column"))?.ok_or_else(|| {
-                taskboard_application::AppError::Validation {
-                    field: "column".into(),
-                    message: "column is required".into(),
-                }
-            })?;
-            let task = app
-                .task_move(actor, &require_string(&args, "display_id")?, column, None)
+                Ok(ops::entity_ok(&task, task.revision))
+            }
+            Self::TaskMove => {
+                let column = parse_column(args.get("column"))?.ok_or_else(|| {
+                    taskboard_application::AppError::Validation {
+                        field: "column".into(),
+                        message: "column is required".into(),
+                    }
+                })?;
+                let task = ops::task_move(
+                    app,
+                    actor,
+                    &require_string(&args, "display_id")?,
+                    column,
+                    None,
+                )
                 .await?;
-            Ok(json!({ "ok": true, "entity": task, "revision": task.revision }))
-        }
-        "task_update" => {
-            let task = app
-                .task_update(
+                Ok(ops::entity_ok(&task, task.revision))
+            }
+            Self::TaskUpdate => {
+                let task = ops::task_update(
+                    app,
                     actor,
                     TaskUpdate {
                         display_id: require_string(&args, "display_id")?,
@@ -657,11 +704,11 @@ async fn dispatch_tool(
                     },
                 )
                 .await?;
-            Ok(json!({ "ok": true, "entity": task, "revision": task.revision }))
-        }
-        "run_wait" => {
-            let run = app
-                .run_wait(
+                Ok(ops::entity_ok(&task, task.revision))
+            }
+            Self::RunWait => {
+                let run = ops::run_wait(
+                    app,
                     actor,
                     RunWait {
                         run_display_id: require_string(&args, "display_id")?,
@@ -670,11 +717,11 @@ async fn dispatch_tool(
                     },
                 )
                 .await?;
-            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
-        }
-        "run_finish" => {
-            let run = app
-                .run_finish(
+                Ok(ops::entity_ok(&run, run.revision))
+            }
+            Self::RunFinish => {
+                let run = ops::run_finish(
+                    app,
                     actor,
                     RunFinish {
                         run_display_id: require_string(&args, "display_id")?,
@@ -683,11 +730,11 @@ async fn dispatch_tool(
                     },
                 )
                 .await?;
-            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
-        }
-        "run_fail" => {
-            let run = app
-                .run_fail(
+                Ok(ops::entity_ok(&run, run.revision))
+            }
+            Self::RunFail => {
+                let run = ops::run_fail(
+                    app,
                     actor,
                     RunFail {
                         run_display_id: require_string(&args, "display_id")?,
@@ -696,11 +743,11 @@ async fn dispatch_tool(
                     },
                 )
                 .await?;
-            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
-        }
-        "run_cancel" => {
-            let run = app
-                .run_cancel(
+                Ok(ops::entity_ok(&run, run.revision))
+            }
+            Self::RunCancel => {
+                let run = ops::run_cancel(
+                    app,
                     actor,
                     RunCancel {
                         run_display_id: require_string(&args, "display_id")?,
@@ -709,21 +756,21 @@ async fn dispatch_tool(
                     },
                 )
                 .await?;
-            Ok(json!({ "ok": true, "entity": run, "revision": run.revision }))
-        }
-        "review" => {
-            let action = match require_string(&args, "action")?.as_str() {
-                "approve" => ReviewAction::Approve,
-                "changes" => ReviewAction::Changes,
-                other => {
-                    return Err(taskboard_application::AppError::Validation {
-                        field: "action".into(),
-                        message: format!("unknown action `{other}`"),
-                    });
-                }
-            };
-            let task = app
-                .review(
+                Ok(ops::entity_ok(&run, run.revision))
+            }
+            Self::Review => {
+                let action = match require_string(&args, "action")?.as_str() {
+                    "approve" => ReviewAction::Approve,
+                    "changes" => ReviewAction::Changes,
+                    other => {
+                        return Err(taskboard_application::AppError::Validation {
+                            field: "action".into(),
+                            message: format!("unknown action `{other}`"),
+                        });
+                    }
+                };
+                let task = ops::review(
+                    app,
                     actor,
                     ReviewTask {
                         task_display_id: require_string(&args, "display_id")?,
@@ -733,11 +780,11 @@ async fn dispatch_tool(
                     },
                 )
                 .await?;
-            Ok(json!({ "ok": true, "entity": task, "revision": task.revision }))
-        }
-        "check_add" => {
-            let check = app
-                .check_add(
+                Ok(ops::entity_ok(&task, task.revision))
+            }
+            Self::CheckAdd => {
+                let check = ops::check_add(
+                    app,
                     actor,
                     CheckAdd {
                         task_display_id: require_string(&args, "display_id")?,
@@ -745,35 +792,32 @@ async fn dispatch_tool(
                     },
                 )
                 .await?;
-            Ok(json!({ "ok": true, "entity": check, "revision": 0 }))
-        }
-        "check_toggle" => {
-            let check = app
-                .check_toggle(actor, &require_string(&args, "display_id")?)
-                .await?;
-            Ok(json!({ "ok": true, "entity": check, "revision": 0 }))
-        }
-        "check_list" => {
-            let checks = app
-                .check_list(&require_string(&args, "display_id")?)
-                .await?;
-            Ok(json!({ "ok": true, "entities": checks }))
-        }
-        "link_add" => {
-            let (kind, value) = if let Some(url) = string_arg(&args, "url") {
-                (LinkKind::Url, url)
-            } else if let Some(path) = string_arg(&args, "path") {
-                (LinkKind::Path, path)
-            } else if let Some(blocked_by) = string_arg(&args, "blocked_by") {
-                (LinkKind::BlockedBy, blocked_by)
-            } else {
-                return Err(taskboard_application::AppError::Validation {
-                    field: "target".into(),
-                    message: "url, path, or blocked_by is required".into(),
-                });
-            };
-            let task = app
-                .link_add(
+                Ok(ops::entity_ok(&check, 0))
+            }
+            Self::CheckToggle => {
+                let check =
+                    ops::check_toggle(app, actor, &require_string(&args, "display_id")?).await?;
+                Ok(ops::entity_ok(&check, 0))
+            }
+            Self::CheckList => {
+                let checks = ops::check_list(app, &require_string(&args, "display_id")?).await?;
+                Ok(ops::entities_ok(&checks))
+            }
+            Self::LinkAdd => {
+                let (kind, value) = if let Some(url) = string_arg(&args, "url") {
+                    (LinkKind::Url, url)
+                } else if let Some(path) = string_arg(&args, "path") {
+                    (LinkKind::Path, path)
+                } else if let Some(blocked_by) = string_arg(&args, "blocked_by") {
+                    (LinkKind::BlockedBy, blocked_by)
+                } else {
+                    return Err(taskboard_application::AppError::Validation {
+                        field: "target".into(),
+                        message: "url, path, or blocked_by is required".into(),
+                    });
+                };
+                let task = ops::link_add(
+                    app,
                     actor,
                     LinkAdd {
                         task_display_id: require_string(&args, "display_id")?,
@@ -783,44 +827,46 @@ async fn dispatch_tool(
                     },
                 )
                 .await?;
-            Ok(json!({ "ok": true, "entity": task, "revision": task.revision }))
-        }
-        "stale" => {
-            let minutes = args.get("minutes").and_then(Value::as_i64).unwrap_or(30);
-            let runs = app.stale_list(minutes).await?;
-            Ok(json!({ "ok": true, "entities": runs }))
-        }
-        "project_detect" => {
-            let project = detect_current_project(app).await?;
-            Ok(json!({ "ok": true, "entity": project, "revision": project.revision }))
-        }
-        "status" => {
-            let snap = app.status(string_arg(&args, "project")).await?;
-            Ok(json!({ "ok": true, "entity": snap, "revision": 0 }))
-        }
-        "occupancy" => {
-            let groups = app
-                .occupancy(OccupancyQuery {
-                    path: string_arg(&args, "path"),
-                })
+                Ok(ops::entity_ok(&task, task.revision))
+            }
+            Self::Stale => {
+                let minutes = args.get("minutes").and_then(Value::as_i64).unwrap_or(30);
+                let runs = ops::stale(app, minutes).await?;
+                Ok(ops::entities_ok(&runs))
+            }
+            Self::ProjectDetect => {
+                let project = ops::detect_project(app).await?;
+                Ok(ops::entity_ok(&project, project.revision))
+            }
+            Self::Status => {
+                let snap = ops::status(app, string_arg(&args, "project")).await?;
+                Ok(ops::entity_ok(&snap, 0))
+            }
+            Self::Occupancy => {
+                let groups = ops::occupancy(
+                    app,
+                    OccupancyQuery {
+                        path: string_arg(&args, "path"),
+                    },
+                )
                 .await?;
-            Ok(json!({ "ok": true, "entities": groups }))
-        }
-        "task_spawn" => {
-            let titles = args
-                .get("titles")
-                .and_then(Value::as_array)
-                .map(|items| {
-                    items
-                        .iter()
-                        .filter_map(Value::as_str)
-                        .filter(|title| !title.is_empty())
-                        .map(str::to_string)
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            let children = app
-                .task_spawn(
+                Ok(ops::entities_ok(&groups))
+            }
+            Self::TaskSpawn => {
+                let titles = args
+                    .get("titles")
+                    .and_then(Value::as_array)
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(Value::as_str)
+                            .filter(|title| !title.is_empty())
+                            .map(str::to_string)
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                let children = ops::task_spawn(
+                    app,
                     actor,
                     TaskSpawn {
                         parent_display_id: require_string(&args, "display_id")?,
@@ -828,23 +874,10 @@ async fn dispatch_tool(
                     },
                 )
                 .await?;
-            Ok(json!({ "ok": true, "entities": children }))
+                Ok(ops::entities_ok(&children))
+            }
         }
-        other => Err(taskboard_application::AppError::Validation {
-            field: "name".into(),
-            message: format!("unknown tool `{other}`"),
-        }),
     }
-}
-
-async fn detect_current_project(
-    app: &App,
-) -> Result<taskboard_core::Project, taskboard_application::AppError> {
-    let cwd = std::env::current_dir()
-        .map_err(|err| taskboard_application::AppError::Io(err.to_string()))?;
-    let env_slug = std::env::var("TASKBOARD_PROJECT").ok();
-    app.detect_project(&cwd, env_slug.as_deref().filter(|value| !value.is_empty()))
-        .await
 }
 
 fn optional_clearable(args: &Value, key: &str) -> Option<Option<String>> {
@@ -860,46 +893,62 @@ fn optional_clearable(args: &Value, key: &str) -> Option<Option<String>> {
 fn string_arg(args: &Value, key: &str) -> Option<String> {
     args.get(key)
         .and_then(Value::as_str)
-        .map(str::to_string)
         .filter(|value| !value.is_empty())
+        .map(str::to_string)
 }
 
 fn require_string(args: &Value, key: &str) -> Result<String, taskboard_application::AppError> {
     string_arg(args, key).ok_or_else(|| taskboard_application::AppError::Validation {
-        field: key.to_string(),
+        field: key.into(),
         message: format!("{key} is required"),
     })
 }
 
 fn parse_column(value: Option<&Value>) -> Result<Option<Column>, taskboard_application::AppError> {
-    let Some(raw) = value.and_then(Value::as_str) else {
-        return Ok(None);
-    };
-    Column::from_str(raw)
-        .map(Some)
-        .map_err(|_| taskboard_application::AppError::Validation {
-            field: "column".into(),
-            message: format!("unknown column `{raw}`"),
-        })
+    match value.and_then(Value::as_str) {
+        None | Some("") => Ok(None),
+        Some(raw) => Column::from_str(raw).map(Some).map_err(|_| {
+            taskboard_application::AppError::Validation {
+                field: "column".into(),
+                message: format!("unknown column `{raw}`"),
+            }
+        }),
+    }
 }
 
 fn parse_statuses(
     value: Option<&Value>,
 ) -> Result<Vec<CardDisplayStatus>, taskboard_application::AppError> {
-    let Some(raw) = value.and_then(Value::as_str) else {
-        return Ok(Vec::new());
-    };
-    if raw.is_empty() {
-        return Ok(Vec::new());
-    }
-    raw.split(',')
-        .map(|part| {
-            CardDisplayStatus::from_str(part.trim()).map_err(|_| {
-                taskboard_application::AppError::Validation {
-                    field: "status".into(),
-                    message: format!("unknown status `{part}`"),
-                }
+    match value.and_then(Value::as_str) {
+        None | Some("") => Ok(Vec::new()),
+        Some(raw) => raw
+            .split(',')
+            .map(str::trim)
+            .filter(|part| !part.is_empty())
+            .map(|part| {
+                CardDisplayStatus::from_str(part).map_err(|_| {
+                    taskboard_application::AppError::Validation {
+                        field: "status".into(),
+                        message: format!("unknown status `{part}`"),
+                    }
+                })
             })
-        })
-        .collect()
+            .collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tool_kind_names_are_unique() {
+        let mut names = std::collections::BTreeSet::new();
+        for tool in ToolKind::ALL {
+            assert!(names.insert(tool.name()), "duplicate tool {}", tool.name());
+        }
+        assert!(names.contains("task_show"));
+        assert!(names.contains("project_list"));
+        assert_eq!(names.len(), ToolKind::ALL.len());
+    }
 }
