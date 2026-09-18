@@ -2056,6 +2056,7 @@ dependencies = [
  "taskboard-application",
  "taskboard-core",
  "taskboard-store-sqlite",
+ "taskboard-wire",
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
@@ -2123,6 +2124,7 @@ dependencies = [
  "taskboard-application",
  "taskboard-core",
  "taskboard-store-sqlite",
+ "taskboard-wire",
  "tempfile",
  "tokio",
  "uuid",
@@ -2142,6 +2144,19 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
+ "uuid",
+]
+
+[[package]]
+name = "taskboard-wire"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "taskboard-application",
+ "taskboard-core",
+ "taskboard-store-sqlite",
  "uuid",
 ]
 

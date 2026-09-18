@@ -7,6 +7,7 @@ members = [
     "crates/cli",
     "crates/api",
     "crates/desktop-commands",
+    "crates/wire",
 ]
 # apps/desktop/src-tauri (taskboard-desktop) is excluded: this Linux
 # environment has no webkit2gtk-4.1, and root `cargo test` must stay green.

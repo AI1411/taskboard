@@ -189,3 +189,57 @@ fn entity_type_includes_comment_and_check() {
     assert!(ts.iter().any(|v| v == "comment"));
     assert!(ts.iter().any(|v| v == "check"));
 }
+
+#[test]
+fn response_dtos_live_only_in_wire() {
+    let names = [
+        "ProjectDto",
+        "TaskSummaryDto",
+        "LinkDto",
+        "CommentDto",
+        "CheckDto",
+        "RunDto",
+        "ActivityDto",
+        "TaskDetailDto",
+        "SyncDeltaDto",
+        "TrashDto",
+        "InboxItemDto",
+        "StatusLineDto",
+        "InboxCountsDto",
+        "BoardStatusDto",
+        "OccupancyRunDto",
+        "OccupancyGroupDto",
+        "UiStateDto",
+        "UndoResultDto",
+    ];
+    let wire = read_repo("crates/wire/src/lib.rs");
+    let api = read_repo("crates/api/src/dto.rs");
+    let desktop = read_repo("crates/desktop-commands/src/dto.rs");
+    for name in names {
+        let header = format!("pub struct {name} {{");
+        assert!(
+            wire.contains(&header),
+            "{name} must be defined in crates/wire"
+        );
+        assert!(
+            !api.contains(&header),
+            "{name} must not be redefined in api dto.rs"
+        );
+        assert!(
+            !desktop.contains(&header),
+            "{name} must not be redefined in desktop-commands dto.rs"
+        );
+    }
+    assert!(
+        wire.contains("pub fn json_keys_to_camel"),
+        "json_keys_to_camel must live in wire"
+    );
+    assert!(
+        !api.contains("pub fn json_keys_to_camel"),
+        "api must not redefine json_keys_to_camel"
+    );
+    assert!(
+        !desktop.contains("pub fn json_keys_to_camel"),
+        "desktop must not redefine json_keys_to_camel"
+    );
+}
