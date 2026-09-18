@@ -11,19 +11,19 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use taskboard_application::{
     Actor, AppError, CheckAdd, CommentAdd, InboxScope, LinkAdd, OccupancyQuery, ProjectAdd,
-    ProjectUpdate, ReviewAction, ReviewTask, RunCancel, RunFail, RunFinish, RunStart, RunUpdate,
-    RunWait, TaskCreate, TaskSpawn, TaskUpdate,
+    ProjectUpdate, ReviewAction, ReviewTask, RunPatch, RunPatchOp, RunStart, TaskCreate, TaskPatch,
+    TaskSpawn,
 };
 use taskboard_core::ActorKind;
 use uuid::Uuid;
 
 use crate::dto::{
-    empty_to_none, json_keys_to_camel, AddCheckBody, AddCommentBody, AddLinkBody, BackupBody,
-    BoardStatusDto, CheckDto, CommentDto, CreateProjectBody, CreateTaskBody, InboxItemDto,
-    InboxQuery, ListProjectsQuery, OccupancyGroupDto, OccupancyQueryDto, PatchProjectBody,
-    PatchRunBody, PatchTaskBody, PatchUiStateBody, ProjectDto, ReorderProjectsBody,
-    ReviewActionDto, ReviewBody, RunDto, RunOp, SpawnBody, StartRunBody, StatusQuery, SyncDeltaDto,
-    SyncQuery, TaskDetailDto, TrashDto, UiStateDto,
+    json_keys_to_camel, AddCheckBody, AddCommentBody, AddLinkBody, BackupBody, BoardStatusDto,
+    CheckDto, CommentDto, CreateProjectBody, CreateTaskBody, InboxItemDto, InboxQuery,
+    ListProjectsQuery, OccupancyGroupDto, OccupancyQueryDto, PatchProjectBody, PatchRunBody,
+    PatchTaskBody, PatchUiStateBody, ProjectDto, ReorderProjectsBody, ReviewActionDto, ReviewBody,
+    RunDto, RunOp, SpawnBody, StartRunBody, StatusQuery, SyncDeltaDto, SyncQuery, TaskDetailDto,
+    TrashDto, UiStateDto,
 };
 use crate::origin::origin_allowed;
 use crate::server::{
@@ -123,13 +123,6 @@ fn invalid_if_match() -> Response {
     app_error(AppError::Validation {
         field: "If-Match".into(),
         message: "must be a revision number".into(),
-    })
-}
-
-fn missing_field(field: &str) -> Response {
-    app_error(AppError::Validation {
-        field: field.into(),
-        message: "is required".into(),
     })
 }
 
@@ -428,83 +421,24 @@ async fn patch_task(
 ) -> ApiResult {
     let Json(body) = body.map_err(unknown_patch_field)?;
     require_mutation(&state, &headers)?;
-    let actor = web_actor();
-    let mut revision = if_match(&headers)?;
-    let mut task = None;
-    if body.title.is_some() {
-        let updated = state
-            .app
-            .task_update(
-                &actor,
-                TaskUpdate {
-                    display_id: display_id.clone(),
-                    title: body.title,
-                    revision,
-                    ..Default::default()
-                },
-            )
-            .await
-            .map_err(app_error)?;
-        revision = advance_if_match(updated.revision);
-        task = Some(updated);
-    }
-    if body.worktree_path.is_some() || body.branch.is_some() {
-        let updated = state
-            .app
-            .task_update(
-                &actor,
-                TaskUpdate {
-                    display_id: display_id.clone(),
-                    worktree_path: body.worktree_path.map(empty_to_none),
-                    branch: body.branch.map(empty_to_none),
-                    revision,
-                    ..Default::default()
-                },
-            )
-            .await
-            .map_err(app_error)?;
-        revision = advance_if_match(updated.revision);
-        task = Some(updated);
-    }
-    if let Some(note_markdown) = body.note_markdown {
-        let updated = state
-            .app
-            .task_note_set(&actor, &display_id, note_markdown, revision)
-            .await
-            .map_err(app_error)?;
-        revision = advance_if_match(updated.revision);
-        task = Some(updated);
-    }
-    if let Some(urgent) = body.urgent {
-        let updated = state
-            .app
-            .task_urgent(&actor, &display_id, urgent, revision)
-            .await
-            .map_err(app_error)?;
-        revision = advance_if_match(updated.revision);
-        task = Some(updated);
-    }
-    if let Some(column) = body.column {
-        let updated = state
-            .app
-            .task_move(&actor, &display_id, column, revision)
-            .await
-            .map_err(app_error)?;
-        revision = advance_if_match(updated.revision);
-        task = Some(updated);
-    }
-    if let Some(before_display_id) = body.before_display_id {
-        let updated = state
-            .app
-            .task_reorder(&actor, &display_id, before_display_id.as_deref(), revision)
-            .await
-            .map_err(app_error)?;
-        task = Some(updated);
-    }
-    let task = match task {
-        Some(task) => task,
-        None => state.app.task_show(&display_id).await.map_err(app_error)?,
-    };
+    let task = state
+        .app
+        .task_patch(
+            &web_actor(),
+            TaskPatch {
+                display_id,
+                title: body.title,
+                note_markdown: body.note_markdown,
+                urgent: body.urgent,
+                column: body.column,
+                before_display_id: body.before_display_id,
+                worktree_path: body.worktree_path,
+                branch: body.branch,
+                revision: if_match(&headers)?,
+            },
+        )
+        .await
+        .map_err(app_error)?;
     let dto = TaskDetailDto::from(task);
     let revision = dto.revision;
     Ok(entity(dto, revision))
@@ -736,79 +670,28 @@ async fn patch_run(
     Json(body): Json<PatchRunBody>,
 ) -> ApiResult {
     require_mutation(&state, &headers)?;
-    let actor = web_actor();
-    let revision = if_match(&headers)?;
-    let run = match body.op {
-        RunOp::Update => {
-            state
-                .app
-                .run_update(
-                    &actor,
-                    RunUpdate {
-                        run_display_id: display_id,
-                        message: body.message,
-                        revision,
-                    },
-                )
-                .await
-        }
-        RunOp::Wait => {
-            let reason = body.reason.ok_or_else(|| missing_field("reason"))?;
-            state
-                .app
-                .run_wait(
-                    &actor,
-                    RunWait {
-                        run_display_id: display_id,
-                        reason,
-                        revision,
-                    },
-                )
-                .await
-        }
-        RunOp::Fail => {
-            let summary = body.summary.ok_or_else(|| missing_field("summary"))?;
-            state
-                .app
-                .run_fail(
-                    &actor,
-                    RunFail {
-                        run_display_id: display_id,
-                        summary,
-                        revision,
-                    },
-                )
-                .await
-        }
-        RunOp::Finish => {
-            let summary = body.summary.ok_or_else(|| missing_field("summary"))?;
-            state
-                .app
-                .run_finish(
-                    &actor,
-                    RunFinish {
-                        run_display_id: display_id,
-                        summary,
-                        revision,
-                    },
-                )
-                .await
-        }
-        RunOp::Cancel => {
-            state
-                .app
-                .run_cancel(
-                    &actor,
-                    RunCancel {
-                        run_display_id: display_id,
-                        summary: body.summary,
-                        revision,
-                    },
-                )
-                .await
-        }
-    }
-    .map_err(app_error)?;
+    let op = match body.op {
+        RunOp::Update => RunPatchOp::Update,
+        RunOp::Wait => RunPatchOp::Wait,
+        RunOp::Fail => RunPatchOp::Fail,
+        RunOp::Finish => RunPatchOp::Finish,
+        RunOp::Cancel => RunPatchOp::Cancel,
+    };
+    let run = state
+        .app
+        .run_patch(
+            &web_actor(),
+            RunPatch {
+                run_display_id: display_id,
+                op,
+                message: body.message,
+                reason: body.reason,
+                summary: body.summary,
+                revision: if_match(&headers)?,
+            },
+        )
+        .await
+        .map_err(app_error)?;
     let dto = RunDto::from(run);
     let revision = dto.revision;
     Ok(entity(dto, revision))

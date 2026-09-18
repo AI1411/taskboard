@@ -8,10 +8,11 @@ mod store;
 pub use actor::Actor;
 pub use app::{App, Clock, SystemClock};
 pub use commands::{
-    ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope, LinkAdd, NextClaim,
-    OccupancyGroup, OccupancyQuery, OccupancyRun, ProjectAdd, ProjectUpdate, ReplyContinueResult,
-    ReviewAction, ReviewTask, RunCancel, RunContinue, RunFail, RunFinish, RunListQuery, RunStart,
-    RunUpdate, RunWait, StatusLine, TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate, STATUS_HEAD,
+    empty_to_none, ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope,
+    LinkAdd, NextClaim, OccupancyGroup, OccupancyQuery, OccupancyRun, ProjectAdd, ProjectUpdate,
+    ReplyContinueResult, ReviewAction, ReviewTask, RunCancel, RunContinue, RunFail, RunFinish,
+    RunListQuery, RunPatch, RunPatchOp, RunStart, RunUpdate, RunWait, StatusLine, TaskCreate,
+    TaskListQuery, TaskPatch, TaskSpawn, TaskUpdate, STATUS_HEAD,
 };
 pub use error::AppError;
 pub use store::{NewActivity, Store, SyncDelta, Trash, UndoResult};

@@ -3,9 +3,8 @@ use std::path::Path;
 use serde::Deserialize;
 use taskboard_application::{
     Actor, App, AppError, BoardStatus, CheckAdd, CommentAdd, InboxScope, LinkAdd, OccupancyGroup,
-    OccupancyQuery, ProjectAdd, ProjectUpdate, ReviewAction, ReviewTask, RunCancel, RunFail,
-    RunFinish, RunStart, RunUpdate, RunWait, SyncDelta, TaskCreate, TaskSpawn, TaskUpdate, Trash,
-    UndoResult,
+    OccupancyQuery, ProjectAdd, ProjectUpdate, ReviewAction, ReviewTask, RunPatch, RunPatchOp,
+    RunStart, SyncDelta, TaskCreate, TaskPatch, TaskSpawn, Trash, UndoResult,
 };
 use taskboard_core::{
     ActorKind, Check, Column, Comment, InboxItem, LinkKind, Project, Run, TaskDetail, TaskSummary,
@@ -174,89 +173,23 @@ pub struct TaskPatchArgs {
     pub revision: Option<i64>,
 }
 
-fn empty_to_none(value: String) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
-}
-
 pub async fn task_update_inner(app: &App, patch: TaskPatchArgs) -> Result<TaskDetail, AppErrorDto> {
-    let actor = actor();
-    let TaskPatchArgs {
-        display_id,
-        title,
-        note_markdown,
-        urgent,
-        column,
-        before_display_id,
-        worktree_path,
-        branch,
-        mut revision,
-    } = patch;
-    let mut task = None;
-    if title.is_some() {
-        let updated = app
-            .task_update(
-                &actor,
-                TaskUpdate {
-                    display_id: display_id.clone(),
-                    title,
-                    revision,
-                    ..Default::default()
-                },
-            )
-            .await?;
-        revision = Some(updated.revision);
-        task = Some(updated);
-    }
-    if worktree_path.is_some() || branch.is_some() {
-        let updated = app
-            .task_update(
-                &actor,
-                TaskUpdate {
-                    display_id: display_id.clone(),
-                    worktree_path: worktree_path.map(empty_to_none),
-                    branch: branch.map(empty_to_none),
-                    revision,
-                    ..Default::default()
-                },
-            )
-            .await?;
-        revision = Some(updated.revision);
-        task = Some(updated);
-    }
-    if let Some(markdown) = note_markdown {
-        let updated = app
-            .task_note_set(&actor, &display_id, markdown, revision)
-            .await?;
-        revision = Some(updated.revision);
-        task = Some(updated);
-    }
-    if let Some(urgent) = urgent {
-        let updated = app
-            .task_urgent(&actor, &display_id, urgent, revision)
-            .await?;
-        revision = Some(updated.revision);
-        task = Some(updated);
-    }
-    if let Some(column) = column {
-        let updated = app.task_move(&actor, &display_id, column, revision).await?;
-        revision = Some(updated.revision);
-        task = Some(updated);
-    }
-    if let Some(before) = before_display_id {
-        let updated = app
-            .task_reorder(&actor, &display_id, before.as_deref(), revision)
-            .await?;
-        task = Some(updated);
-    }
-    match task {
-        Some(task) => Ok(task),
-        None => app.task_show(&display_id).await.map_err(Into::into),
-    }
+    app.task_patch(
+        &actor(),
+        TaskPatch {
+            display_id: patch.display_id,
+            title: patch.title,
+            note_markdown: patch.note_markdown,
+            urgent: patch.urgent,
+            column: patch.column,
+            before_display_id: patch.before_display_id,
+            worktree_path: patch.worktree_path,
+            branch: patch.branch,
+            revision: patch.revision,
+        },
+    )
+    .await
+    .map_err(Into::into)
 }
 
 pub async fn task_move_inner(
@@ -444,70 +377,26 @@ pub async fn run_patch_inner(
     summary: Option<String>,
     revision: Option<i64>,
 ) -> Result<Run, AppErrorDto> {
-    let actor = actor();
-    match op {
-        RunOp::Update => app
-            .run_update(
-                &actor,
-                RunUpdate {
-                    run_display_id,
-                    message,
-                    revision,
-                },
-            )
-            .await
-            .map_err(Into::into),
-        RunOp::Wait => {
-            let reason = reason.ok_or_else(|| missing("reason"))?;
-            app.run_wait(
-                &actor,
-                RunWait {
-                    run_display_id,
-                    reason,
-                    revision,
-                },
-            )
-            .await
-            .map_err(Into::into)
-        }
-        RunOp::Fail => {
-            let summary = summary.ok_or_else(|| missing("summary"))?;
-            app.run_fail(
-                &actor,
-                RunFail {
-                    run_display_id,
-                    summary,
-                    revision,
-                },
-            )
-            .await
-            .map_err(Into::into)
-        }
-        RunOp::Finish => {
-            let summary = summary.ok_or_else(|| missing("summary"))?;
-            app.run_finish(
-                &actor,
-                RunFinish {
-                    run_display_id,
-                    summary,
-                    revision,
-                },
-            )
-            .await
-            .map_err(Into::into)
-        }
-        RunOp::Cancel => app
-            .run_cancel(
-                &actor,
-                RunCancel {
-                    run_display_id,
-                    summary,
-                    revision,
-                },
-            )
-            .await
-            .map_err(Into::into),
-    }
+    let op = match op {
+        RunOp::Update => RunPatchOp::Update,
+        RunOp::Wait => RunPatchOp::Wait,
+        RunOp::Fail => RunPatchOp::Fail,
+        RunOp::Finish => RunPatchOp::Finish,
+        RunOp::Cancel => RunPatchOp::Cancel,
+    };
+    app.run_patch(
+        &actor(),
+        RunPatch {
+            run_display_id,
+            op,
+            message,
+            reason,
+            summary,
+            revision,
+        },
+    )
+    .await
+    .map_err(Into::into)
 }
 
 pub async fn review_inner(

@@ -40,6 +40,30 @@ pub struct TaskUpdate {
     pub revision: Option<i64>,
 }
 
+/// Orchestrated multi-field task patch used by HTTP and desktop.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TaskPatch {
+    pub display_id: String,
+    pub title: Option<String>,
+    pub note_markdown: Option<String>,
+    pub urgent: Option<bool>,
+    pub column: Option<Column>,
+    pub before_display_id: Option<Option<String>>,
+    pub worktree_path: Option<String>,
+    pub branch: Option<String>,
+    pub revision: Option<i64>,
+}
+
+/// Trim empty strings to `None` for optional workspace fields.
+pub fn empty_to_none(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LinkAdd {
     pub task_display_id: String,
@@ -110,6 +134,25 @@ pub struct RunFail {
 pub struct RunFinish {
     pub run_display_id: String,
     pub summary: String,
+    pub revision: Option<i64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunPatchOp {
+    Update,
+    Wait,
+    Fail,
+    Finish,
+    Cancel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunPatch {
+    pub run_display_id: String,
+    pub op: RunPatchOp,
+    pub message: Option<String>,
+    pub reason: Option<String>,
+    pub summary: Option<String>,
     pub revision: Option<i64>,
 }
 

@@ -160,15 +160,6 @@ pub struct PatchUiStateBody {
     pub last_project_slug: Option<String>,
 }
 
-pub(crate) fn empty_to_none(value: String) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
-}
-
 fn deserialize_present_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
 where
     T: Deserialize<'de>,

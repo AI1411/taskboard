@@ -12,10 +12,11 @@ use taskboard_core::{
 
 use crate::actor::Actor;
 use crate::commands::{
-    ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope, LinkAdd, NextClaim,
-    OccupancyGroup, OccupancyQuery, ProjectAdd, ProjectUpdate, ReplyContinueResult, ReviewTask,
-    RunCancel, RunContinue, RunFail, RunFinish, RunListQuery, RunStart, RunUpdate, RunWait,
-    TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate, STATUS_HEAD,
+    empty_to_none, ActivityQuery, BoardStatus, CheckAdd, CommentAdd, InboxCounts, InboxScope,
+    LinkAdd, NextClaim, OccupancyGroup, OccupancyQuery, ProjectAdd, ProjectUpdate,
+    ReplyContinueResult, ReviewTask, RunCancel, RunContinue, RunFail, RunFinish, RunListQuery,
+    RunPatch, RunPatchOp, RunStart, RunUpdate, RunWait, TaskCreate, TaskListQuery, TaskPatch,
+    TaskSpawn, TaskUpdate, STATUS_HEAD,
 };
 use crate::error::AppError;
 use crate::store::{Store, SyncDelta, Trash, UndoResult};
@@ -341,6 +342,85 @@ impl App {
         helpers::commit_or_rollback(store, result).await
     }
 
+    pub async fn task_patch(
+        &self,
+        actor: &Actor,
+        patch: TaskPatch,
+    ) -> Result<TaskDetail, AppError> {
+        let TaskPatch {
+            display_id,
+            title,
+            note_markdown,
+            urgent,
+            column,
+            before_display_id,
+            worktree_path,
+            branch,
+            mut revision,
+        } = patch;
+        let mut task = None;
+        if title.is_some() {
+            let updated = self
+                .task_update(
+                    actor,
+                    TaskUpdate {
+                        display_id: display_id.clone(),
+                        title,
+                        revision,
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            revision = Some(updated.revision);
+            task = Some(updated);
+        }
+        if worktree_path.is_some() || branch.is_some() {
+            let updated = self
+                .task_update(
+                    actor,
+                    TaskUpdate {
+                        display_id: display_id.clone(),
+                        worktree_path: worktree_path.map(empty_to_none),
+                        branch: branch.map(empty_to_none),
+                        revision,
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            revision = Some(updated.revision);
+            task = Some(updated);
+        }
+        if let Some(markdown) = note_markdown {
+            let updated = self
+                .task_note_set(actor, &display_id, markdown, revision)
+                .await?;
+            revision = Some(updated.revision);
+            task = Some(updated);
+        }
+        if let Some(urgent) = urgent {
+            let updated = self
+                .task_urgent(actor, &display_id, urgent, revision)
+                .await?;
+            revision = Some(updated.revision);
+            task = Some(updated);
+        }
+        if let Some(column) = column {
+            let updated = self.task_move(actor, &display_id, column, revision).await?;
+            revision = Some(updated.revision);
+            task = Some(updated);
+        }
+        if let Some(before) = before_display_id {
+            let updated = self
+                .task_reorder(actor, &display_id, before.as_deref(), revision)
+                .await?;
+            task = Some(updated);
+        }
+        match task {
+            Some(task) => Ok(task),
+            None => self.task_show(&display_id).await,
+        }
+    }
+
     pub async fn review(&self, actor: &Actor, cmd: ReviewTask) -> Result<TaskDetail, AppError> {
         let now = self.clock.now();
         let mut store = self.store.lock().await;
@@ -532,6 +612,86 @@ impl App {
         store.begin().await?;
         let result = runs::run_finish_inner(store, actor, cmd, now).await;
         helpers::commit_or_rollback(store, result).await
+    }
+
+    pub async fn run_patch(&self, actor: &Actor, patch: RunPatch) -> Result<Run, AppError> {
+        let RunPatch {
+            run_display_id,
+            op,
+            message,
+            reason,
+            summary,
+            revision,
+        } = patch;
+        match op {
+            RunPatchOp::Update => {
+                self.run_update(
+                    actor,
+                    RunUpdate {
+                        run_display_id,
+                        message,
+                        revision,
+                    },
+                )
+                .await
+            }
+            RunPatchOp::Wait => {
+                let reason = reason.ok_or_else(|| AppError::Validation {
+                    field: "reason".into(),
+                    message: "is required".into(),
+                })?;
+                self.run_wait(
+                    actor,
+                    RunWait {
+                        run_display_id,
+                        reason,
+                        revision,
+                    },
+                )
+                .await
+            }
+            RunPatchOp::Fail => {
+                let summary = summary.ok_or_else(|| AppError::Validation {
+                    field: "summary".into(),
+                    message: "is required".into(),
+                })?;
+                self.run_fail(
+                    actor,
+                    RunFail {
+                        run_display_id,
+                        summary,
+                        revision,
+                    },
+                )
+                .await
+            }
+            RunPatchOp::Finish => {
+                let summary = summary.ok_or_else(|| AppError::Validation {
+                    field: "summary".into(),
+                    message: "is required".into(),
+                })?;
+                self.run_finish(
+                    actor,
+                    RunFinish {
+                        run_display_id,
+                        summary,
+                        revision,
+                    },
+                )
+                .await
+            }
+            RunPatchOp::Cancel => {
+                self.run_cancel(
+                    actor,
+                    RunCancel {
+                        run_display_id,
+                        summary,
+                        revision,
+                    },
+                )
+                .await
+            }
+        }
     }
 
     pub async fn occupancy(&self, query: OccupancyQuery) -> Result<Vec<OccupancyGroup>, AppError> {
