@@ -2097,6 +2097,7 @@ dependencies = [
  "taskboard-application",
  "taskboard-core",
  "taskboard-store-sqlite",
+ "taskboard-wire",
  "tempfile",
  "tokio",
  "uuid",

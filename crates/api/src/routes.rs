@@ -15,6 +15,7 @@ use taskboard_application::{
     TaskSpawn,
 };
 use taskboard_core::ActorKind;
+use taskboard_wire::WireError;
 use uuid::Uuid;
 
 use crate::dto::{
@@ -159,21 +160,19 @@ fn app_error(err: AppError) -> Response {
         AppError::DatabaseBusy => StatusCode::SERVICE_UNAVAILABLE,
         AppError::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
     };
+    let wire = WireError::from(&err);
     let mut body = json!({
-        "code": err.code(),
-        "message": err.to_string(),
+        "code": wire.code,
+        "message": wire.message,
     });
-    match err {
-        AppError::Validation { field, .. } => {
-            body["field"] = json!(field);
-        }
-        AppError::DuplicateSlug { slug } => {
-            body["slug"] = json!(slug);
-        }
-        AppError::RevisionConflict { current } | AppError::UndoConflict { current } => {
-            body["current"] = json_keys_to_camel(current);
-        }
-        _ => {}
+    if let Some(field) = wire.field {
+        body["field"] = json!(field);
+    }
+    if let Some(slug) = wire.slug {
+        body["slug"] = json!(slug);
+    }
+    if let Some(current) = wire.current {
+        body["current"] = current;
     }
     (status, Json(json!({ "error": body }))).into_response()
 }

@@ -1,16 +1,16 @@
 use serde::Serialize;
 use serde_json::Value;
 use taskboard_application::AppError;
+use taskboard_wire::WireError;
 
-use crate::dto::json_keys_to_camel;
-
-/// Invoke error payload. Keys match `{ "code", "message", "field", "current" }`.
+/// Invoke error payload. Keys match `{ "code", "message", "field", "current", "slug" }`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct AppErrorDto {
     pub code: String,
     pub message: String,
     pub field: Option<String>,
     pub current: Option<Value>,
+    pub slug: Option<String>,
 }
 
 impl std::fmt::Display for AppErrorDto {
@@ -23,20 +23,13 @@ impl std::error::Error for AppErrorDto {}
 
 impl From<AppError> for AppErrorDto {
     fn from(err: AppError) -> Self {
-        let code = err.code().to_string();
-        let message = err.to_string();
-        let (field, current) = match err {
-            AppError::Validation { field, .. } => (Some(field), None),
-            AppError::RevisionConflict { current } | AppError::UndoConflict { current } => {
-                (None, Some(json_keys_to_camel(current)))
-            }
-            _ => (None, None),
-        };
+        let wire = WireError::from(&err);
         Self {
-            code,
-            message,
-            field,
-            current,
+            code: wire.code,
+            message: wire.message,
+            field: wire.field,
+            current: wire.current,
+            slug: wire.slug,
         }
     }
 }
@@ -57,5 +50,6 @@ mod tests {
         assert_eq!(value["message"], "must not be empty");
         assert_eq!(value["field"], "title");
         assert_eq!(value["current"], serde_json::Value::Null);
+        assert_eq!(value["slug"], serde_json::Value::Null);
     }
 }

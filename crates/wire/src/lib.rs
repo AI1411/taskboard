@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use taskboard_application::{
-    BoardStatus, InboxCounts, OccupancyGroup, OccupancyRun, StatusLine, SyncDelta, Trash,
+    AppError, BoardStatus, InboxCounts, OccupancyGroup, OccupancyRun, StatusLine, SyncDelta, Trash,
     UndoResult,
 };
 use taskboard_core::{
@@ -544,6 +544,44 @@ impl From<UndoResult> for UndoResultDto {
     }
 }
 
+/// Shared error fields for CLI / HTTP / desktop envelopes.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct WireError {
+    pub code: String,
+    pub message: String,
+    pub field: Option<String>,
+    pub current: Option<Value>,
+    pub slug: Option<String>,
+}
+
+impl From<&AppError> for WireError {
+    fn from(err: &AppError) -> Self {
+        let code = err.code().to_string();
+        let message = err.to_string();
+        let (field, current, slug) = match err {
+            AppError::Validation { field, .. } => (Some(field.clone()), None, None),
+            AppError::DuplicateSlug { slug } => (None, None, Some(slug.clone())),
+            AppError::RevisionConflict { current } | AppError::UndoConflict { current } => {
+                (None, Some(json_keys_to_camel(current.clone())), None)
+            }
+            _ => (None, None, None),
+        };
+        Self {
+            code,
+            message,
+            field,
+            current,
+            slug,
+        }
+    }
+}
+
+impl From<AppError> for WireError {
+    fn from(err: AppError) -> Self {
+        WireError::from(&err)
+    }
+}
+
 pub fn json_keys_to_camel(value: Value) -> Value {
     match value {
         Value::Object(map) => Value::Object(
@@ -599,5 +637,27 @@ mod tests {
         assert!(value.get("note_markdown").is_none());
         assert!(value.get("repoPath").is_some());
         assert!(value.get("sortOrder").is_some());
+    }
+
+    #[test]
+    fn wire_error_duplicate_slug_includes_slug() {
+        use super::WireError;
+        use taskboard_application::AppError;
+        let err = WireError::from(&AppError::DuplicateSlug {
+            slug: "renai-sim".into(),
+        });
+        assert_eq!(err.code, "duplicate_slug");
+        assert_eq!(err.slug.as_deref(), Some("renai-sim"));
+    }
+
+    #[test]
+    fn wire_error_revision_conflict_camel_cases_current() {
+        use super::WireError;
+        use taskboard_application::AppError;
+        let err = WireError::from(&AppError::RevisionConflict {
+            current: serde_json::json!({ "note_markdown": "" }),
+        });
+        assert_eq!(err.current.as_ref().unwrap()["noteMarkdown"], "");
+        assert!(err.current.as_ref().unwrap().get("note_markdown").is_none());
     }
 }
