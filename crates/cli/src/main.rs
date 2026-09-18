@@ -1,6 +1,7 @@
 mod args;
 mod data_dir;
 mod mcp;
+mod ops;
 mod output;
 
 use std::io::Write;
@@ -114,16 +115,14 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
             Ok(())
         }
         Command::Occupancy { path } => {
-            let groups = app
-                .occupancy(OccupancyQuery { path })
+            let groups = ops::occupancy(app, OccupancyQuery { path })
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entities(json, &groups, || output::print_occupancy(&groups));
             Ok(())
         }
         Command::Stale { minutes } => {
-            let runs = app
-                .stale_list(minutes)
+            let runs = ops::stale(app, minutes)
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entities(json, &runs, || output::print_run_list(&runs));
@@ -134,14 +133,16 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
             project,
             task,
         } => {
-            let rows = app
-                .activity_list(ActivityQuery {
+            let rows = ops::activity(
+                app,
+                ActivityQuery {
                     after: after.unwrap_or(0),
                     project,
                     task_display_id: task,
-                })
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entities(json, &rows, || output::print_activity_list(&rows));
             Ok(())
         }
@@ -160,19 +161,20 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
             Ok(())
         }
         Command::Inbox { project, archived } => {
-            let items = app
-                .inbox(InboxScope {
+            let items = ops::inbox(
+                app,
+                InboxScope {
                     project,
                     include_archived: archived,
-                })
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entities(json, &items, || output::print_inbox(&items));
             Ok(())
         }
         Command::Status { project } => {
-            let snap = app
-                .status(project)
+            let snap = ops::status(app, project)
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &snap, 0, || output::print_status(&snap));
@@ -183,18 +185,18 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
             agent,
             move_to,
         } => {
-            let run = app
-                .next(
-                    actor,
-                    NextClaim {
-                        project,
-                        agent: agent.unwrap_or_else(|| "cursor".into()),
-                        session_id: None,
-                        move_to_in_progress: move_to,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+            let run = ops::next(
+                app,
+                actor,
+                NextClaim {
+                    project,
+                    agent: agent.unwrap_or_else(|| "cursor".into()),
+                    session_id: None,
+                    move_to_in_progress: move_to,
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &run, run.revision, || {
                 println!(
                     "Started {}  {}  [{}]",
@@ -217,18 +219,18 @@ async fn dispatch(app: &App, actor: &Actor, cli: Cli) -> Result<(), i32> {
                 let _ = changes;
                 ReviewAction::Changes
             };
-            let task = app
-                .review(
-                    actor,
-                    ReviewTask {
-                        task_display_id: display_id,
-                        action,
-                        text,
-                        revision,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+            let task = ops::review(
+                app,
+                actor,
+                ReviewTask {
+                    task_display_id: display_id,
+                    action,
+                    text,
+                    revision,
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &task, task.revision, || {
                 if approve {
                     println!("Approved {}", task.display_id);
@@ -272,8 +274,7 @@ async fn project_cmd(
             });
         }
         ProjectCommand::List { archived, all } => {
-            let projects = app
-                .project_list(archived || all)
+            let projects = ops::project_list(app, archived || all)
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entities(json, &projects, || {
@@ -365,7 +366,7 @@ async fn project_cmd(
             });
         }
         ProjectCommand::Detect => {
-            let project = resolve_detected_project(app)
+            let project = ops::detect_project(app)
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &project, project.revision, || {
@@ -376,18 +377,8 @@ async fn project_cmd(
     Ok(())
 }
 
-async fn resolve_detected_project(app: &App) -> Result<taskboard_core::Project, AppError> {
-    let cwd = std::env::current_dir().map_err(|err| AppError::Io(err.to_string()))?;
-    let env_slug = std::env::var("TASKBOARD_PROJECT").ok();
-    app.detect_project(&cwd, env_slug.as_deref().filter(|value| !value.is_empty()))
-        .await
-}
-
 async fn resolve_project(app: &App, project: Option<String>) -> Result<String, AppError> {
-    if let Some(slug) = project {
-        return Ok(slug);
-    }
-    Ok(resolve_detected_project(app).await?.slug)
+    ops::resolve_project_slug(app, project).await
 }
 
 async fn project_note_cmd(
@@ -426,33 +417,33 @@ async fn task_cmd(
             let project = resolve_project(app, project)
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
-            let task = app
-                .task_create(
-                    actor,
-                    TaskCreate {
-                        project_slug: project,
-                        title,
-                        column,
-                        urgent,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+            let task = ops::task_create(
+                app,
+                actor,
+                TaskCreate {
+                    project_slug: project,
+                    title,
+                    column,
+                    urgent,
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &task, task.revision, || {
                 output::created_task(&task);
             });
         }
         TaskCommand::Spawn { display_id, titles } => {
-            let children = app
-                .task_spawn(
-                    actor,
-                    TaskSpawn {
-                        parent_display_id: display_id,
-                        titles,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+            let children = ops::task_spawn(
+                app,
+                actor,
+                TaskSpawn {
+                    parent_display_id: display_id,
+                    titles,
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entities(json, &children, || {
                 for child in &children {
                     output::created_task(child);
@@ -477,22 +468,23 @@ async fn task_cmd(
                         .map_err(|err| output::print_error(&err, json))?,
                 )
             };
-            let tasks = app
-                .task_query(TaskListQuery {
+            let tasks = ops::task_list(
+                app,
+                TaskListQuery {
                     project,
                     statuses: status,
                     column,
                     agent,
                     blocked,
                     ready,
-                })
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entities(json, &tasks, || output::print_task_list(&tasks));
         }
         TaskCommand::Show { display_id } => {
-            let task = app
-                .task_show(&display_id)
+            let task = ops::task_show(app, &display_id)
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &task, task.revision, || {
@@ -510,26 +502,25 @@ async fn task_cmd(
             worktree,
             branch,
         } => {
-            let task = app
-                .task_update(
-                    actor,
-                    TaskUpdate {
-                        display_id,
-                        title,
-                        worktree_path: worktree.map(empty_to_none),
-                        branch: branch.map(empty_to_none),
-                        revision,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+            let task = ops::task_update(
+                app,
+                actor,
+                TaskUpdate {
+                    display_id,
+                    title,
+                    worktree_path: worktree.map(empty_to_none),
+                    branch: branch.map(empty_to_none),
+                    revision,
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &task, task.revision, || {
                 println!("Updated {}  {}", task.display_id, task.title);
             });
         }
         TaskCommand::Move { display_id, column } => {
-            let task = app
-                .task_move(actor, &display_id, column, revision)
+            let task = ops::task_move(app, actor, &display_id, column, revision)
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &task, task.revision, || {
@@ -652,18 +643,18 @@ async fn link_cmd(
                     blocked_by.expect("clap group requires --blocked-by"),
                 )
             };
-            let task = app
-                .link_add(
-                    actor,
-                    LinkAdd {
-                        task_display_id: display_id,
-                        kind,
-                        value,
-                        revision,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+            let task = ops::link_add(
+                app,
+                actor,
+                LinkAdd {
+                    task_display_id: display_id,
+                    kind,
+                    value,
+                    revision,
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &task, task.revision, || {
                 println!("Added link to {}", task.display_id);
             });
@@ -694,19 +685,21 @@ async fn run_cmd(
             session_id,
             agent,
         } => {
-            let runs = app
-                .run_list(RunListQuery {
+            let runs = ops::run_list(
+                app,
+                RunListQuery {
                     open,
                     session_id,
                     agent,
-                })
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entities(json, &runs, || output::print_run_list(&runs));
         }
         RunCommand::Show { run_id, session_id } => {
             let run = if let Some(run_id) = run_id {
-                app.run_show(&run_id).await
+                ops::run_show(app, &run_id).await
             } else {
                 app.run_by_session(session_id.as_deref().unwrap_or(""))
                     .await
@@ -717,8 +710,7 @@ async fn run_cmd(
             });
         }
         RunCommand::Current { display_id } => {
-            let run = app
-                .run_current(&display_id)
+            let run = ops::run_current(app, &display_id)
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &run, run.revision, || {
@@ -736,12 +728,9 @@ async fn run_cmd(
                 agent,
                 session_id,
             };
-            let run = if exclusive {
-                app.run_start_exclusive(actor, cmd).await
-            } else {
-                app.run_start(actor, cmd).await
-            }
-            .map_err(|err| output::print_error(&err, json))?;
+            let run = ops::run_start(app, actor, cmd, exclusive)
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &run, run.revision, || {
                 println!(
                     "Started {}  {}  [{}]",
@@ -768,17 +757,17 @@ async fn run_cmd(
             });
         }
         RunCommand::Wait { run_id, reason } => {
-            let run = app
-                .run_wait(
-                    actor,
-                    RunWait {
-                        run_display_id: run_id,
-                        reason,
-                        revision,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+            let run = ops::run_wait(
+                app,
+                actor,
+                RunWait {
+                    run_display_id: run_id,
+                    reason,
+                    revision,
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &run, run.revision, || {
                 println!("Waiting {}", run.display_id);
             });
@@ -788,66 +777,66 @@ async fn run_cmd(
             message,
             reply,
         } => {
-            let run = app
-                .run_continue(
-                    actor,
-                    RunContinue {
-                        reply,
-                        run_display_id: run_id,
-                        message,
-                        revision,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+            let run = ops::run_continue(
+                app,
+                actor,
+                RunContinue {
+                    reply,
+                    run_display_id: run_id,
+                    message,
+                    revision,
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &run, run.revision, || {
                 println!("Continued {}", run.display_id);
             });
         }
         RunCommand::Fail { run_id, summary } => {
-            let run = app
-                .run_fail(
-                    actor,
-                    RunFail {
-                        run_display_id: run_id,
-                        summary,
-                        revision,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+            let run = ops::run_fail(
+                app,
+                actor,
+                RunFail {
+                    run_display_id: run_id,
+                    summary,
+                    revision,
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &run, run.revision, || {
                 println!("Failed {}", run.display_id);
             });
         }
         RunCommand::Finish { run_id, summary } => {
-            let run = app
-                .run_finish(
-                    actor,
-                    RunFinish {
-                        run_display_id: run_id,
-                        summary,
-                        revision,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+            let run = ops::run_finish(
+                app,
+                actor,
+                RunFinish {
+                    run_display_id: run_id,
+                    summary,
+                    revision,
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &run, run.revision, || {
                 println!("Finished {}", run.display_id);
             });
         }
         RunCommand::Cancel { run_id, summary } => {
-            let run = app
-                .run_cancel(
-                    actor,
-                    RunCancel {
-                        run_display_id: run_id,
-                        summary,
-                        revision,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+            let run = ops::run_cancel(
+                app,
+                actor,
+                RunCancel {
+                    run_display_id: run_id,
+                    summary,
+                    revision,
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &run, run.revision, || {
                 println!("Canceled {}", run.display_id);
             });
@@ -859,23 +848,22 @@ async fn run_cmd(
 async fn check_cmd(app: &App, actor: &Actor, json: bool, cmd: CheckCommand) -> Result<(), i32> {
     match cmd {
         CheckCommand::Add { display_id, text } => {
-            let check = app
-                .check_add(
-                    actor,
-                    CheckAdd {
-                        task_display_id: display_id.clone(),
-                        text,
-                    },
-                )
-                .await
-                .map_err(|err| output::print_error(&err, json))?;
+            let check = ops::check_add(
+                app,
+                actor,
+                CheckAdd {
+                    task_display_id: display_id.clone(),
+                    text,
+                },
+            )
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &check, 0, || {
                 println!("Added {}", check.display_id);
             });
         }
         CheckCommand::Toggle { display_id } => {
-            let check = app
-                .check_toggle(actor, &display_id)
+            let check = ops::check_toggle(app, actor, &display_id)
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entity(json, &check, 0, || {
@@ -883,8 +871,7 @@ async fn check_cmd(app: &App, actor: &Actor, json: bool, cmd: CheckCommand) -> R
             });
         }
         CheckCommand::List { display_id } => {
-            let checks = app
-                .check_list(&display_id)
+            let checks = ops::check_list(app, &display_id)
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entities(json, &checks, || {
@@ -912,16 +899,16 @@ async fn comment_cmd(app: &App, actor: &Actor, json: bool, cmd: CommentCommand) 
             continue_waiting,
         } => {
             if continue_waiting {
-                let result = app
-                    .comment_add_and_continue(
-                        actor,
-                        CommentAdd {
-                            task_display_id: display_id.clone(),
-                            body: text,
-                        },
-                    )
-                    .await
-                    .map_err(|err| output::print_error(&err, json))?;
+                let result = ops::comment_add_and_continue(
+                    app,
+                    actor,
+                    CommentAdd {
+                        task_display_id: display_id.clone(),
+                        body: text,
+                    },
+                )
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
                 output::print_entity(json, &result, result.run.revision, || {
                     println!(
                         "Commented {display_id}  continued {}",
@@ -929,24 +916,23 @@ async fn comment_cmd(app: &App, actor: &Actor, json: bool, cmd: CommentCommand) 
                     );
                 });
             } else {
-                let comment = app
-                    .comment_add(
-                        actor,
-                        CommentAdd {
-                            task_display_id: display_id.clone(),
-                            body: text,
-                        },
-                    )
-                    .await
-                    .map_err(|err| output::print_error(&err, json))?;
+                let comment = ops::comment_add(
+                    app,
+                    actor,
+                    CommentAdd {
+                        task_display_id: display_id.clone(),
+                        body: text,
+                    },
+                )
+                .await
+                .map_err(|err| output::print_error(&err, json))?;
                 output::print_entity(json, &comment, 0, || {
                     println!("Commented {display_id}");
                 });
             }
         }
         CommentCommand::List { display_id } => {
-            let comments = app
-                .comment_list(&display_id)
+            let comments = ops::comment_list(app, &display_id)
                 .await
                 .map_err(|err| output::print_error(&err, json))?;
             output::print_entities(json, &comments, || {
