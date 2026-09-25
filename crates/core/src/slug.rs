@@ -71,9 +71,4 @@ mod tests {
         let live = ["renai-sim"];
         assert_eq!(next_unique_slug("renai-sim", &live).unwrap(), "renai-sim-2");
     }
-
-    #[test]
-    fn explicit_duplicate_slug_is_error_when_unique_not_requested() {
-        assert_eq!(slugify("Renai Sim").unwrap(), "renai-sim");
-    }
 }

@@ -9,7 +9,7 @@ use taskboard_application::{
 use taskboard_core::{
     ActorKind, Check, Column, Comment, InboxItem, LinkKind, Project, Run, TaskDetail, TaskSummary,
 };
-use taskboard_store_sqlite::{load_ui_state, save_ui_state, UiState};
+use taskboard_store_sqlite::{load_ui_state, save_ui_state};
 use uuid::Uuid;
 
 use crate::dto::{RunOp, UiStateDto};
@@ -488,9 +488,8 @@ pub fn ui_state_set_inner(
     data_dir: &Path,
     last_project_slug: Option<String>,
 ) -> Result<UiStateDto, AppErrorDto> {
-    let state = UiState {
-        last_project_slug: last_project_slug.filter(|slug| !slug.is_empty()),
-    };
+    let mut state = load_ui_state(data_dir);
+    state.last_project_slug = last_project_slug.filter(|slug| !slug.is_empty());
     save_ui_state(data_dir, &state)?;
     Ok(state.into())
 }

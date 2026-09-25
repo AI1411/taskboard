@@ -29,7 +29,7 @@ pub(crate) async fn open_db_owned(data_dir: PathBuf) -> Result<SqlitePool, AppEr
     let log_path = create_log_file(&logs_dir)?;
 
     let cfg = load_config(&data_dir);
-    write_log(&log_path, &cfg.log_level, "info", "opening database");
+    log_event(&log_path, &cfg.log_level, LogEvent::OpeningDatabase);
 
     let db_path = data_dir.join("taskboard.sqlite3");
     let db_existed = db_path.exists();
@@ -66,7 +66,7 @@ async fn migrate(
                 backup_pre_migration(&data_dir, &pool, 1).await?;
             }
             apply_sql_version(&pool, INIT_SQL, SCHEMA_VERSION).await?;
-            write_log(&log_path, &log_level, "info", "applied migration 0001_init");
+            log_event(&log_path, &log_level, LogEvent::AppliedInit);
             return Ok(());
         }
         set_user_version(&pool, inferred).await?;
@@ -79,8 +79,7 @@ async fn migrate(
             backup_pre_migration(&data_dir, &pool, next).await?;
         }
         apply_step(&pool, next).await?;
-        let message = format!("applied migration {next:04}");
-        write_log(&log_path, &log_level, "info", &message);
+        log_event(&log_path, &log_level, LogEvent::AppliedStep(next));
         version = next;
     }
     Ok(())
@@ -277,22 +276,33 @@ fn rotate_log_if_needed(path: &Path) {
     let _ = fs::rename(path, &rotated);
 }
 
-fn write_log(path: &Path, configured_level: &str, message_level: &str, message: &str) {
-    rotate_log_if_needed(path);
-    if message.contains("note_markdown")
-        || message.contains("repo_path")
-        || message.contains("summary")
-    {
-        return;
+enum LogEvent {
+    OpeningDatabase,
+    AppliedInit,
+    AppliedStep(i64),
+}
+
+impl LogEvent {
+    fn message(&self) -> String {
+        match self {
+            Self::OpeningDatabase => "opening database".to_owned(),
+            Self::AppliedInit => "applied migration 0001_init".to_owned(),
+            Self::AppliedStep(version) => format!("applied migration {version:04}"),
+        }
     }
-    if !log_enabled(configured_level, message_level) {
+}
+
+fn log_event(path: &Path, configured_level: &str, event: LogEvent) {
+    rotate_log_if_needed(path);
+    let message = event.message();
+    if !log_enabled(configured_level, "info") {
         return;
     }
     let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) else {
         return;
     };
     let ts = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-    let _ = writeln!(file, "{ts} {message_level} {message}");
+    let _ = writeln!(file, "{ts} info {message}");
 }
 
 fn log_enabled(configured: &str, message_level: &str) -> bool {
@@ -700,18 +710,16 @@ mod tests {
     }
 
     #[test]
-    fn write_log_skips_forbidden_substrings() {
-        let tmp = tempfile::tempdir().unwrap();
-        let log_path = tmp.path().join("taskboard.log");
-        write_log(&log_path, "info", "info", "safe message");
-        write_log(&log_path, "info", "info", "contains note_markdown field");
-        write_log(&log_path, "info", "info", "contains repo_path field");
-        write_log(&log_path, "info", "info", "contains summary field");
-
-        let contents = fs::read_to_string(&log_path).unwrap();
-        assert!(contents.contains("safe message"));
-        assert!(!contents.contains("note_markdown"));
-        assert!(!contents.contains("repo_path"));
-        assert!(!contents.contains("summary field"));
+    fn log_event_messages_omit_user_fields() {
+        for event in [
+            LogEvent::OpeningDatabase,
+            LogEvent::AppliedInit,
+            LogEvent::AppliedStep(4),
+        ] {
+            let message = event.message();
+            assert!(!message.contains("note_markdown"));
+            assert!(!message.contains("repo_path"));
+            assert!(!message.contains("summary"));
+        }
     }
 }

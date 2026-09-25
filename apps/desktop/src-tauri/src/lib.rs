@@ -3,7 +3,7 @@ mod state;
 
 use chrono::Utc;
 use taskboard_application::{App, SystemClock};
-use taskboard_store_sqlite::{open_db, resolve_data_dir, SqliteStore};
+use taskboard_store_sqlite::{open_db, purge_expired_if_due, resolve_data_dir, SqliteStore};
 use tauri::Manager;
 
 use state::DesktopState;
@@ -19,8 +19,7 @@ pub fn run() {
                 let pool = open_db(&data_dir).await.map_err(|err| err.to_string())?;
                 let store = SqliteStore::new(pool, &data_dir);
                 let board = App::new(store, SystemClock);
-                board
-                    .purge_expired_trash(Utc::now())
+                purge_expired_if_due(&board, &data_dir, Utc::now())
                     .await
                     .map_err(|err| err.to_string())?;
                 board
