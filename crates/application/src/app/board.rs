@@ -132,6 +132,14 @@ pub(super) async fn inbox_inner(
         store.list_projects(scope.include_archived).await?
     };
 
+    let mut runs_by_task = helpers::group_by_task(store.list_all_runs().await?, |run| run.task_id);
+    for project in projects.iter().filter(|project| project.archived) {
+        let runs = store.list_runs_for_project(project.id).await?;
+        for run in runs {
+            runs_by_task.entry(run.task_id).or_default().push(run);
+        }
+    }
+
     let mut items = Vec::new();
     for project in projects {
         let tasks = store.list_tasks(project.id).await?;
@@ -139,51 +147,43 @@ pub(super) async fn inbox_inner(
             if task.deleted_at.is_some() {
                 continue;
             }
-            let updated_at = task.updated_at;
-            let summary = helpers::to_task_summary(store, task, now).await?;
-            let Some(group) = inbox_membership(
-                summary.column,
-                summary.urgent,
-                summary.display_status,
-                summary.stale,
-            ) else {
+            let runs = helpers::rows_for(&runs_by_task, task.id);
+            let (display_status, run_message, waiting_reason) = helpers::display_from_runs(runs);
+            let stale = helpers::winning_run(runs)
+                .map(|run| helpers::is_stale(run, now, 30))
+                .unwrap_or(false);
+            let Some(group) = inbox_membership(task.column, task.urgent, display_status, stale)
+            else {
                 continue;
             };
             let reason = match group {
                 InboxGroup::Stale => {
-                    let runs = store.list_runs(summary.id).await?;
-                    let last = helpers::winning_run(&runs)
+                    let last = helpers::winning_run(runs)
                         .map(|run| run.updated_at)
-                        .unwrap_or(updated_at);
+                        .unwrap_or(task.updated_at);
                     inbox_stale_reason(last)
                 }
-                InboxGroup::Review => {
-                    let runs = store.list_runs(summary.id).await?;
-                    helpers::winning_run(&runs)
-                        .and_then(|run| run.summary.clone())
-                        .unwrap_or_default()
-                }
-                _ => inbox_reason(
-                    summary.waiting_reason.as_deref(),
-                    summary.run_message.as_deref(),
-                ),
+                InboxGroup::Review => helpers::winning_run(runs)
+                    .and_then(|run| run.summary.clone())
+                    .unwrap_or_default(),
+                _ => inbox_reason(waiting_reason.as_deref(), run_message.as_deref()),
             };
             items.push(InboxItem {
-                id: summary.id,
-                display_id: summary.display_id,
-                project_id: summary.project_id,
+                id: task.id,
+                display_id: task.display_id,
+                project_id: task.project_id,
                 project_slug: project.slug.clone(),
                 project_name: project.name.clone(),
-                title: summary.title,
-                column: summary.column,
-                urgent: summary.urgent,
-                revision: summary.revision,
-                display_status: summary.display_status,
-                run_message: summary.run_message,
-                waiting_reason: summary.waiting_reason,
+                title: task.title,
+                column: task.column,
+                urgent: task.urgent,
+                revision: task.revision,
+                display_status,
+                run_message,
+                waiting_reason,
                 reason,
-                stale: summary.stale,
-                updated_at,
+                stale,
+                updated_at: task.updated_at,
             });
         }
     }

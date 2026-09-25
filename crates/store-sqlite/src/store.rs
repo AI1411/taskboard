@@ -22,6 +22,11 @@ const COMMENT_COLUMNS: &str = "id, task_id, actor_kind, actor_label, body, creat
 const CHECK_COLUMNS: &str = "id, display_id, task_id, text, done, sort_order";
 const RUN_COLUMNS: &str = "id, display_id, task_id, agent, session_id, status, message, waiting_reason, summary, started_at, ended_at, revision, created_at, updated_at";
 const ACTIVITY_COLUMNS: &str = "id, sequence, actor_kind, actor_label, operation, entity_type, entity_id, previous_revision, before_json, after_json, created_at";
+const LIVE_TASK_IDS: &str = "SELECT tasks.id FROM tasks
+               JOIN projects ON projects.id = tasks.project_id
+               WHERE tasks.deleted_at IS NULL
+                 AND projects.deleted_at IS NULL
+                 AND projects.archived = 0";
 
 macro_rules! run {
     ($self:expr, $query:expr, $method:ident) => {
@@ -696,6 +701,17 @@ impl Store for SqliteStore {
         rows.iter().map(comment_from_row).collect()
     }
 
+    async fn list_all_comments(&mut self) -> Result<Vec<Comment>, AppError> {
+        let sql = format!(
+            "SELECT {COMMENT_COLUMNS} FROM comments
+             WHERE task_id IN ({LIVE_TASK_IDS})
+             ORDER BY created_at ASC, id ASC"
+        );
+        let query = sqlx::query(&sql);
+        let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
+        rows.iter().map(comment_from_row).collect()
+    }
+
     async fn delete_comment(&mut self, id: Uuid) -> Result<(), AppError> {
         let query = sqlx::query("DELETE FROM comments WHERE id = ?").bind(uuid_bytes(id));
         run!(self, query, execute).map_err(map_sqlx)?;
@@ -756,6 +772,17 @@ impl Store for SqliteStore {
         rows.iter().map(check_from_row).collect()
     }
 
+    async fn list_all_checks(&mut self) -> Result<Vec<Check>, AppError> {
+        let sql = format!(
+            "SELECT {CHECK_COLUMNS} FROM checks
+             WHERE task_id IN ({LIVE_TASK_IDS})
+             ORDER BY sort_order ASC, id ASC"
+        );
+        let query = sqlx::query(&sql);
+        let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
+        rows.iter().map(check_from_row).collect()
+    }
+
     async fn delete_check(&mut self, id: Uuid) -> Result<(), AppError> {
         let query = sqlx::query("DELETE FROM checks WHERE id = ?").bind(uuid_bytes(id));
         run!(self, query, execute).map_err(map_sqlx)?;
@@ -798,6 +825,19 @@ impl Store for SqliteStore {
              ORDER BY started_at DESC, display_id DESC"
         );
         let query = sqlx::query(&sql);
+        let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
+        rows.iter().map(run_from_row).collect()
+    }
+
+    async fn list_runs_for_project(&mut self, project_id: Uuid) -> Result<Vec<Run>, AppError> {
+        let sql = format!(
+            "SELECT {RUN_COLUMNS} FROM runs
+             WHERE task_id IN (
+               SELECT id FROM tasks WHERE project_id = ? AND deleted_at IS NULL
+             )
+             ORDER BY started_at DESC, display_id DESC"
+        );
+        let query = sqlx::query(&sql).bind(uuid_bytes(project_id));
         let rows = run!(self, query, fetch_all).map_err(map_sqlx)?;
         rows.iter().map(run_from_row).collect()
     }

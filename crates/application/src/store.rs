@@ -108,6 +108,7 @@ pub trait Store: Send + Sync {
     async fn insert_comment(&mut self, comment: &Comment) -> Result<(), AppError>;
     async fn get_comment(&mut self, id: Uuid) -> Result<Option<Comment>, AppError>;
     async fn list_comments(&mut self, task_id: Uuid) -> Result<Vec<Comment>, AppError>;
+    async fn list_all_comments(&mut self) -> Result<Vec<Comment>, AppError>;
     async fn delete_comment(&mut self, id: Uuid) -> Result<(), AppError>;
 
     async fn insert_check(&mut self, check: &Check) -> Result<(), AppError>;
@@ -118,12 +119,14 @@ pub trait Store: Send + Sync {
         display_id: &str,
     ) -> Result<Option<Check>, AppError>;
     async fn list_checks(&mut self, task_id: Uuid) -> Result<Vec<Check>, AppError>;
+    async fn list_all_checks(&mut self) -> Result<Vec<Check>, AppError>;
     async fn delete_check(&mut self, id: Uuid) -> Result<(), AppError>;
 
     async fn get_run(&mut self, id: Uuid) -> Result<Option<Run>, AppError>;
     async fn get_run_by_display_id(&mut self, display_id: &str) -> Result<Option<Run>, AppError>;
     async fn list_runs(&mut self, task_id: Uuid) -> Result<Vec<Run>, AppError>;
     async fn list_all_runs(&mut self) -> Result<Vec<Run>, AppError>;
+    async fn list_runs_for_project(&mut self, project_id: Uuid) -> Result<Vec<Run>, AppError>;
     async fn list_runs_by_session_id(&mut self, session_id: &str) -> Result<Vec<Run>, AppError>;
     async fn insert_run(&mut self, run: &Run) -> Result<(), AppError>;
     async fn update_run(&mut self, run: &Run) -> Result<(), AppError>;

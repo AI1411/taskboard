@@ -641,16 +641,20 @@ pub(super) async fn task_query_inner(
         store.list_projects(false).await?
     };
     let index = load_block_index(store).await?;
+    let runs_by_task = group_by_task(store.list_all_runs().await?, |run| run.task_id);
+    let comments_by_task =
+        group_by_task(store.list_all_comments().await?, |comment| comment.task_id);
+    let checks_by_task = group_by_task(store.list_all_checks().await?, |check| check.task_id);
     let mut summaries = Vec::new();
     for project in projects {
         let tasks = store.list_tasks(project.id).await?;
         for task in tasks {
-            let runs = store.list_runs(task.id).await?;
-            let comments = store.list_comments(task.id).await?;
-            let checks = store.list_checks(task.id).await?;
+            let runs = rows_for(&runs_by_task, task.id);
+            let comments = rows_for(&comments_by_task, task.id);
+            let checks = rows_for(&checks_by_task, task.id);
             let (blocked_by, blocks) = block_lists(&task, &index);
             let summary =
-                to_task_summary_from_runs(task, &runs, &comments, &checks, blocked_by, blocks, now);
+                to_task_summary_from_runs(task, runs, comments, checks, blocked_by, blocks, now);
             if let Some(column) = query.column {
                 if summary.column != column {
                     continue;
@@ -660,7 +664,7 @@ pub(super) async fn task_query_inner(
                 continue;
             }
             if let Some(agent) = query.agent.as_deref() {
-                let Some(run) = winning_run(&runs) else {
+                let Some(run) = winning_run(runs) else {
                     continue;
                 };
                 if run.agent != agent {
