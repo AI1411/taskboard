@@ -97,10 +97,23 @@ jobs:
             ~/.cargo/git
             target
           key: desktop-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', 'apps/desktop/src-tauri/Cargo.toml') }}
-      - name: Stub frontend dist
+      - name: Stub frontend dist and window icon
         run: |
-          mkdir -p apps/desktop/dist
+          mkdir -p apps/desktop/dist apps/desktop/src-tauri/icons
           printf '%s\n' '<!doctype html><html><body></body></html>' > apps/desktop/dist/index.html
+          python3 - <<'PY'
+          import struct, zlib
+          from pathlib import Path
+
+          def chunk(tag, data):
+              return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+          width = height = 32
+          row = b"\x00" + (b"\x2e\x6b\x4a\xff" * width)
+          ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+          png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(row * height)) + chunk(b"IEND", b"")
+          Path("apps/desktop/src-tauri/icons/icon.png").write_bytes(png)
+          PY
       - name: Format
         run: cargo +1.88.0 fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
       - name: Clippy
