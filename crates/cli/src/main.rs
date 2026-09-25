@@ -17,7 +17,7 @@ use taskboard_application::{
     TaskCreate, TaskListQuery, TaskSpawn, TaskUpdate,
 };
 use taskboard_core::LinkKind;
-use taskboard_store_sqlite::{open_db, SqliteStore};
+use taskboard_store_sqlite::{open_db, purge_expired_if_due, SqliteStore};
 
 use args::{
     BackupCommand, CheckCommand, Cli, Command, CommentCommand, LinkCommand, NoteCommand,
@@ -40,7 +40,7 @@ async fn run(cli: Cli) -> Result<(), i32> {
         .map_err(|err| output::print_error(&err, json))?;
     let store = SqliteStore::new(pool, &data_dir);
     let app = App::new(store, SystemClock);
-    app.purge_expired_trash(Utc::now())
+    purge_expired_if_due(&app, &data_dir, Utc::now())
         .await
         .map_err(|err| output::print_error(&err, json))?;
 

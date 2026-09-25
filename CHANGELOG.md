@@ -4,6 +4,7 @@ All notable product changes are listed here. The first tagged release is `v0.1.0
 
 ## [Unreleased]
 
+- Logs record fixed events. Trash purge runs at most once an hour.
 - Migrations record `PRAGMA user_version`, each step is one transaction with a pre-migration backup, and import migrates through the same path. Import returns conflict when `taskboard.lock` is held. `logs/taskboard.log` rotates at 1 MiB.
 - Inbox and status read runs, comments, and checks once per request, and the board fetches inbox once.
 - CI typechecks the TypeScript packages, builds the web UI, and checks the desktop crate on macOS.

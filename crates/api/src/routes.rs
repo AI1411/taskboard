@@ -807,9 +807,8 @@ async fn patch_ui_state(
     Json(body): Json<PatchUiStateBody>,
 ) -> ApiResult {
     require_mutation(&state, &headers)?;
-    let ui = taskboard_store_sqlite::UiState {
-        last_project_slug: body.last_project_slug.filter(|slug| !slug.is_empty()),
-    };
+    let mut ui = taskboard_store_sqlite::load_ui_state(&state.data_dir);
+    ui.last_project_slug = body.last_project_slug.filter(|slug| !slug.is_empty());
     taskboard_store_sqlite::save_ui_state(&state.data_dir, &ui).map_err(app_error)?;
     Ok(entity(UiStateDto::from(ui), 0))
 }
