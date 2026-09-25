@@ -107,10 +107,11 @@ assert "publish job checks out the repo" grep -q 'actions/checkout@v4' "$tmp/pub
 formula_updater_sets_version_and_sha() {
   sample=$(mktemp)
   cp "$formula" "$sample"
+  before=$(cat "$formula")
   "$root/update_formula_release.sh" 9.9.9 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef "$sample" || return 1
   grep -q 'version "9.9.9"' "$sample" || return 1
   grep -q 'sha256 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"' "$sample" || return 1
-  grep -q 'version "0.1.1"' "$formula" || return 1
+  test "$before" = "$(cat "$formula")"
 }
 assert "formula updater sets version and sha256 on a copy" formula_updater_sets_version_and_sha
 
@@ -118,10 +119,11 @@ updater_rejects_short_sha() {
   [ -f "$root/update_formula_release.sh" ] || return 1
   sample=$(mktemp)
   cp "$formula" "$sample"
+  before=$(cat "$sample")
   if "$root/update_formula_release.sh" 9.9.9 abc "$sample"; then
     return 1
   fi
-  grep -q 'sha256 "ab06fbe9a7e5c09e51add912813d6962766844fb6f16b1abad5c58bbb4940a39"' "$sample"
+  test "$before" = "$(cat "$sample")"
 }
 assert "formula updater rejects a short sha" updater_rejects_short_sha
 
