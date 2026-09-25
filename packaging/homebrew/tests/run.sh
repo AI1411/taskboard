@@ -100,6 +100,8 @@ assert "release workflow builds musl" grep -q 'x86_64-unknown-linux-musl' "$wf"
 assert "release workflow builds arm gnu" grep -q 'aarch64-unknown-linux-gnu' "$wf"
 assert "release workflow writes sha256 files" grep -q 'tar.gz.sha256' "$wf"
 assert "release workflow updates the formula" grep -q 'update_formula_release.sh' "$wf"
+assert "formula job keeps the branch when PR creation is denied" \
+  grep -q 'could not open the formula pull request' "$wf"
 publish_job=$(awk '/^  publish:$/,/^  formula:$/' "$wf")
 printf '%s\n' "$publish_job" >"$tmp/publish-job.yml"
 assert "publish job checks out the repo" grep -q 'actions/checkout@v4' "$tmp/publish-job.yml"
