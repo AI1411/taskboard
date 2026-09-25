@@ -2,7 +2,8 @@ import { useCallback, useState, type MutableRefObject, type RefObject } from "re
 import type { Transport } from "@taskboard/client";
 import type { Column, Project, TaskDetail, TaskSummary } from "@taskboard/types";
 
-import { errorCode, errorMessage, isNotFound } from "../errors";
+import { errorMessage, isNotFound } from "../errors";
+import { recoverRevisionConflict } from "./revisionConflict";
 import { useLatestRef } from "./useLatestRef";
 
 export type ToastState = {
@@ -173,15 +174,12 @@ export function useSelection({
         const updated = await transport.taskNoteSet(id, markdown, detailRef.current?.revision);
         applyDetail(updated);
       } catch (err) {
-        if (errorCode(err) === "revision_conflict") {
-          setToast({ message: "Updated elsewhere", error: true });
-          try {
-            applyDetail(await transport.taskShow(id));
-          } catch {
-          }
-        } else {
-          setToast({ message: errorMessage(err), error: true });
-        }
+        const recovered = await recoverRevisionConflict(err, {
+          taskShow: () => transport.taskShow(id),
+          applyDetail,
+          setToast,
+        });
+        if (!recovered) setToast({ message: errorMessage(err), error: true });
       }
     },
     [transport, selectedIdRef, detailRef, setToast],
@@ -197,15 +195,12 @@ export function useSelection({
         const project = selectedProjectRef.current;
         if (project) await refreshTasks(project.slug);
       } catch (err) {
-        if (errorCode(err) === "revision_conflict") {
-          setToast({ message: "Updated elsewhere", error: true });
-          try {
-            applyDetail(await transport.taskShow(id));
-          } catch {
-          }
-        } else {
-          setToast({ message: errorMessage(err), error: true });
-        }
+        const recovered = await recoverRevisionConflict(err, {
+          taskShow: () => transport.taskShow(id),
+          applyDetail,
+          setToast,
+        });
+        if (!recovered) setToast({ message: errorMessage(err), error: true });
       }
     },
     [transport, refreshTasks, selectedIdRef, detailRef, selectedProjectRef, setToast],
@@ -221,15 +216,12 @@ export function useSelection({
         const project = selectedProjectRef.current;
         if (project) await refreshTasks(project.slug);
       } catch (err) {
-        if (errorCode(err) === "revision_conflict") {
-          setToast({ message: "Updated elsewhere", error: true });
-          try {
-            applyDetail(await transport.taskShow(id));
-          } catch {
-          }
-        } else {
-          setToast({ message: errorMessage(err), error: true });
-        }
+        const recovered = await recoverRevisionConflict(err, {
+          taskShow: () => transport.taskShow(id),
+          applyDetail,
+          setToast,
+        });
+        if (!recovered) setToast({ message: errorMessage(err), error: true });
       }
     },
     [transport, refreshTasks, selectedIdRef, detailRef, selectedProjectRef, setToast],
