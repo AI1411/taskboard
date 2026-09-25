@@ -162,4 +162,9 @@ pub trait Store: Send + Sync {
     async fn begin(&mut self) -> Result<(), AppError>;
     async fn commit(&mut self) -> Result<(), AppError>;
     async fn rollback(&mut self) -> Result<(), AppError>;
+
+    /// Hold `{data_dir}/taskboard.lock` for this store. A second process gets `conflict`.
+    fn try_acquire_data_lock(&mut self) -> Result<(), AppError> {
+        Ok(())
+    }
 }

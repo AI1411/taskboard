@@ -156,7 +156,8 @@ fn app_error(err: AppError) -> Response {
         | AppError::RevisionConflict { .. }
         | AppError::UndoConflict { .. }
         | AppError::DifferentColumn { .. }
-        | AppError::Conflict { .. } => StatusCode::CONFLICT,
+        | AppError::Conflict { .. }
+        | AppError::DatabaseInUse => StatusCode::CONFLICT,
         AppError::DatabaseBusy => StatusCode::SERVICE_UNAVAILABLE,
         AppError::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
     };

@@ -1,10 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteRow};
 use sqlx::{Row, SqlitePool};
 use taskboard_application::{AppError, NewActivity, Store};
 use taskboard_core::{
@@ -44,6 +43,7 @@ pub struct SqliteStore {
     pool: Option<SqlitePool>,
     conn: Option<sqlx::pool::PoolConnection<sqlx::Sqlite>>,
     data_dir: PathBuf,
+    data_lock: Option<crate::lock::DataLock>,
 }
 
 impl SqliteStore {
@@ -52,6 +52,7 @@ impl SqliteStore {
             pool: Some(pool),
             conn: None,
             data_dir: data_dir.into(),
+            data_lock: None,
         }
     }
 
@@ -1087,19 +1088,26 @@ impl Store for SqliteStore {
                 "data directory is unknown; cannot import".into(),
             ));
         }
-        let db_path = data_dir.join("taskboard.sqlite3");
-        let cfg = crate::load_config(&data_dir);
-        let options = SqliteConnectOptions::new()
-            .filename(db_path)
-            .create_if_missing(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .foreign_keys(true)
-            .busy_timeout(Duration::from_millis(cfg.busy_timeout_ms));
-        let pool = SqlitePoolOptions::new()
-            .connect_with(options)
-            .await
-            .map_err(map_sqlx)?;
-        self.pool = Some(pool);
+        // open_db's future borrows sqlx connections. Rust 1.83 will not treat that
+        // future as Send from an async_trait method, so run it on a private runtime.
+        let opened = tokio::task::spawn_blocking(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .build()
+                .map_err(|err| AppError::Io(err.to_string()))?;
+            rt.block_on(crate::db::open_db_owned(data_dir))
+        })
+        .await
+        .map_err(|err| AppError::Io(err.to_string()))?;
+        self.pool = Some(opened?);
+        Ok(())
+    }
+
+    fn try_acquire_data_lock(&mut self) -> Result<(), AppError> {
+        if self.data_lock.is_some() {
+            return Ok(());
+        }
+        self.data_lock = Some(crate::lock::try_acquire_data_lock(&self.data_dir)?);
         Ok(())
     }
 

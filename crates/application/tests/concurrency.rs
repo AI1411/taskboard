@@ -227,6 +227,40 @@ async fn backup_export_import_round_trip() {
 }
 
 #[tokio::test]
+async fn backup_import_migrates_an_old_backup() {
+    let app = seeded_task().await;
+    let dest = app.path().join("export.sqlite3");
+    app.backup_export(&dest).await.unwrap();
+    let status = std::process::Command::new("sqlite3")
+        .arg(&dest)
+        .arg("DROP TABLE checks; PRAGMA user_version = 0;")
+        .status()
+        .unwrap();
+    assert!(status.success());
+    app.backup_import(&dest).await.unwrap();
+    app.check_add(
+        &cli_actor(),
+        taskboard_application::CheckAdd {
+            task_display_id: "TASK-1".into(),
+            text: "repro".into(),
+        },
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn backup_import_conflicts_when_the_data_lock_is_held() {
+    let app = seeded_task().await;
+    let dest = app.path().join("export.sqlite3");
+    app.backup_export(&dest).await.unwrap();
+    let _held = taskboard_store_sqlite::try_acquire_data_lock(app.path()).unwrap();
+    let err = app.backup_import(&dest).await.unwrap_err();
+    assert_eq!(err.code(), "conflict");
+    assert!(err.to_string().contains("desktop"));
+}
+
+#[tokio::test]
 async fn backup_import_rejects_non_taskboard_db() {
     let app = seeded_task().await;
     let junk = app.path().join("junk.sqlite3");

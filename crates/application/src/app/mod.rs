@@ -965,9 +965,15 @@ impl App {
         store.backup_to(dest).await
     }
 
+    pub async fn hold_data_lock(&self) -> Result<(), AppError> {
+        let mut store = self.store.lock().await;
+        store.try_acquire_data_lock()
+    }
+
     pub async fn backup_import(&self, src: &Path) -> Result<(), AppError> {
         let mut store = self.store.lock().await;
         let store = &mut **store;
+        store.try_acquire_data_lock()?;
         store.validate_import(src).await?;
         let pre = store.pre_import_path()?;
         store.backup_to(&pre).await?;
