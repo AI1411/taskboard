@@ -2,11 +2,11 @@ class Taskboard < Formula
   desc "Local Kanban CLI (taskboard / tb) for Apple silicon"
   homepage "https://github.com/AI1411/taskboard"
   license "MIT"
-  version "0.1.0"
+  version "0.1.1"
 
   # Binary install (GitHub Release asset produced by .github/workflows/release-cli.yml).
   url "https://github.com/AI1411/taskboard/releases/download/v#{version}/taskboard-aarch64-apple-darwin.tar.gz"
-  sha256 "120c206c897f4e952061154a8b13260bd20e811a186118f7cb1054b052e3ebf5"
+  sha256 "ab06fbe9a7e5c09e51add912813d6962766844fb6f16b1abad5c58bbb4940a39"
 
   head "https://github.com/AI1411/taskboard.git", branch: "main"
 
