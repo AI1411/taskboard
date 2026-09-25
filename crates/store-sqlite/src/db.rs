@@ -9,7 +9,9 @@ use sqlx::SqlitePool;
 use taskboard_application::AppError;
 
 use crate::config::load_config;
-use crate::migrations::{CHECKS_SQL, COMMENTS_SQL, INIT_SQL, TASK_WORKSPACE_SQL};
+use crate::migrations::{
+    CHECKS_SQL, COMMENTS_SQL, INIT_SQL, LOOKUP_INDEXES_SQL, TASK_WORKSPACE_SQL,
+};
 
 /// Opens `{data_dir}/taskboard.sqlite3`, applying `0001_init.sql` when `projects` is missing.
 pub async fn open_db(data_dir: &Path) -> Result<SqlitePool, AppError> {
@@ -88,6 +90,19 @@ pub async fn open_db(data_dir: &Path) -> Result<SqlitePool, AppError> {
         );
     }
 
+    if !index_exists(&pool, "idx_runs_task_id").await? {
+        sqlx::raw_sql(LOOKUP_INDEXES_SQL)
+            .execute(&pool)
+            .await
+            .map_err(map_sqlx)?;
+        write_log(
+            &log_path,
+            &cfg.log_level,
+            "info",
+            "applied migration 0005_lookup_indexes",
+        );
+    }
+
     Ok(pool)
 }
 
@@ -129,6 +144,16 @@ async fn comments_table_exists(pool: &SqlitePool) -> Result<bool, AppError> {
     .await
     .map_err(map_sqlx)?;
     Ok(name.is_some())
+}
+
+async fn index_exists(pool: &SqlitePool, name: &str) -> Result<bool, AppError> {
+    let found: Option<String> =
+        sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?")
+            .bind(name)
+            .fetch_optional(pool)
+            .await
+            .map_err(map_sqlx)?;
+    Ok(found.is_some())
 }
 
 async fn projects_table_exists(pool: &SqlitePool) -> Result<bool, AppError> {
@@ -340,6 +365,55 @@ mod tests {
                 "tasks",
             ]
         );
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn open_db_adds_lookup_indexes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pool = open_db(tmp.path()).await.unwrap();
+        for name in [
+            "idx_runs_task_id",
+            "idx_links_task_id",
+            "idx_links_kind_value",
+        ] {
+            let found: Option<String> = sqlx::query_scalar(
+                "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
+            )
+            .bind(name)
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
+            assert_eq!(found.as_deref(), Some(name));
+        }
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn open_db_adds_lookup_indexes_to_existing_schema() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pool = open_db(tmp.path()).await.unwrap();
+        sqlx::query("DROP INDEX IF EXISTS idx_runs_task_id")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("DROP INDEX IF EXISTS idx_links_task_id")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("DROP INDEX IF EXISTS idx_links_kind_value")
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool.close().await;
+        let pool = open_db(tmp.path()).await.unwrap();
+        let found: Option<String> = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_runs_task_id'",
+        )
+        .fetch_optional(&pool)
+        .await
+        .unwrap();
+        assert_eq!(found.as_deref(), Some("idx_runs_task_id"));
         pool.close().await;
     }
 

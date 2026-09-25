@@ -405,6 +405,21 @@ pub(super) async fn to_task_summary(
     ))
 }
 
+pub(super) fn group_by_task<T>(
+    rows: Vec<T>,
+    task_id: impl Fn(&T) -> Uuid,
+) -> HashMap<Uuid, Vec<T>> {
+    let mut grouped: HashMap<Uuid, Vec<T>> = HashMap::new();
+    for row in rows {
+        grouped.entry(task_id(&row)).or_default().push(row);
+    }
+    grouped
+}
+
+pub(super) fn rows_for<T>(grouped: &HashMap<Uuid, Vec<T>>, task_id: Uuid) -> &[T] {
+    grouped.get(&task_id).map(Vec::as_slice).unwrap_or(&[])
+}
+
 pub(super) fn display_from_runs(
     runs: &[Run],
 ) -> (

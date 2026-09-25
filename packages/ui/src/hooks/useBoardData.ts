@@ -11,6 +11,7 @@ import type {
 } from "@taskboard/types";
 
 import { errorCode, errorField, errorMessage, isNotFound } from "../errors";
+import { inboxItemsForScope } from "../inboxScope";
 import { useLatestRef } from "./useLatestRef";
 import type { SelectionApi, ToastState } from "./useSelection";
 
@@ -55,14 +56,14 @@ export function useBoardData({
     const all = await transport.inbox();
     setInboxAll(all);
     const slug = selectedProjectRef.current?.slug;
-    if (inboxScopeRef.current === "this" && slug) {
-      setInboxItems(await transport.inbox({ project: slug }));
-    } else {
-      setInboxItems(all);
-    }
+    setInboxItems(inboxItemsForScope(all, inboxScopeRef.current, slug));
     const project = inboxScopeRef.current === "this" ? slug : undefined;
-    setBoardStatus(await transport.status(project));
-    setOccupancy(await transport.occupancy());
+    const [status, groups] = await Promise.all([
+      transport.status(project),
+      transport.occupancy(),
+    ]);
+    setBoardStatus(status);
+    setOccupancy(groups);
   }, [transport, selectedProjectRef, inboxScopeRef]);
 
   const refreshTasks = useCallback(

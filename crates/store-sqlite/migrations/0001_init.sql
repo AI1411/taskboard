@@ -106,3 +106,7 @@ CREATE TABLE checks (
 );
 
 CREATE INDEX idx_checks_task_sort ON checks (task_id, sort_order, id);
+
+CREATE INDEX idx_runs_task_id ON runs (task_id);
+CREATE INDEX idx_links_task_id ON links (task_id);
+CREATE INDEX idx_links_kind_value ON links (kind, value);
