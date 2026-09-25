@@ -9,6 +9,8 @@ rust-version = "1.83"
 # Excluded from the workspace: Linux CI has no webkit2gtk-4.1, and the Tauri
 # graph needs Rust 1.88 (edition2024). Runtime crates are pinned so a newer
 # tauri-runtime does not land without the matching wry adapter.
+# bundle.active stays false in tauri.conf.json; .dmg and icons are produced
+# on a macOS builder, not in this environment.
 
 [lib]
 name = "taskboard_desktop_lib"
