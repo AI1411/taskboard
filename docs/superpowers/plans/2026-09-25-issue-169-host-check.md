@@ -109,7 +109,8 @@ async fn spoofed_host_does_not_set_a_cookie_or_return_the_board() {
             "GET / HTTP/1.1\r\nHost: evil.example:{}\r\nConnection: close\r\n\r\n",
             server.port
         ),
-    );
+    )
+    .await;
     assert_eq!(status_line(&root), 421);
     assert!(!root.to_ascii_lowercase().contains("set-cookie"));
 
@@ -120,7 +121,8 @@ async fn spoofed_host_does_not_set_a_cookie_or_return_the_board() {
             port = server.port,
             token = server.token
         ),
-    );
+    )
+    .await;
     assert_eq!(status_line(&projects), 421);
 
     let bootstrap = raw_exchange(
@@ -130,7 +132,8 @@ async fn spoofed_host_does_not_set_a_cookie_or_return_the_board() {
             port = server.port,
             token = server.token
         ),
-    );
+    )
+    .await;
     assert_eq!(status_line(&bootstrap), 421);
     assert!(!bootstrap.contains(&server.token));
 }
@@ -158,7 +161,8 @@ async fn localhost_host_still_sets_a_cookie() {
             "GET / HTTP/1.1\r\nHost: localhost:{}\r\nConnection: close\r\n\r\n",
             server.port
         ),
-    );
+    )
+    .await;
     assert_eq!(status_line(&raw), 200);
     assert!(raw.to_ascii_lowercase().contains("set-cookie"));
 }
