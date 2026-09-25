@@ -13,9 +13,13 @@ class Taskboard < Formula
   depends_on macos: :sonoma
   depends_on arch: :arm64
   depends_on "rust" => :build if build.head?
+  depends_on "node" => :build if build.head?
+  depends_on "pnpm" => :build if build.head?
 
   def install
     if build.head?
+      system "pnpm", "install", "--frozen-lockfile"
+      system "pnpm", "--filter", "web", "build"
       system "cargo", "install", "--locked", "--root", prefix, "--path", "crates/cli"
     else
       # Tarball also contains a `tb` symlink for non-brew installs; Homebrew
@@ -57,6 +61,9 @@ class Taskboard < Formula
 
       Smoke: tools/list must include next, review, and run_cancel:
         printf '%s\\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | tb mcp
+
+      HEAD installs build the web UI (node, pnpm, then cargo) so `tb serve`
+      is not a blank page. Release bottles embed that UI.
     EOS
   end
 

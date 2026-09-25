@@ -4,6 +4,9 @@ All notable product changes are listed here. The first tagged release is `v0.1.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-25
+
+- Release CLI and Homebrew HEAD embed the built web UI. A release build fails when `apps/web/dist/index.html` is missing, and the tag workflow refuses a binary whose `/` has no `<script`.
 - Inbox includes completed In Review cards (before Urgent).
 - Board writes worktree and branch; HTTP/desktop reject unknown task patch fields.
 - Board status strip, occupancy line, and inspector spawn (human HTTP/desktop only).
