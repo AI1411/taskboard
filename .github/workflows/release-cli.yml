@@ -138,8 +138,10 @@ jobs:
           git push -u origin "$branch"
           if gh pr view "$branch" >/dev/null 2>&1; then
             echo "pull request already open"
+          elif gh pr create --base main --head "$branch" \
+            --title "release: Formula ${GITHUB_REF_NAME} sha256" \
+            --body "Sets Formula version and sha256 from the published taskboard-aarch64-apple-darwin.tar.gz. The hash is computed in release-cli.yml."; then
+            echo "opened formula pull request"
           else
-            gh pr create --base main --head "$branch" \
-              --title "release: Formula ${GITHUB_REF_NAME} sha256" \
-              --body "Sets Formula version and sha256 from the published taskboard-aarch64-apple-darwin.tar.gz. The hash is computed in release-cli.yml."
+            echo "could not open the formula pull request; branch ${branch} has the Formula update"
           fi
