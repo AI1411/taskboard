@@ -4,6 +4,7 @@ mod state;
 use chrono::Utc;
 use taskboard_application::{App, SystemClock};
 use taskboard_store_sqlite::{open_db, resolve_data_dir, SqliteStore};
+use tauri::Manager;
 
 use state::DesktopState;
 

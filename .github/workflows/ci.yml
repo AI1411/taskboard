@@ -80,7 +80,8 @@ jobs:
         run: pnpm --filter web build
 
   # The desktop crate stays out of the workspace. Its Tauri 2.6 graph
-  # needs edition2024 (Rust 1.88). The workspace job above stays on 1.83.
+  # needs edition2024 (Rust 1.88). rust-toolchain.toml pins 1.83, so these
+  # commands select +1.88.0 explicitly. The workspace job above stays on 1.83.
   desktop:
     runs-on: macos-14
     steps:
@@ -96,6 +97,10 @@ jobs:
             ~/.cargo/git
             target
           key: desktop-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', 'apps/desktop/src-tauri/Cargo.toml') }}
+      - name: Stub frontend dist
+        run: |
+          mkdir -p apps/desktop/dist
+          printf '%s\n' '<!doctype html><html><body></body></html>' > apps/desktop/dist/index.html
       - name: Format
         run: cargo +1.88.0 fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
       - name: Clippy
