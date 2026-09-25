@@ -3,6 +3,11 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+#[path = "src/embed_policy.rs"]
+mod embed_policy;
+
+use embed_policy::{decide, EmbedChoice};
+
 const HTML_SHELL: &str = r#"<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,10 +33,17 @@ fn main() {
         vite_dist.join("index.html").display()
     );
 
-    if vite_dist.join("index.html").is_file() {
-        copy_dir(&vite_dist, &out).expect("copy vite dist");
-    } else {
-        fs::write(out.join("index.html"), HTML_SHELL).unwrap();
+    let profile = env::var("PROFILE").unwrap_or_default();
+    let index = vite_dist.join("index.html");
+    match decide(&profile, index.is_file()) {
+        Ok(EmbedChoice::CopyDist) => copy_dir(&vite_dist, &out).expect("copy vite dist"),
+        Ok(EmbedChoice::HtmlShell) => {
+            println!(
+                "cargo:warning=apps/web/dist/index.html missing; embedding the blank HTML shell"
+            );
+            fs::write(out.join("index.html"), HTML_SHELL).unwrap();
+        }
+        Err(message) => panic!("{message}"),
     }
 }
 
