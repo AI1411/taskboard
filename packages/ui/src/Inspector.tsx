@@ -3,6 +3,7 @@ import type { Column, ReviewAction, TaskDetail } from "@taskboard/types";
 
 import { COLUMNS } from "./columns";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { editDraft, followServer, freshDraft, keepMine, shouldCommit, type FieldDraft } from "./fieldDraft";
 import { openableHref } from "./openableHref";
 import { relativeTime } from "./relativeTime";
 import styles from "./Inspector.module.css";
@@ -76,10 +77,12 @@ export function Inspector(props: {
   onWorkspaceChange?: (patch: { worktreePath?: string; branch?: string }) => void;
   onSpawn?: (title: string) => void;
 }) {
-  const [title, setTitle] = useState(props.task?.title ?? "");
-  const [note, setNote] = useState(props.task?.noteMarkdown ?? "");
-  const [worktree, setWorktree] = useState(props.task?.worktreePath ?? "");
-  const [branch, setBranch] = useState(props.task?.branch ?? "");
+  const [title, setTitle] = useState<FieldDraft>(() => freshDraft(props.task?.title ?? ""));
+  const [note, setNote] = useState<FieldDraft>(() => freshDraft(props.task?.noteMarkdown ?? ""));
+  const [worktree, setWorktree] = useState<FieldDraft>(() =>
+    freshDraft(props.task?.worktreePath ?? ""),
+  );
+  const [branch, setBranch] = useState<FieldDraft>(() => freshDraft(props.task?.branch ?? ""));
   const [spawnValue, setSpawnValue] = useState("");
   const [linkValue, setLinkValue] = useState("");
   const [commentValue, setCommentValue] = useState("");
@@ -93,10 +96,10 @@ export function Inspector(props: {
   useEffect(() => {
     if (!props.task) {
       lastId.current = null;
-      setTitle("");
-      setNote("");
-      setWorktree("");
-      setBranch("");
+      setTitle(freshDraft(""));
+      setNote(freshDraft(""));
+      setWorktree(freshDraft(""));
+      setBranch(freshDraft(""));
       setSpawnValue("");
       setLinkValue("");
       setCommentValue("");
@@ -105,29 +108,35 @@ export function Inspector(props: {
       setReviewValue("");
       return;
     }
-    if (lastId.current !== props.task.displayId) {
-      lastId.current = props.task.displayId;
-      setTitle(props.task.title);
-      setNote(props.task.noteMarkdown);
-      setWorktree(props.task.worktreePath ?? "");
-      setBranch(props.task.branch ?? "");
+    const switched = lastId.current !== props.task.displayId;
+    lastId.current = props.task.displayId;
+    if (switched) {
+      setTitle(freshDraft(props.task.title));
+      setNote(freshDraft(props.task.noteMarkdown));
+      setWorktree(freshDraft(props.task.worktreePath ?? ""));
+      setBranch(freshDraft(props.task.branch ?? ""));
       setSpawnValue("");
       setLinkValue("");
       setCommentValue("");
       setCheckValue("");
       setBlockedByValue("");
       setReviewValue("");
+      return;
     }
+    const task = props.task;
+    setTitle((draft) => followServer(draft, task.title));
+    setNote((draft) => followServer(draft, task.noteMarkdown));
+    setWorktree((draft) => followServer(draft, task.worktreePath ?? ""));
+    setBranch((draft) => followServer(draft, task.branch ?? ""));
   }, [props.task]);
 
   useEffect(() => {
-    if (!props.task) return;
-    if (note === props.task.noteMarkdown) return;
+    if (!shouldCommit(note)) return;
     const handle = window.setTimeout(() => {
-      props.onNoteChange(note);
+      props.onNoteChange(note.value);
     }, 400);
     return () => window.clearTimeout(handle);
-  }, [note, props.task, props.onNoteChange]);
+  }, [note, props.onNoteChange]);
 
   useEffect(() => {
     if (!props.open || !props.task) return;
@@ -138,6 +147,39 @@ export function Inspector(props: {
 
   const runs = [...props.task.runs].sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
   const activities = [...props.task.recentActivities].sort((a, b) => b.sequence - a.sequence);
+  const conflict = title.conflict || note.conflict || worktree.conflict || branch.conflict;
+
+  function acceptMine() {
+    if (!props.task) return;
+    if (title.conflict) {
+      const next = keepMine(title, props.task.title);
+      setTitle(next);
+      if (shouldCommit(next)) props.onTitleCommit(next.value);
+    }
+    if (note.conflict) {
+      const next = keepMine(note, props.task.noteMarkdown);
+      setNote(next);
+      if (shouldCommit(next)) props.onNoteChange(next.value);
+    }
+    if (worktree.conflict) {
+      const next = keepMine(worktree, props.task.worktreePath ?? "");
+      setWorktree(next);
+      if (shouldCommit(next)) props.onWorkspaceChange?.({ worktreePath: next.value });
+    }
+    if (branch.conflict) {
+      const next = keepMine(branch, props.task.branch ?? "");
+      setBranch(next);
+      if (shouldCommit(next)) props.onWorkspaceChange?.({ branch: next.value });
+    }
+  }
+
+  function loadServer() {
+    if (!props.task) return;
+    if (title.conflict) setTitle(freshDraft(props.task.title));
+    if (note.conflict) setNote(freshDraft(props.task.noteMarkdown));
+    if (worktree.conflict) setWorktree(freshDraft(props.task.worktreePath ?? ""));
+    if (branch.conflict) setBranch(freshDraft(props.task.branch ?? ""));
+  }
 
   return (
     <aside
@@ -150,9 +192,11 @@ export function Inspector(props: {
           Title
           <input
             ref={props.titleRef}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={() => props.onTitleCommit(title)}
+            value={title.value}
+            onChange={(e) => setTitle((draft) => editDraft(draft, e.target.value))}
+            onBlur={() => {
+              if (shouldCommit(title)) props.onTitleCommit(title.value);
+            }}
           />
         </label>
         <button
@@ -166,24 +210,20 @@ export function Inspector(props: {
         <label className={styles.field}>
           Worktree
           <input
-            value={worktree}
-            onChange={(e) => setWorktree(e.target.value)}
+            value={worktree.value}
+            onChange={(e) => setWorktree((draft) => editDraft(draft, e.target.value))}
             onBlur={() => {
-              const current = props.task.worktreePath ?? "";
-              if (worktree === current) return;
-              props.onWorkspaceChange?.({ worktreePath: worktree });
+              if (shouldCommit(worktree)) props.onWorkspaceChange?.({ worktreePath: worktree.value });
             }}
           />
         </label>
         <label className={styles.field}>
           Branch
           <input
-            value={branch}
-            onChange={(e) => setBranch(e.target.value)}
+            value={branch.value}
+            onChange={(e) => setBranch((draft) => editDraft(draft, e.target.value))}
             onBlur={() => {
-              const current = props.task.branch ?? "";
-              if (branch === current) return;
-              props.onWorkspaceChange?.({ branch });
+              if (shouldCommit(branch)) props.onWorkspaceChange?.({ branch: branch.value });
             }}
           />
         </label>
@@ -236,12 +276,23 @@ export function Inspector(props: {
           />
           Urgent
         </label>
+        {conflict ? (
+          <div className={styles.conflict} role="status">
+            Updated elsewhere
+            <button type="button" className={styles.linkButton} onClick={acceptMine}>
+              Keep mine
+            </button>
+            <button type="button" className={styles.linkButton} onClick={loadServer}>
+              Load server
+            </button>
+          </div>
+        ) : null}
         <label className={styles.field}>
           Note
           <textarea
             className={styles.note}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
+            value={note.value}
+            onChange={(e) => setNote((draft) => editDraft(draft, e.target.value))}
           />
         </label>
         <div>

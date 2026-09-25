@@ -1,8 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { TaskDetail } from "@taskboard/types";
 import { describe, expect, it, vi } from "vitest";
 
 import { fakeTransport } from "./fakeTransport";
+import { Inspector } from "./Inspector";
 import { TaskboardApp } from "./index";
 
 describe("Inspector links", () => {
@@ -602,5 +604,109 @@ describe("Inspector review", () => {
     await userEvent.click(await screen.findByText("Todo"));
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Request changes" })).toBeNull();
+  });
+});
+
+function detail(noteMarkdown: string, revision: number): TaskDetail {
+  return {
+    id: "t1",
+    displayId: "TASK-1",
+    projectId: "p1",
+    title: "Spec",
+    column: "in-progress",
+    urgent: false,
+    revision,
+    displayStatus: "running",
+    runMessage: null,
+    waitingReason: null,
+    reply: null,
+    blockedBy: [],
+    blocks: [],
+    stale: false,
+    checklistDone: 0,
+    checklistTotal: 0,
+    worktreePath: null,
+    branch: null,
+    noteMarkdown,
+    links: [],
+    runs: [],
+    comments: [],
+    checks: [],
+    recentActivities: [],
+  };
+}
+
+function renderInspector(task: TaskDetail, onNoteChange: (markdown: string) => void) {
+  return render(
+    <Inspector
+      task={task}
+      open
+      onTitleCommit={() => {}}
+      onColumnChange={() => {}}
+      onUrgentChange={() => {}}
+      onNoteChange={onNoteChange}
+      onDelete={() => {}}
+    />,
+  );
+}
+
+describe("Inspector note drafts", () => {
+  it("keeps an agent note when the server value changes under a clean draft", async () => {
+    const onNoteChange = vi.fn();
+    const view = renderInspector(detail("", 1), onNoteChange);
+    view.rerender(
+      <Inspector
+        task={detail("# written by agent", 2)}
+        open
+        onTitleCommit={() => {}}
+        onColumnChange={() => {}}
+        onUrgentChange={() => {}}
+        onNoteChange={onNoteChange}
+        onDelete={() => {}}
+      />,
+    );
+    expect((screen.getByLabelText("Note") as HTMLTextAreaElement).value).toBe(
+      "# written by agent",
+    );
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(onNoteChange).not.toHaveBeenCalled();
+  });
+
+  it("stops autosave and offers keep-mine or load-server when a dirty note is stale", async () => {
+    const onNoteChange = vi.fn();
+    const view = renderInspector(detail("", 1), onNoteChange);
+    fireEvent.change(screen.getByLabelText("Note"), { target: { value: "my draft" } });
+    view.rerender(
+      <Inspector
+        task={detail("# written by agent", 2)}
+        open
+        onTitleCommit={() => {}}
+        onColumnChange={() => {}}
+        onUrgentChange={() => {}}
+        onNoteChange={onNoteChange}
+        onDelete={() => {}}
+      />,
+    );
+    expect(screen.getByRole("status").textContent).toContain("Updated elsewhere");
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(onNoteChange).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Load server" }));
+    expect((screen.getByLabelText("Note") as HTMLTextAreaElement).value).toBe(
+      "# written by agent",
+    );
   });
 });

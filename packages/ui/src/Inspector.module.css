@@ -210,6 +210,16 @@
   flex: 1;
 }
 
+.conflict {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0.4rem 0;
+  color: var(--board-fg);
+  font-size: 0.85rem;
+}
+
 .cancel {
   border: 0;
   border-radius: 8px;
