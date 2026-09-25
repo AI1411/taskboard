@@ -4,6 +4,7 @@ mod state;
 use chrono::Utc;
 use taskboard_application::{App, SystemClock};
 use taskboard_store_sqlite::{open_db, resolve_data_dir, SqliteStore};
+use tauri::Manager;
 
 use state::DesktopState;
 
@@ -11,7 +12,8 @@ use state::DesktopState;
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            let data_dir = resolve_data_dir(None, std::env::var_os("TASKBOARD_DATA_DIR").as_deref());
+            let data_dir =
+                resolve_data_dir(None, std::env::var_os("TASKBOARD_DATA_DIR").as_deref());
             let handle = app.handle().clone();
             tauri::async_runtime::block_on(async move {
                 let pool = open_db(&data_dir).await.map_err(|err| err.to_string())?;

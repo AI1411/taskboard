@@ -1,18 +1,15 @@
 use taskboard_core::{Column, LinkKind};
 use taskboard_desktop_commands::{
     check_add_inner, check_remove_inner, check_toggle_inner, comment_add_inner,
-    comment_remove_latest_inner, deserialize_present_option,
-    inbox_inner, link_add_inner, link_remove_inner, occupancy_inner, project_add_inner,
-    project_archive_inner,
-    project_delete_inner, project_list_inner, project_note_set_inner, project_reorder_inner,
-    project_restore_inner, project_update_inner, review_inner, run_patch_inner, run_start_inner,
-    sync_inner,
-    status_inner, task_create_inner, task_delete_inner, task_list_inner, task_move_inner,
-    task_note_set_inner, task_reorder_inner, task_restore_inner, task_show_inner, task_spawn_inner,
-    task_update_inner, task_urgent_inner,
-    trash_list_inner, ui_state_inner, ui_state_set_inner, undo_inner, AppErrorDto, CheckDto,
-    BoardStatusDto, CommentDto, InboxItemDto, OccupancyGroupDto, ProjectDto, RunDto, RunOp,
-    SyncDeltaDto, TaskDetailDto, TaskPatchArgs, TaskSummaryDto, TrashDto, UiStateDto, UndoResultDto,
+    comment_remove_latest_inner, inbox_inner, link_add_inner, link_remove_inner, occupancy_inner,
+    project_add_inner, project_archive_inner, project_delete_inner, project_list_inner,
+    project_note_set_inner, project_reorder_inner, project_restore_inner, project_update_inner,
+    review_inner, run_patch_inner, run_start_inner, status_inner, sync_inner, task_create_inner,
+    task_delete_inner, task_list_inner, task_move_inner, task_note_set_inner, task_reorder_inner,
+    task_restore_inner, task_show_inner, task_spawn_inner, task_update_inner, task_urgent_inner,
+    trash_list_inner, ui_state_inner, ui_state_set_inner, undo_inner, AppErrorDto, BoardStatusDto,
+    CheckDto, CommentDto, InboxItemDto, OccupancyGroupDto, ProjectDto, RunDto, RunOp, SyncDeltaDto,
+    TaskDetailDto, TaskPatchArgs, TaskSummaryDto, TrashDto, UiStateDto, UndoResultDto,
 };
 
 use crate::state::DesktopState;
@@ -148,6 +145,10 @@ pub async fn task_show(
     task_show_inner(&app, display_id).await.map(Into::into)
 }
 
+// Tauri maps each parameter to an invoke key. The client already sends this
+// patch flat (`displayId`, `title`, …), so the command stays one argument
+// per field instead of a nested struct.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command(rename_all = "snake_case")]
 pub async fn task_update(
     state: tauri::State<'_, DesktopState>,
@@ -156,7 +157,6 @@ pub async fn task_update(
     note_markdown: Option<String>,
     urgent: Option<bool>,
     column: Option<Column>,
-    #[serde(default, deserialize_with = "deserialize_present_option")]
     before_display_id: Option<Option<String>>,
     worktree_path: Option<String>,
     branch: Option<String>,
@@ -274,7 +274,9 @@ pub async fn check_add(
     text: String,
 ) -> Result<CheckDto, AppErrorDto> {
     let app = state.app.lock().await;
-    check_add_inner(&app, display_id, text).await.map(Into::into)
+    check_add_inner(&app, display_id, text)
+        .await
+        .map(Into::into)
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -356,17 +358,9 @@ pub async fn run_patch(
     revision: Option<i64>,
 ) -> Result<RunDto, AppErrorDto> {
     let app = state.app.lock().await;
-    run_patch_inner(
-        &app,
-        run_display_id,
-        op,
-        message,
-        reason,
-        summary,
-        revision,
-    )
-    .await
-    .map(Into::into)
+    run_patch_inner(&app, run_display_id, op, message, reason, summary, revision)
+        .await
+        .map(Into::into)
 }
 
 #[tauri::command(rename_all = "snake_case")]

@@ -144,8 +144,9 @@ export function Inspector(props: {
   }, [props.open, props.task?.displayId]);
 
   if (!props.open || !props.task) return null;
+  const task = props.task;
 
-  const runs = [...props.task.runs].sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
+  const runs = [...task.runs].sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
   const activities = [...props.task.recentActivities].sort((a, b) => b.sequence - a.sequence);
   const conflict = title.conflict || note.conflict || worktree.conflict || branch.conflict;
 
@@ -202,8 +203,8 @@ export function Inspector(props: {
         <button
           type="button"
           className={styles.displayId}
-          aria-label={`Copy ${props.task.displayId}`}
-          onClick={() => props.onCopyId?.(props.task.displayId)}
+          aria-label={`Copy ${task.displayId}`}
+          onClick={() => props.onCopyId?.(task.displayId)}
         >
           {props.task.displayId}
         </button>
@@ -351,12 +352,12 @@ export function Inspector(props: {
         <div>
           <h3 className={styles.heading}>Comments</h3>
           <ul className={styles.list}>
-            {props.task.comments.map((comment, index) => (
+            {task.comments.map((comment, index) => (
               <li key={comment.id} className={styles.linkRow}>
                 <span>
                   {relativeTime(comment.createdAt)} · {comment.actorLabel} · {comment.body}
                 </span>
-                {index === props.task.comments.length - 1 ? (
+                {index === task.comments.length - 1 ? (
                   <button
                     type="button"
                     className={styles.linkRemove}

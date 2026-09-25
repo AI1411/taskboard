@@ -5,6 +5,7 @@ All notable product changes are listed here. The first tagged release is `v0.1.0
 ## [Unreleased]
 
 - Inbox and status read runs, comments, and checks once per request, and the board fetches inbox once.
+- CI typechecks the TypeScript packages, builds the web UI, and checks the desktop crate on macOS.
 
 ## [0.1.1] - 2026-09-25
 
