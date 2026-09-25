@@ -86,6 +86,14 @@ readme_without_until_v010() {
 }
 assert "formula sha256 is not a zero placeholder" formula_sha256_not_placeholder
 assert "homebrew README no longer says Until v0.1.0" readme_without_until_v010
+assert "release workflow builds the web UI" \
+  grep -q 'pnpm --filter web build' "$repo/.github/workflows/release-cli.yml"
+assert "release workflow smokes the embedded UI" \
+  grep -q 'smoke_embedded_ui.sh' "$repo/.github/workflows/release-cli.yml"
+assert "smoke script requires a script tag" \
+  grep -q '<script' "$repo/packaging/homebrew/smoke_embedded_ui.sh"
+assert "formula HEAD builds the web UI" \
+  grep -Fq 'system "pnpm", "--filter", "web", "build"' "$formula"
 
 if [ "$fail" -ne 0 ]; then
   printf '\npackaging/homebrew tests failed\n' >&2

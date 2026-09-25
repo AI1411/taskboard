@@ -26,6 +26,10 @@ brew install taskboard
 shasum -a 256 taskboard-aarch64-apple-darwin.tar.gz
 ```
 
+## HEAD
+
+`brew install --HEAD` runs `pnpm install --frozen-lockfile` and `pnpm --filter web build` before `cargo install`, so the embedded UI matches a release build. A HEAD install needs Homebrew `node` and `pnpm`.
+
 ## `tb` alias
 
 `taskboard` always installs. `tb` is created only when that name is absent or already points at `taskboard`. A foreign `tb` is left in place and the installer prints `alias_skipped`.

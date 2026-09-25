@@ -21,8 +21,21 @@ jobs:
         run: |
           rustup toolchain install 1.83.0 --profile minimal
           rustup default 1.83.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.3 --activate
+      - name: Build web UI
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter web build
       - name: Build CLI
         run: cargo build --release -p taskboard-cli
+      - name: Smoke embedded web UI
+        run: sh packaging/homebrew/smoke_embedded_ui.sh target/release/taskboard
       - name: Pack tarball
         run: |
           bash packaging/homebrew/package_cli_tarball.sh \
