@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use axum::extract::{Request, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
+use axum::middleware::{self, Next};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
@@ -116,7 +117,22 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/", get(html_shell))
         .merge(crate::routes::api_router())
         .fallback(static_or_spa)
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            reject_foreign_host,
+        ))
         .with_state(state)
+}
+
+async fn reject_foreign_host(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if !crate::origin::host_allowed(request.headers().get(header::HOST), state.port) {
+        return StatusCode::MISDIRECTED_REQUEST.into_response();
+    }
+    next.run(request).await
 }
 
 fn set_session_cookie(headers: &mut HeaderMap, token: &str) {
