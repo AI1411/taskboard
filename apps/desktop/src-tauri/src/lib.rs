@@ -23,6 +23,10 @@ pub fn run() {
                     .purge_expired_trash(Utc::now())
                     .await
                     .map_err(|err| err.to_string())?;
+                board
+                    .hold_data_lock()
+                    .await
+                    .map_err(|err| err.to_string())?;
                 handle.manage(DesktopState {
                     app: tokio::sync::Mutex::new(board),
                     data_dir,

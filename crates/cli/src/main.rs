@@ -44,6 +44,12 @@ async fn run(cli: Cli) -> Result<(), i32> {
         .await
         .map_err(|err| output::print_error(&err, json))?;
 
+    if matches!(cli.command, Command::Serve(_) | Command::Mcp) {
+        app.hold_data_lock()
+            .await
+            .map_err(|err| output::print_error(&err, json))?;
+    }
+
     if let Command::Serve(args) = cli.command {
         return serve_cmd(app, data_dir, args.port, args.open).await;
     }

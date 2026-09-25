@@ -13,14 +13,22 @@ use crate::migrations::{
     CHECKS_SQL, COMMENTS_SQL, INIT_SQL, LOOKUP_INDEXES_SQL, TASK_WORKSPACE_SQL,
 };
 
+const SCHEMA_VERSION: i64 = 5;
+const LOG_MAX_BYTES: u64 = 1_048_576;
+
 /// Opens `{data_dir}/taskboard.sqlite3`, applying `0001_init.sql` when `projects` is missing.
 pub async fn open_db(data_dir: &Path) -> Result<SqlitePool, AppError> {
-    fs::create_dir_all(data_dir).map_err(map_io)?;
+    open_db_owned(data_dir.to_path_buf()).await
+}
+
+/// Owned-path entry so callers inside `async_trait` can await a `'static` future.
+pub(crate) async fn open_db_owned(data_dir: PathBuf) -> Result<SqlitePool, AppError> {
+    fs::create_dir_all(&data_dir).map_err(map_io)?;
     let logs_dir = data_dir.join("logs");
     fs::create_dir_all(&logs_dir).map_err(map_io)?;
     let log_path = create_log_file(&logs_dir)?;
 
-    let cfg = load_config(data_dir);
+    let cfg = load_config(&data_dir);
     write_log(&log_path, &cfg.log_level, "info", "opening database");
 
     let db_path = data_dir.join("taskboard.sqlite3");
@@ -38,77 +46,76 @@ pub async fn open_db(data_dir: &Path) -> Result<SqlitePool, AppError> {
         .await
         .map_err(map_sqlx)?;
 
-    if !projects_table_exists(&pool).await? {
-        if db_existed {
-            backup_pre_migration(data_dir, &pool).await?;
-        }
-        apply_init_migration(&pool).await?;
-        write_log(
-            &log_path,
-            &cfg.log_level,
-            "info",
-            "applied migration 0001_init",
-        );
-    }
-
-    if !comments_table_exists(&pool).await? {
-        sqlx::raw_sql(COMMENTS_SQL)
-            .execute(&pool)
-            .await
-            .map_err(map_sqlx)?;
-        write_log(
-            &log_path,
-            &cfg.log_level,
-            "info",
-            "applied migration 0002_comments",
-        );
-    }
-
-    if !checks_table_exists(&pool).await? {
-        sqlx::raw_sql(CHECKS_SQL)
-            .execute(&pool)
-            .await
-            .map_err(map_sqlx)?;
-        write_log(
-            &log_path,
-            &cfg.log_level,
-            "info",
-            "applied migration 0003_checks",
-        );
-    }
-
-    if !task_worktree_column_exists(&pool).await? {
-        sqlx::raw_sql(TASK_WORKSPACE_SQL)
-            .execute(&pool)
-            .await
-            .map_err(map_sqlx)?;
-        write_log(
-            &log_path,
-            &cfg.log_level,
-            "info",
-            "applied migration 0004_task_workspace",
-        );
-    }
-
-    if !index_exists(&pool, "idx_runs_task_id").await? {
-        sqlx::raw_sql(LOOKUP_INDEXES_SQL)
-            .execute(&pool)
-            .await
-            .map_err(map_sqlx)?;
-        write_log(
-            &log_path,
-            &cfg.log_level,
-            "info",
-            "applied migration 0005_lookup_indexes",
-        );
-    }
+    migrate(data_dir, pool.clone(), db_existed, log_path, cfg.log_level).await?;
 
     Ok(pool)
 }
 
-async fn apply_init_migration(pool: &SqlitePool) -> Result<(), AppError> {
+async fn migrate(
+    data_dir: PathBuf,
+    pool: SqlitePool,
+    db_existed: bool,
+    log_path: PathBuf,
+    log_level: String,
+) -> Result<(), AppError> {
+    let mut version = read_user_version(&pool).await?;
+    if version == 0 {
+        let inferred = infer_version(&pool).await?;
+        if inferred == 0 {
+            if db_existed {
+                backup_pre_migration(&data_dir, &pool, 1).await?;
+            }
+            apply_sql_version(&pool, INIT_SQL, SCHEMA_VERSION).await?;
+            write_log(&log_path, &log_level, "info", "applied migration 0001_init");
+            return Ok(());
+        }
+        set_user_version(&pool, inferred).await?;
+        version = inferred;
+    }
+
+    while version < SCHEMA_VERSION {
+        let next = version + 1;
+        if db_existed {
+            backup_pre_migration(&data_dir, &pool, next).await?;
+        }
+        apply_step(&pool, next).await?;
+        let message = format!("applied migration {next:04}");
+        write_log(&log_path, &log_level, "info", &message);
+        version = next;
+    }
+    Ok(())
+}
+
+async fn apply_step(pool: &SqlitePool, version: i64) -> Result<(), AppError> {
+    match version {
+        2 => apply_sql_version(pool, COMMENTS_SQL, 2).await,
+        3 => apply_sql_version(pool, CHECKS_SQL, 3).await,
+        4 => apply_workspace_step(pool).await,
+        5 => apply_sql_version(pool, LOOKUP_INDEXES_SQL, 5).await,
+        other => Err(AppError::Io(format!("unknown migration {other}"))),
+    }
+}
+
+async fn apply_workspace_step(pool: &SqlitePool) -> Result<(), AppError> {
+    let add_worktree = !column_exists(pool, "tasks", "worktree_path").await?;
+    let add_branch = !column_exists(pool, "tasks", "branch").await?;
+    if add_worktree && add_branch {
+        return apply_sql_version(pool, TASK_WORKSPACE_SQL, 4).await;
+    }
     let mut tx = pool.begin().await.map_err(map_sqlx)?;
-    sqlx::raw_sql(INIT_SQL)
+    if add_worktree {
+        sqlx::query("ALTER TABLE tasks ADD COLUMN worktree_path TEXT")
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+    }
+    if add_branch {
+        sqlx::query("ALTER TABLE tasks ADD COLUMN branch TEXT")
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+    }
+    sqlx::query("PRAGMA user_version = 4")
         .execute(&mut *tx)
         .await
         .map_err(map_sqlx)?;
@@ -116,13 +123,80 @@ async fn apply_init_migration(pool: &SqlitePool) -> Result<(), AppError> {
     Ok(())
 }
 
-async fn task_worktree_column_exists(pool: &SqlitePool) -> Result<bool, AppError> {
-    let name: Option<String> = sqlx::query_scalar(
-        "SELECT name FROM pragma_table_info('tasks') WHERE name = 'worktree_path'",
-    )
-    .fetch_optional(pool)
-    .await
-    .map_err(map_sqlx)?;
+async fn apply_sql_version(
+    pool: &SqlitePool,
+    sql: &'static str,
+    version: i64,
+) -> Result<(), AppError> {
+    let mut tx = pool.begin().await.map_err(map_sqlx)?;
+    if let Err(err) = sqlx::raw_sql(sql).execute(&mut *tx).await {
+        let _ = tx.rollback().await;
+        return Err(map_sqlx(err));
+    }
+    let stamp = pragma_user_version(version);
+    if let Err(err) = sqlx::query(stamp).execute(&mut *tx).await {
+        let _ = tx.rollback().await;
+        return Err(map_sqlx(err));
+    }
+    tx.commit().await.map_err(map_sqlx)?;
+    Ok(())
+}
+
+fn pragma_user_version(version: i64) -> &'static str {
+    match version {
+        1 => "PRAGMA user_version = 1",
+        2 => "PRAGMA user_version = 2",
+        3 => "PRAGMA user_version = 3",
+        4 => "PRAGMA user_version = 4",
+        5 => "PRAGMA user_version = 5",
+        9 => "PRAGMA user_version = 9",
+        _ => "PRAGMA user_version = 0",
+    }
+}
+
+async fn read_user_version(pool: &SqlitePool) -> Result<i64, AppError> {
+    sqlx::query_scalar("PRAGMA user_version")
+        .fetch_one(pool)
+        .await
+        .map_err(map_sqlx)
+}
+
+async fn set_user_version(pool: &SqlitePool, version: i64) -> Result<(), AppError> {
+    sqlx::query(pragma_user_version(version))
+        .execute(pool)
+        .await
+        .map_err(map_sqlx)?;
+    Ok(())
+}
+
+async fn infer_version(pool: &SqlitePool) -> Result<i64, AppError> {
+    if !projects_table_exists(pool).await? {
+        return Ok(0);
+    }
+    if !comments_table_exists(pool).await? {
+        return Ok(1);
+    }
+    if !checks_table_exists(pool).await? {
+        return Ok(2);
+    }
+    if !column_exists(pool, "tasks", "worktree_path").await?
+        || !column_exists(pool, "tasks", "branch").await?
+    {
+        return Ok(3);
+    }
+    if !index_exists(pool, "idx_runs_task_id").await? {
+        return Ok(4);
+    }
+    Ok(SCHEMA_VERSION)
+}
+
+async fn column_exists(pool: &SqlitePool, table: &str, column: &str) -> Result<bool, AppError> {
+    let sql = format!("SELECT name FROM pragma_table_info('{table}') WHERE name = ?");
+    let name: Option<String> = sqlx::query_scalar(&sql)
+        .bind(column)
+        .fetch_optional(pool)
+        .await
+        .map_err(map_sqlx)?;
     Ok(name.is_some())
 }
 
@@ -166,16 +240,18 @@ async fn projects_table_exists(pool: &SqlitePool) -> Result<bool, AppError> {
     Ok(name.is_some())
 }
 
-async fn backup_pre_migration(data_dir: &Path, pool: &SqlitePool) -> Result<(), AppError> {
+async fn backup_pre_migration(
+    data_dir: &Path,
+    pool: &SqlitePool,
+    version: i64,
+) -> Result<(), AppError> {
     let backups = data_dir.join("backups");
     fs::create_dir_all(&backups).map_err(map_io)?;
     let stamp = Utc::now().format("%Y%m%dT%H%M%SZ");
-    let dest = backups.join(format!("pre-migration-0001-{stamp}.sqlite3"));
+    let dest = backups.join(format!("pre-migration-{version:04}-{stamp}.sqlite3"));
     let dest_sql = dest.to_string_lossy().replace('\'', "''");
-    sqlx::query(&format!("VACUUM INTO '{dest_sql}'"))
-        .execute(pool)
-        .await
-        .map_err(map_sqlx)?;
+    let vacuum = format!("VACUUM INTO '{dest_sql}'");
+    sqlx::query(&vacuum).execute(pool).await.map_err(map_sqlx)?;
     Ok(())
 }
 
@@ -189,7 +265,20 @@ fn create_log_file(logs_dir: &Path) -> Result<PathBuf, AppError> {
     Ok(path)
 }
 
+fn rotate_log_if_needed(path: &Path) {
+    let Ok(meta) = fs::metadata(path) else {
+        return;
+    };
+    if meta.len() < LOG_MAX_BYTES {
+        return;
+    }
+    let rotated = path.with_file_name("taskboard.log.1");
+    let _ = fs::remove_file(&rotated);
+    let _ = fs::rename(path, &rotated);
+}
+
 fn write_log(path: &Path, configured_level: &str, message_level: &str, message: &str) {
+    rotate_log_if_needed(path);
     if message.contains("note_markdown")
         || message.contains("repo_path")
         || message.contains("summary")
@@ -405,6 +494,10 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+        sqlx::query("PRAGMA user_version = 0")
+            .execute(&pool)
+            .await
+            .unwrap();
         pool.close().await;
         let pool = open_db(tmp.path()).await.unwrap();
         let found: Option<String> = sqlx::query_scalar(
@@ -429,6 +522,10 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+        sqlx::query("PRAGMA user_version = 0")
+            .execute(&pool)
+            .await
+            .unwrap();
         pool.close().await;
         let pool = open_db(tmp.path()).await.unwrap();
         let name: Option<String> = sqlx::query_scalar(
@@ -449,6 +546,10 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+        sqlx::query("PRAGMA user_version = 0")
+            .execute(&pool)
+            .await
+            .unwrap();
         pool.close().await;
         let pool = open_db(tmp.path()).await.unwrap();
         let name: Option<String> = sqlx::query_scalar(
@@ -466,6 +567,10 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let pool = open_db(tmp.path()).await.unwrap();
         sqlx::query("DROP TABLE comments")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("PRAGMA user_version = 0")
             .execute(&pool)
             .await
             .unwrap();
@@ -507,6 +612,91 @@ mod tests {
         .unwrap();
         assert!(counters.is_none());
         pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn open_db_stamps_user_version() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pool = open_db(tmp.path()).await.unwrap();
+        let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(version, 5);
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn legacy_schema_stamps_version_without_a_backup() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pool = open_db(tmp.path()).await.unwrap();
+        sqlx::query("PRAGMA user_version = 0")
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool.close().await;
+        let pool = open_db(tmp.path()).await.unwrap();
+        let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(version, 5);
+        pool.close().await;
+        let backups = tmp.path().join("backups");
+        assert!(!backups.exists() || fs::read_dir(&backups).unwrap().next().is_none());
+    }
+
+    #[tokio::test]
+    async fn open_db_adds_missing_branch_when_worktree_path_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pool = open_db(tmp.path()).await.unwrap();
+        sqlx::query("ALTER TABLE tasks DROP COLUMN branch")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("PRAGMA user_version = 0")
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool.close().await;
+        let pool = open_db(tmp.path()).await.unwrap();
+        let name: Option<String> =
+            sqlx::query_scalar("SELECT name FROM pragma_table_info('tasks') WHERE name = 'branch'")
+                .fetch_optional(&pool)
+                .await
+                .unwrap();
+        assert_eq!(name.as_deref(), Some("branch"));
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn failed_version_step_keeps_user_version() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pool = open_db(tmp.path()).await.unwrap();
+        let err = apply_sql_version(&pool, "NOT VALID SQL;", 9)
+            .await
+            .unwrap_err();
+        assert!(!err.to_string().is_empty());
+        let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(version, 5);
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn open_db_rotates_a_full_log() {
+        let tmp = tempfile::tempdir().unwrap();
+        let logs = tmp.path().join("logs");
+        fs::create_dir_all(&logs).unwrap();
+        fs::write(logs.join("taskboard.log"), vec![b'x'; 1_048_576]).unwrap();
+        let pool = open_db(tmp.path()).await.unwrap();
+        pool.close().await;
+        let active = fs::read_to_string(logs.join("taskboard.log")).unwrap();
+        assert!(active.contains("opening database"));
+        assert!(active.len() < 1_048_576);
+        assert!(logs.join("taskboard.log.1").metadata().unwrap().len() >= 1_048_576);
     }
 
     #[test]

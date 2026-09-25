@@ -9,6 +9,7 @@ async-trait.workspace = true
 taskboard-application = { path = "../application" }
 taskboard-core = { path = "../core" }
 chrono.workspace = true
+libc = "0.2"
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

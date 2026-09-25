@@ -18,6 +18,8 @@ pub enum AppError {
     UndoConflict { current: serde_json::Value },
     #[error("database busy")]
     DatabaseBusy,
+    #[error("database is in use; close tb serve or the desktop app before import")]
+    DatabaseInUse,
     #[error("{0}")]
     Io(String),
     #[error("pass --project or set TASKBOARD_PROJECT")]
@@ -35,6 +37,7 @@ impl AppError {
             AppError::Conflict { .. } => "conflict",
             AppError::UndoConflict { .. } => "undo_conflict",
             AppError::DatabaseBusy => "database_busy",
+            AppError::DatabaseInUse => "conflict",
             AppError::Io(_) => "io_error",
             AppError::ProjectRequired => "project_required",
         }
@@ -109,6 +112,13 @@ mod tests {
     #[test]
     fn database_busy_code() {
         assert_eq!(AppError::DatabaseBusy.code(), "database_busy");
+    }
+
+    #[test]
+    fn database_in_use_is_conflict() {
+        let err = AppError::DatabaseInUse;
+        assert_eq!(err.code(), "conflict");
+        assert!(err.to_string().contains("desktop"));
     }
 
     #[test]
