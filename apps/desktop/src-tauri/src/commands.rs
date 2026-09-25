@@ -145,6 +145,10 @@ pub async fn task_show(
     task_show_inner(&app, display_id).await.map(Into::into)
 }
 
+// Tauri maps each parameter to an invoke key. The client already sends this
+// patch flat (`displayId`, `title`, …), so the command stays one argument
+// per field instead of a nested struct.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command(rename_all = "snake_case")]
 pub async fn task_update(
     state: tauri::State<'_, DesktopState>,
