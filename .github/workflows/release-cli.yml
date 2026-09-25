@@ -11,16 +11,35 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
-  macos-arm64:
-    runs-on: macos-14
+  build:
+    name: ${{ matrix.asset }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+            asset: taskboard-aarch64-apple-darwin.tar.gz
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            asset: taskboard-x86_64-unknown-linux-musl.tar.gz
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            asset: taskboard-aarch64-unknown-linux-gnu.tar.gz
     steps:
       - uses: actions/checkout@v4
+      - name: Install musl
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
       - name: Install Rust toolchain
         run: |
           rustup toolchain install 1.83.0 --profile minimal
           rustup default 1.83.0
+          rustup target add ${{ matrix.target }}
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -33,25 +52,93 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm --filter web build
       - name: Build CLI
-        run: cargo build --release -p taskboard-cli
+        env:
+          CC_x86_64_unknown_linux_musl: musl-gcc
+        run: cargo build --release --target ${{ matrix.target }} -p taskboard-cli
       - name: Smoke embedded web UI
-        run: sh packaging/homebrew/smoke_embedded_ui.sh target/release/taskboard
+        run: sh packaging/homebrew/smoke_embedded_ui.sh target/${{ matrix.target }}/release/taskboard
       - name: Pack tarball
         run: |
+          asset="${{ matrix.asset }}"
           bash packaging/homebrew/package_cli_tarball.sh \
-            target/release/taskboard \
-            taskboard-aarch64-apple-darwin.tar.gz
-          shasum -a 256 taskboard-aarch64-apple-darwin.tar.gz | tee tarball.sha256
+            "target/${{ matrix.target }}/release/taskboard" \
+            "$asset"
+          # Checksum file is named <asset>.sha256, for example taskboard-aarch64-apple-darwin.tar.gz.sha256.
+          if command -v sha256sum >/dev/null; then
+            sha256sum "$asset" | tee "${asset}.sha256"
+          else
+            shasum -a 256 "$asset" | tee "${asset}.sha256"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            ${{ matrix.asset }}
+            ${{ matrix.asset }}.sha256
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          notes="Apple silicon CLI. Archive contains taskboard and a tb symlink. Homebrew postinstall skips a foreign tb and prints alias_skipped."
+          notes="CLI archives contain taskboard and a tb symlink. Targets: aarch64-apple-darwin, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu. Each tarball has a tar.gz.sha256 file."
+          shopt -s nullglob
+          files=(dist/*.tar.gz dist/*.sha256)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no release assets" >&2
+            exit 1
+          fi
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release upload "${GITHUB_REF_NAME}" taskboard-aarch64-apple-darwin.tar.gz --clobber
+            gh release upload "${GITHUB_REF_NAME}" "${files[@]}" --clobber
           else
             gh release create "${GITHUB_REF_NAME}" \
-              taskboard-aarch64-apple-darwin.tar.gz \
+              "${files[@]}" \
               --title "${GITHUB_REF_NAME}" \
               --notes "${notes}"
+          fi
+
+  formula:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Update Formula from the macOS tarball
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${GITHUB_REF_NAME}" \
+            --pattern 'taskboard-aarch64-apple-darwin.tar.gz' \
+            --dir /tmp/rel
+          sha=$(sha256sum /tmp/rel/taskboard-aarch64-apple-darwin.tar.gz | awk '{print $1}')
+          sh packaging/homebrew/update_formula_release.sh "${GITHUB_REF_NAME}" "$sha" Formula/taskboard.rb
+      - name: Open formula pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet; then
+            echo "formula already matches the release asset"
+            exit 0
+          fi
+          branch="release/formula-${GITHUB_REF_NAME}"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git checkout -b "$branch"
+          git add Formula/taskboard.rb
+          git commit -m "release: set Formula ${GITHUB_REF_NAME} sha256 from the macOS tarball"
+          git push -u origin "$branch"
+          if gh pr view "$branch" >/dev/null 2>&1; then
+            echo "pull request already open"
+          else
+            gh pr create --base main --head "$branch" \
+              --title "release: Formula ${GITHUB_REF_NAME} sha256" \
+              --body "Sets Formula version and sha256 from the published taskboard-aarch64-apple-darwin.tar.gz. The hash is computed in release-cli.yml."
           fi

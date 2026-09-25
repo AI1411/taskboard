@@ -20,7 +20,7 @@ brew install taskboard
 
 ## Tarball
 
-`packaging/homebrew/package_cli_tarball.sh` packs a `taskboard` binary plus a `tb` symlink. The tag workflow `.github/workflows/release-cli.yml` runs that script on `macos-14` and uploads the asset. `Formula/taskboard.rb` `sha256` must match that GitHub Release asset:
+`packaging/homebrew/package_cli_tarball.sh` packs a `taskboard` binary plus a `tb` symlink. The tag workflow `.github/workflows/release-cli.yml` packs that layout for `aarch64-apple-darwin`, `x86_64-unknown-linux-musl`, and `aarch64-unknown-linux-gnu`, and uploads each tarball with a `.sha256`. `Formula/taskboard.rb` `sha256` must match the macOS GitHub Release asset. The workflow opens a pull request with that hash; do not invent one:
 
 ```bash
 shasum -a 256 taskboard-aarch64-apple-darwin.tar.gz

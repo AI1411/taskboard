@@ -8,7 +8,13 @@ Resolve the binary once per session:
 
 1. `tb` if it is on `PATH`
 2. else `taskboard` if it is on `PATH`
-3. else `cargo run --quiet --bin taskboard --` from this repository root
+3. else on Linux, fetch the latest release into the current directory (then run `./taskboard`):
+
+```bash
+triple=$(uname -s)-$(uname -m); case $triple in Linux-aarch64|Linux-arm64) triple=aarch64-unknown-linux-gnu ;; Linux-*) triple=x86_64-unknown-linux-musl ;; *) triple= ;; esac; [ -z "$triple" ] || curl -fsSL "https://github.com/AI1411/taskboard/releases/latest/download/taskboard-${triple}.tar.gz" | tar -xz
+```
+
+4. else `cargo run --quiet --bin taskboard --` from this repository root
 
 Always pass `--json` and `--actor cursor` (or set `TASKBOARD_ACTOR=cursor`). Parse stdout JSON. Success is `"ok": true` with `entity` / `entities` and `revision`. Failure is `"ok": false` with `error.code` and a nonzero exit.
 

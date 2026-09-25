@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Use Taskboard
 
-When implementing, fixing, or changing this repo, track the work with the Taskboard CLI (`tb`, else `taskboard`, else `cargo run --quiet --bin taskboard --`). Always `--json --actor cursor`. Follow `AGENTS.md`.
+When implementing, fixing, or changing this repo, track the work with the Taskboard CLI (`tb`, else `taskboard`, else the Linux release curl in `AGENTS.md`, else `cargo run --quiet --bin taskboard --`). Always `--json --actor cursor`. Follow `AGENTS.md`.
 
 Before the first edit:
 

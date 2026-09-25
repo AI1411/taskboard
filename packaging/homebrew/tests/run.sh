@@ -95,6 +95,45 @@ assert "smoke script requires a script tag" \
 assert "formula HEAD builds the web UI" \
   grep -Fq 'system "pnpm", "--filter", "web", "build"' "$formula"
 
+wf="$repo/.github/workflows/release-cli.yml"
+assert "release workflow builds musl" grep -q 'x86_64-unknown-linux-musl' "$wf"
+assert "release workflow builds arm gnu" grep -q 'aarch64-unknown-linux-gnu' "$wf"
+assert "release workflow writes sha256 files" grep -q 'tar.gz.sha256' "$wf"
+assert "release workflow updates the formula" grep -q 'update_formula_release.sh' "$wf"
+
+formula_updater_sets_version_and_sha() {
+  sample=$(mktemp)
+  cp "$formula" "$sample"
+  "$root/update_formula_release.sh" 9.9.9 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef "$sample" || return 1
+  grep -q 'version "9.9.9"' "$sample" || return 1
+  grep -q 'sha256 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"' "$sample" || return 1
+  grep -q 'version "0.1.1"' "$formula" || return 1
+}
+assert "formula updater sets version and sha256 on a copy" formula_updater_sets_version_and_sha
+
+updater_rejects_short_sha() {
+  [ -f "$root/update_formula_release.sh" ] || return 1
+  sample=$(mktemp)
+  cp "$formula" "$sample"
+  if "$root/update_formula_release.sh" 9.9.9 abc "$sample"; then
+    return 1
+  fi
+  grep -q 'sha256 "ab06fbe9a7e5c09e51add912813d6962766844fb6f16b1abad5c58bbb4940a39"' "$sample"
+}
+assert "formula updater rejects a short sha" updater_rejects_short_sha
+
+fetch='releases/latest/download/taskboard-${triple}.tar.gz'
+assert "agents.md fetches the linux release" grep -Fq "$fetch" "$repo/AGENTS.md"
+assert "agents.md names musl and arm gnu" grep -q 'x86_64-unknown-linux-musl' "$repo/AGENTS.md"
+for skill in \
+  skills/using-taskboard/SKILL.md \
+  .cursor/skills/using-taskboard/SKILL.md \
+  .claude/skills/using-taskboard/SKILL.md \
+  .agents/skills/using-taskboard/SKILL.md
+do
+  assert "skill $skill fetches the linux release" grep -Fq "$fetch" "$repo/$skill"
+done
+
 if [ "$fail" -ne 0 ]; then
   printf '\npackaging/homebrew tests failed\n' >&2
   exit 1

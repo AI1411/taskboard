@@ -8,6 +8,7 @@ on:
       - Formula/**
       - packaging/homebrew/**
       - .github/workflows/packaging.yml
+      - .github/workflows/release-cli.yml
   pull_request:
     branches:
       - main
@@ -15,6 +16,7 @@ on:
       - Formula/**
       - packaging/homebrew/**
       - .github/workflows/packaging.yml
+      - .github/workflows/release-cli.yml
 
 concurrency:
   group: packaging-${{ github.workflow }}-${{ github.ref }}
