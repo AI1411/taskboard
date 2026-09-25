@@ -222,6 +222,8 @@ describe("Inspector history", () => {
         revision: 1,
         createdAt: startedAt,
         updatedAt: startedAt,
+        worktreePath: null,
+        branch: null,
       },
     ];
     task.recentActivities = [

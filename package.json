@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "pnpm@10.33.3",
   "scripts": {
-    "test": "pnpm --filter @taskboard/client test && pnpm --filter @taskboard/ui test && pnpm --filter web test && pnpm --filter @taskboard/desktop test"
+    "test": "pnpm --filter @taskboard/client test && pnpm --filter @taskboard/ui test && pnpm --filter web test && pnpm --filter @taskboard/desktop test",
+    "typecheck": "pnpm --filter @taskboard/types --filter @taskboard/client --filter @taskboard/ui --filter web --filter @taskboard/desktop run typecheck"
   }
 }
