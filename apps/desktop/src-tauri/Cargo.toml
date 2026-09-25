@@ -6,8 +6,9 @@ edition = "2021"
 license = "MIT"
 rust-version = "1.83"
 
-# Excluded from the workspace: Linux CI has no webkit2gtk-4.1, and Tauri 2.6's
-# crate graph currently pulls edition2024 packages that need rustc > 1.83.
+# Excluded from the workspace: Linux CI has no webkit2gtk-4.1, and the Tauri
+# graph needs Rust 1.88 (edition2024). Runtime crates are pinned so a newer
+# tauri-runtime does not land without the matching wry adapter.
 
 [lib]
 name = "taskboard_desktop_lib"
@@ -21,6 +22,8 @@ chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "=2.6.2", features = [] }
+tauri-runtime = "=2.7.0"
+tauri-runtime-wry = "=2.7.1"
 taskboard-application = { path = "../../../crates/application" }
 taskboard-core = { path = "../../../crates/core" }
 taskboard-desktop-commands = { path = "../../../crates/desktop-commands" }
